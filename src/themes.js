@@ -1,6 +1,13 @@
 /**
- * THEME CONFIGS v26.1 — 20 visual identities matching background templates.
+ * THEME CONFIGS v30 — 21 visual identities matching background templates.
  * Every component pulls colors from the active theme so everything is synced.
+ * 
+ * v30 changes:
+ * - Brighter text on infographics (opacity 1.0 instead of 0.85)
+ * - Stronger borders (3px instead of 1px, higher opacity)
+ * - Added infoBg: dark backdrop behind all infographic components
+ * - Added infoText: guaranteed white text color for readability
+ * - Added infoBorder: visible border color for infographic panels
  * 
  * Each theme provides:
  * - accent: primary bright accent color
@@ -9,6 +16,9 @@
  * - highlight: keyword highlight color for subtitles
  * - chartColors: array of 6 colors for infographic elements
  * - textGlow: CSS text-shadow for infographic text glow effect
+ * - infoBg: dark semi-transparent backdrop for infographic panels
+ * - infoText: guaranteed bright text color
+ * - infoBorder: visible border for infographic panels
  * - subtitle, section, number, comparison, textFlash configs
  */
 
@@ -19,7 +29,11 @@ function makeTheme(name, accent, accent2, accentRgb, chartColors) {
     accent2,
     highlight: accent,
     chartColors,
-    textGlow: `0 0 20px ${accent}44, 0 0 40px ${accent}22`,
+    textGlow: `0 0 20px ${accent}66, 0 0 40px ${accent}33`,
+    // v30: Infographic backdrop and text
+    infoBg: "rgba(0, 0, 0, 0.82)",
+    infoText: "#ffffff",
+    infoBorder: `${accent}55`,
     subtitle: {
       bg: "rgba(0, 0, 0, 0.72)",
       border: `1px solid ${accent}20`,
@@ -32,19 +46,19 @@ function makeTheme(name, accent, accent2, accentRgb, chartColors) {
     section: {
       numberColor: accent,
       titleColor: "#ffffff",
-      glowColor: `${accent}20`,
+      glowColor: `${accent}30`,
       dividerColor: accent2,
     },
     number: {
       gradient: `linear-gradient(180deg, #ffffff, ${accent})`,
-      labelColor: "#ffffffdd",
-      labelGlow: `0 0 15px ${accent}44`,
+      labelColor: "#ffffff",
+      labelGlow: `0 0 15px ${accent}66`,
       glowRgb: accentRgb,
       barColors: chartColors.slice(0, 4),
     },
     comparison: {
-      labelColor: "#ffffffcc",
-      barBg: "rgba(255,255,255,0.06)",
+      labelColor: "#ffffff",
+      barBg: "rgba(255,255,255,0.08)",
       barRadius: 8,
       valueColor: "#ffffff",
     },
@@ -52,7 +66,7 @@ function makeTheme(name, accent, accent2, accentRgb, chartColors) {
       gradient: `linear-gradient(180deg, #ffffff, ${accent})`,
       glowRgb: accentRgb,
       color: "#ffffff",
-      shadowColor: `rgba(${accentRgb}, 0.3)`,
+      shadowColor: `rgba(${accentRgb}, 0.4)`,
     },
   };
 }

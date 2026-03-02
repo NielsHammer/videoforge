@@ -19,9 +19,10 @@ program
   .argument('<topic>', 'Topic or title for the video')
   .option('-d, --duration <minutes>', 'Target duration in minutes', '3')
   .option('-t, --tone <tone>', 'Script tone: engaging, humor, serious, dramatic', 'engaging')
+  .option('-m, --mode <mode>', 'Script mode: infographic or visual (auto-detected if not set)')
   .option('-o, --output <dir>', 'Output directory', './scripts')
   .action(async (topic, options) => {
-    console.log(chalk.blue.bold('\n✍️  VideoForge Script Generator v23\n'));
+    console.log(chalk.blue.bold('\n✍️  VideoForge Script Generator v30\n'));
     try {
       await generateScript(topic, options);
     } catch (err) {
