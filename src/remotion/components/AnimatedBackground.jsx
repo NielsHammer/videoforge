@@ -2,390 +2,214 @@ import React from "react";
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 
 /**
- * 10 RADICALLY DIFFERENT templates.
- * Each must be INSTANTLY recognizable as a different visual.
- *
- * 1. "grid"        — Green tech grid, finance
- * 2. "particles"   — Floating orbs, connected by lines, AI/tech
- * 3. "topography"  — Topo map contour lines, earth tones
- * 4. "diamond"     — Diagonal diamond lattice, luxury gold
- * 5. "radar"       — Spinning radar sweep, military/data
- * 6. "dna"         — Double helix spiral, health/science
- * 7. "city"        — Skyline silhouette with lit windows, urban
- * 8. "flames"      — Rising ember particles, motivational/fire
- * 9. "ocean"       — Deep underwater caustics + bubbles
- * 10. "stars"      — Starfield warp speed tunnel, space
+ * AnimatedBackground v26: 20 vibrant animated grid themes.
+ * All share the same wavy grid + particles structure with different color palettes.
+ * Grid lines are BRIGHT and VISIBLE — this is a key visual element of every video.
  */
-
-export const AnimatedBackground = ({ theme = "grid" }) => {
+export const AnimatedBackground = ({ theme = "blue_grid" }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const t = frame / fps;
 
-  switch (theme) {
-    case "particles": return <Particles t={t} />;
-    case "topography": return <Topography t={t} />;
-    case "diamond": return <Diamond t={t} />;
-    case "radar": return <Radar t={t} />;
-    case "dna": return <DNA t={t} />;
-    case "city": return <City t={t} />;
-    case "flames": return <Flames t={t} />;
-    case "ocean": return <Ocean t={t} />;
-    case "stars": return <Stars t={t} />;
-    default: return <Grid t={t} />;
+  const palettes = {
+    blue_grid:      { bg: "#060c24", bg2: "#0c1845", line: "#3366dd", lineB: "#5588ff", dot: "#77aaff", particle: "#99ccff", glow1: "#3366ff", glow2: "#6644ff" },
+    green_matrix:   { bg: "#041a0a", bg2: "#083316", line: "#22cc55", lineB: "#44ee77", dot: "#66ff99", particle: "#88ffbb", glow1: "#22dd66", glow2: "#00ff88" },
+    gold_luxury:    { bg: "#1a1408", bg2: "#33280d", line: "#ccaa33", lineB: "#eedd55", dot: "#ffee77", particle: "#ffdd88", glow1: "#ddbb33", glow2: "#ffcc00" },
+    red_energy:     { bg: "#1a0608", bg2: "#330c10", line: "#dd3344", lineB: "#ff5566", dot: "#ff7788", particle: "#ff9999", glow1: "#ff3344", glow2: "#ff6633" },
+    purple_cosmic:  { bg: "#120622", bg2: "#220c44", line: "#8844dd", lineB: "#aa66ff", dot: "#cc88ff", particle: "#dd99ff", glow1: "#9944ff", glow2: "#ff44cc" },
+    teal_ocean:     { bg: "#041a1a", bg2: "#083333", line: "#22bbcc", lineB: "#44ddee", dot: "#66eeff", particle: "#88ffff", glow1: "#22dddd", glow2: "#00eedd" },
+    orange_fire:    { bg: "#1a0e04", bg2: "#331c08", line: "#dd7722", lineB: "#ff9944", dot: "#ffbb66", particle: "#ffcc88", glow1: "#ff8833", glow2: "#ff6600" },
+    pink_neon:      { bg: "#1a0418", bg2: "#330830", line: "#dd44aa", lineB: "#ff66cc", dot: "#ff88dd", particle: "#ffaaee", glow1: "#ff44bb", glow2: "#ff22ff" },
+    ice_blue:       { bg: "#081822", bg2: "#0c2840", line: "#44aadd", lineB: "#66ccff", dot: "#88ddff", particle: "#aaeeff", glow1: "#44bbff", glow2: "#22ddff" },
+    forest_green:   { bg: "#0a1a0a", bg2: "#143314", line: "#33aa44", lineB: "#55cc66", dot: "#77ee88", particle: "#99ffaa", glow1: "#44cc55", glow2: "#22ee88" },
+    sunset_warm:    { bg: "#1a0c06", bg2: "#33180c", line: "#dd6633", lineB: "#ff8855", dot: "#ffaa77", particle: "#ffcc99", glow1: "#ff7744", glow2: "#ff4422" },
+    midnight_blue:  { bg: "#040810", bg2: "#081020", line: "#2244aa", lineB: "#3366cc", dot: "#4488dd", particle: "#6699ee", glow1: "#2255cc", glow2: "#4444aa" },
+    electric_cyan:  { bg: "#041818", bg2: "#083030", line: "#00ddee", lineB: "#22ffff", dot: "#66ffff", particle: "#99ffff", glow1: "#00eeff", glow2: "#00ffdd" },
+    earth_brown:    { bg: "#14100a", bg2: "#28200f", line: "#aa7733", lineB: "#cc9955", dot: "#ddaa66", particle: "#eebb88", glow1: "#bb8844", glow2: "#cc6622" },
+    blood_red:      { bg: "#140406", bg2: "#28080c", line: "#aa2233", lineB: "#cc3344", dot: "#dd4455", particle: "#ee6677", glow1: "#cc2233", glow2: "#aa0022" },
+    royal_purple:   { bg: "#100820", bg2: "#201040", line: "#7733cc", lineB: "#9955ee", dot: "#bb77ff", particle: "#cc99ff", glow1: "#8844dd", glow2: "#aa33ff" },
+    neon_green:     { bg: "#040a04", bg2: "#081408", line: "#00ff44", lineB: "#33ff66", dot: "#66ff88", particle: "#88ffaa", glow1: "#00ff55", glow2: "#44ff00" },
+    rose_gold:      { bg: "#1a1012", bg2: "#332024", line: "#cc7788", lineB: "#ee99aa", dot: "#ffaabb", particle: "#ffccdd", glow1: "#dd8899", glow2: "#eeaa88" },
+    steel_grey:     { bg: "#0e1014", bg2: "#1c2028", line: "#7788aa", lineB: "#99aacc", dot: "#aabbdd", particle: "#bbccee", glow1: "#8899bb", glow2: "#6677aa" },
+    dark_horror:    { bg: "#140204", bg2: "#280408", line: "#881111", lineB: "#aa2222", dot: "#cc3333", particle: "#dd4444", glow1: "#aa0000", glow2: "#660000" },
+    aurora:         { bg: "#060c1a", bg2: "#0c1833", line: "#44aa88", lineB: "#66ccaa", dot: "#88eebb", particle: "#aaffdd", glow1: "#22ddaa", glow2: "#6644ff" },
+  };
+
+  // Map old theme names to new ones
+  const themeMap = {
+    blue: "blue_grid", green: "green_matrix", purple: "purple_cosmic", red: "red_energy",
+    gold: "gold_luxury", teal: "teal_ocean", city: "blue_grid", grid: "green_matrix",
+    particles: "ice_blue", topography: "earth_brown", diamond: "gold_luxury",
+    radar: "electric_cyan", dna: "teal_ocean", flames: "orange_fire",
+    ocean: "teal_ocean", stars: "purple_cosmic",
+  };
+
+  const resolvedTheme = themeMap[theme] || theme;
+  const c = palettes[resolvedTheme] || palettes.blue_grid;
+
+  // Grid config — unique per theme
+  const gridStyles = {
+    blue_grid:      { spacing: 105, waveAmp: 12, waveSpeed: 0.6, particles: 50, majorW: 1.8, minorW: 0.8 },
+    green_matrix:   { spacing: 70,  waveAmp: 8,  waveSpeed: 1.2, particles: 70, majorW: 1.2, minorW: 0.5 },
+    gold_luxury:    { spacing: 140, waveAmp: 15, waveSpeed: 0.3, particles: 30, majorW: 2.2, minorW: 1.0 },
+    red_energy:     { spacing: 90,  waveAmp: 18, waveSpeed: 0.9, particles: 60, majorW: 1.6, minorW: 0.7 },
+    purple_cosmic:  { spacing: 120, waveAmp: 14, waveSpeed: 0.45,particles: 55, majorW: 1.5, minorW: 0.6 },
+    teal_ocean:     { spacing: 110, waveAmp: 20, waveSpeed: 0.35,particles: 45, majorW: 1.8, minorW: 0.8 },
+    orange_fire:    { spacing: 85,  waveAmp: 16, waveSpeed: 1.0, particles: 65, majorW: 1.4, minorW: 0.6 },
+    pink_neon:      { spacing: 80,  waveAmp: 10, waveSpeed: 0.8, particles: 60, majorW: 1.3, minorW: 0.5 },
+    ice_blue:       { spacing: 60,  waveAmp: 6,  waveSpeed: 0.5, particles: 80, majorW: 1.0, minorW: 0.4 },
+    forest_green:   { spacing: 130, waveAmp: 18, waveSpeed: 0.4, particles: 40, majorW: 2.0, minorW: 0.9 },
+    sunset_warm:    { spacing: 95,  waveAmp: 14, waveSpeed: 0.7, particles: 50, majorW: 1.6, minorW: 0.7 },
+    midnight_blue:  { spacing: 120, waveAmp: 10, waveSpeed: 0.3, particles: 35, majorW: 1.4, minorW: 0.6 },
+    electric_cyan:  { spacing: 55,  waveAmp: 5,  waveSpeed: 0.9, particles: 90, majorW: 0.8, minorW: 0.3 },
+    earth_brown:    { spacing: 115, waveAmp: 12, waveSpeed: 0.35,particles: 35, majorW: 2.0, minorW: 0.9 },
+    blood_red:      { spacing: 100, waveAmp: 22, waveSpeed: 1.1, particles: 55, majorW: 1.5, minorW: 0.6 },
+    royal_purple:   { spacing: 125, waveAmp: 10, waveSpeed: 0.3, particles: 40, majorW: 1.8, minorW: 0.8 },
+    neon_green:     { spacing: 65,  waveAmp: 7,  waveSpeed: 1.3, particles: 75, majorW: 1.0, minorW: 0.4 },
+    rose_gold:      { spacing: 135, waveAmp: 12, waveSpeed: 0.3, particles: 30, majorW: 2.0, minorW: 0.9 },
+    steel_grey:     { spacing: 100, waveAmp: 8,  waveSpeed: 0.4, particles: 40, majorW: 1.6, minorW: 0.7 },
+    aurora:         { spacing: 110, waveAmp: 16, waveSpeed: 0.5, particles: 55, majorW: 1.6, minorW: 0.7 },
+  };
+
+  const gs = gridStyles[resolvedTheme] || gridStyles.blue_grid;
+  const spacing = gs.spacing;
+  const cols = Math.ceil(1920 / spacing) + 1;
+  const rows = Math.ceil(1080 / spacing) + 1;
+  const waveAmp = gs.waveAmp;
+  const waveSpeed = gs.waveSpeed;
+
+  // Aurora special: shift line colors over time
+  const isAurora = resolvedTheme === "aurora";
+  const auroraHue = (t * 15) % 360;
+
+  // Build wavy vertical lines
+  const vPaths = [];
+  for (let col = 0; col <= cols; col++) {
+    const baseX = col * spacing;
+    let d = "";
+    for (let y = 0; y <= 1100; y += 12) {
+      const wx = baseX + Math.sin(y * 0.013 + t * waveSpeed + col * 0.55) * waveAmp;
+      d += y === 0 ? `M ${wx} ${y}` : ` L ${wx} ${y}`;
+    }
+    vPaths.push(d);
   }
-};
 
-// ============================================================
-// 1. GRID — Classic tech grid. Green lines, intersection dots.
-// ============================================================
-const Grid = ({ t }) => (
-  <AbsoluteFill>
-    <div style={{ ...full, background: "radial-gradient(ellipse at 50% 40%, #061a10 0%, #030d08 50%, #010503 100%)" }} />
-    <svg width="1920" height="1080" style={abs}>
-      {rng(20).map(i => {
-        const y = ((i * 54 + t * 12) % 1200);
-        return <line key={`h${i}`} x1="0" y1={y} x2="1920" y2={y} stroke="#22c55e" strokeWidth="1" opacity={0.06 + Math.sin(t * 0.7 + i * 0.4) * 0.03} />;
-      })}
-      {rng(36).map(i => {
-        const x = ((i * 54 + t * 8) % 2000);
-        return <line key={`v${i}`} x1={x} y1="0" x2={x} y2="1080" stroke="#22c55e" strokeWidth="1" opacity={0.06 + Math.cos(t * 0.5 + i * 0.3) * 0.03} />;
-      })}
-      {rng(25).map(i => {
-        const x = (i * 77) % 1920, y = (i * 43) % 1080;
-        const p = 0.2 + Math.sin(t * 2 + i) * 0.15;
-        return <circle key={i} cx={x} cy={y} r={3} fill="#4ade80" opacity={p} />;
-      })}
-    </svg>
-    <Vig />
-  </AbsoluteFill>
-);
+  // Build wavy horizontal lines
+  const hPaths = [];
+  for (let row = 0; row <= rows; row++) {
+    const baseY = row * spacing;
+    let d = "";
+    for (let x = 0; x <= 2000; x += 12) {
+      const wy = baseY + Math.sin(x * 0.013 + t * waveSpeed * 1.15 + row * 0.55) * waveAmp;
+      d += x === 0 ? `M ${x} ${wy}` : ` L ${x} ${wy}`;
+    }
+    hPaths.push(d);
+  }
 
-// ============================================================
-// 2. PARTICLES — Connected floating nodes. Plexus/neural net.
-// ============================================================
-const Particles = ({ t }) => {
-  const nodes = rng(30).map(i => ({
-    x: ((i * 67.3 + Math.sin(t * 0.3 + i * 0.7) * 80) % 1920 + 1920) % 1920,
-    y: ((i * 41.7 + Math.cos(t * 0.25 + i * 0.5) * 60) % 1080 + 1080) % 1080,
-  }));
+  // Particles — per-theme density
+  const particles = [];
+  for (let i = 0; i < gs.particles; i++) {
+    const seed = i * 137.508;
+    const bx = (seed * 7.3) % 1920;
+    const by = (seed * 11.7) % 1080;
+    const spd = 0.25 + (i % 6) * 0.1;
+    const sz = 1.5 + (i % 5) * 0.8;
+    const px = (bx + t * spd * 20 + Math.sin(t * 0.4 + i) * 30) % 2020 - 50;
+    const py = (by + Math.cos(t * 0.25 + i * 0.7) * 25 + t * spd * 8) % 1180 - 50;
+    const op = 0.35 + Math.sin(t * 1.2 + i * 2) * 0.25;
+    particles.push({ x: px, y: py, r: sz, opacity: Math.max(0.1, op) });
+  }
+
+  const glowPulse = 0.35 + Math.sin(t * 0.35) * 0.15;
+
+  // For aurora: generate shifting gradient
+  const auroraStroke = isAurora
+    ? `hsl(${auroraHue}, 70%, 55%)`
+    : c.line;
+  const auroraStrokeB = isAurora
+    ? `hsl(${(auroraHue + 60) % 360}, 70%, 65%)`
+    : c.lineB;
 
   return (
     <AbsoluteFill>
-      <div style={{ ...full, background: "radial-gradient(ellipse at 40% 40%, #0a0d1a 0%, #050710 50%, #020308 100%)" }} />
-      <svg width="1920" height="1080" style={abs}>
-        {nodes.map((a, i) => nodes.slice(i + 1).map((b, j) => {
-          const dist = Math.hypot(a.x - b.x, a.y - b.y);
-          if (dist > 250) return null;
-          const op = (1 - dist / 250) * 0.15;
-          return <line key={`${i}-${j}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#60a5fa" strokeWidth="1" opacity={op} />;
-        }))}
-        {nodes.map((n, i) => (
-          <React.Fragment key={i}>
-            <circle cx={n.x} cy={n.y} r={4} fill="#3b82f6" opacity={0.7} />
-            <circle cx={n.x} cy={n.y} r={12} fill="#3b82f6" opacity={0.08} />
-          </React.Fragment>
-        ))}
-      </svg>
-      <Vig />
-    </AbsoluteFill>
-  );
-};
+      {/* Deep background gradient */}
+      <div style={{ position: "absolute", inset: 0, background: `radial-gradient(ellipse at 35% 40%, ${c.bg2} 0%, ${c.bg} 70%)` }} />
 
-// ============================================================
-// 3. TOPOGRAPHY — Contour map lines. Earth/brown/tan tones.
-// ============================================================
-const Topography = ({ t }) => (
-  <AbsoluteFill>
-    <div style={{ ...full, background: "radial-gradient(ellipse at 50% 50%, #1a1510 0%, #0e0c08 50%, #060504 100%)" }} />
-    <svg width="1920" height="1080" style={abs}>
-      {rng(14).map(i => {
-        const baseY = 80 + i * 70;
-        const pts = rng(97).map(x => {
-          const px = x * 20;
-          const py = baseY + Math.sin(px * 0.004 + i * 1.2 + t * 0.15) * (30 + i * 4) + Math.sin(px * 0.007 + i * 0.5) * 15;
-          return `${px},${py}`;
-        }).join(" ");
-        const op = 0.05 + (i % 3 === 0 ? 0.04 : 0);
-        return <polyline key={i} points={pts} fill="none" stroke="#b8860b" strokeWidth={i % 3 === 0 ? "1.5" : "0.8"} opacity={op} />;
-      })}
-      {rng(8).map(i => {
-        const cx = 200 + (i * 223) % 1600, cy = 150 + (i * 167) % 800;
-        return rng(4).map(r => (
-          <ellipse key={`${i}-${r}`} cx={cx} cy={cy} rx={30 + r * 25} ry={20 + r * 18}
-            fill="none" stroke="#d4a040" strokeWidth="0.7" opacity={0.04 + Math.sin(t * 0.5 + i + r) * 0.02}
-            transform={`rotate(${15 + i * 10}, ${cx}, ${cy})`} />
-        ));
-      })}
-    </svg>
-    <Vig />
-  </AbsoluteFill>
-);
-
-// ============================================================
-// 4. DIAMOND — Diagonal lattice pattern. Gold on dark. Luxury.
-// ============================================================
-const Diamond = ({ t }) => (
-  <AbsoluteFill>
-    <div style={{ ...full, background: "radial-gradient(ellipse at 50% 40%, #141008 0%, #0a0804 50%, #040302 100%)" }} />
-    <svg width="1920" height="1080" style={abs}>
-      {rng(15).map(i => rng(12).map(j => {
-        const cx = i * 140 - 60 + Math.sin(t * 0.3) * 5;
-        const cy = j * 100 - 40 + Math.cos(t * 0.25) * 5;
-        const size = 35;
-        const pts = `${cx},${cy - size} ${cx + size},${cy} ${cx},${cy + size} ${cx - size},${cy}`;
-        const op = 0.04 + Math.sin(t * 0.8 + i * 0.5 + j * 0.3) * 0.02;
-        return <polygon key={`${i}-${j}`} points={pts} fill="none" stroke="#d4a020" strokeWidth="0.8" opacity={op} />;
-      }))}
-      {rng(6).map(i => {
-        const x = 200 + (i * 301) % 1600, y = 150 + (i * 197) % 800;
-        const glow = 0.04 + Math.sin(t * 1.2 + i * 2) * 0.02;
-        return <circle key={i} cx={x} cy={y} r={60} fill={`rgba(212,160,32,${glow})`} />;
-      })}
-    </svg>
-    <div style={{ ...full, position: "absolute", background: "linear-gradient(135deg, rgba(212,160,32,0.02), transparent 50%, rgba(212,160,32,0.015))" }} />
-    <Vig />
-  </AbsoluteFill>
-);
-
-// ============================================================
-// 5. RADAR — Spinning sweep line + concentric rings. Data/military.
-// ============================================================
-const Radar = ({ t }) => {
-  const angle = (t * 40) % 360;
-  const rad = angle * Math.PI / 180;
-  const cx = 960, cy = 540;
-  return (
-    <AbsoluteFill>
-      <div style={{ ...full, background: "radial-gradient(ellipse at 50% 50%, #060d08 0%, #030804 50%, #010302 100%)" }} />
-      <svg width="1920" height="1080" style={abs}>
-        {[150, 250, 380, 520].map((r, i) => (
-          <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke="#22c55e" strokeWidth="1" opacity={0.08} />
-        ))}
-        <line x1={cx} y1={cy} x2={cx + Math.cos(rad) * 550} y2={cy + Math.sin(rad) * 550}
-          stroke="#4ade80" strokeWidth="2" opacity={0.5} />
-        {/* Sweep trail */}
-        {rng(20).map(i => {
-          const a = (angle - i * 2) * Math.PI / 180;
-          return <line key={i} x1={cx} y1={cy} x2={cx + Math.cos(a) * 550} y2={cy + Math.sin(a) * 550}
-            stroke="#22c55e" strokeWidth="1" opacity={0.3 - i * 0.015} />;
+      {/* Grid SVG */}
+      <svg width="1920" height="1080" viewBox="0 0 1920 1080" style={{ position: "absolute", inset: 0 }}>
+        {/* Vertical lines */}
+        {vPaths.map((d, i) => {
+          const isMajor = i % 3 === 0;
+          return (
+            <path key={`v${i}`} d={d} fill="none"
+              stroke={isMajor ? (isAurora ? auroraStrokeB : c.lineB) : (isAurora ? auroraStroke : c.line)}
+              strokeWidth={isMajor ? gs.majorW : gs.minorW}
+              opacity={isMajor ? 0.55 : 0.28} />
+          );
         })}
-        {/* Blips */}
-        {rng(8).map(i => {
-          const bAngle = (i * 45 + 20) * Math.PI / 180;
-          const bDist = 150 + (i * 47) % 350;
-          const bx = cx + Math.cos(bAngle) * bDist, by = cy + Math.sin(bAngle) * bDist;
-          const angleDiff = ((angle - i * 45 - 20) % 360 + 360) % 360;
-          const visible = angleDiff < 90 ? (1 - angleDiff / 90) * 0.7 : 0;
-          return <circle key={i} cx={bx} cy={by} r={4} fill="#4ade80" opacity={visible} />;
+
+        {/* Horizontal lines */}
+        {hPaths.map((d, i) => {
+          const isMajor = i % 3 === 0;
+          return (
+            <path key={`h${i}`} d={d} fill="none"
+              stroke={isMajor ? (isAurora ? auroraStrokeB : c.lineB) : (isAurora ? auroraStroke : c.line)}
+              strokeWidth={isMajor ? gs.majorW : gs.minorW}
+              opacity={isMajor ? 0.55 : 0.28} />
+          );
         })}
-        <line x1={0} y1={cy} x2={1920} y2={cy} stroke="#22c55e" strokeWidth="0.5" opacity={0.05} />
-        <line x1={cx} y1={0} x2={cx} y2={1080} stroke="#22c55e" strokeWidth="0.5" opacity={0.05} />
-      </svg>
-      <Vig />
-    </AbsoluteFill>
-  );
-};
 
-// ============================================================
-// 6. DNA — Double helix spiral. Health/science/biotech.
-// ============================================================
-const DNA = ({ t }) => (
-  <AbsoluteFill>
-    <div style={{ ...full, background: "radial-gradient(ellipse at 50% 50%, #0a0818 0%, #060410 50%, #020208 100%)" }} />
-    <svg width="1920" height="1080" style={abs}>
-      {rng(30).map(i => {
-        const y = ((i * 40 - t * 40) % 1200 + 1200) % 1200 - 60;
-        const phase = y * 0.008 + t * 2;
-        const x1 = 960 + Math.sin(phase) * 200;
-        const x2 = 960 - Math.sin(phase) * 200;
-        const depth = Math.cos(phase);
-        const op = 0.15 + depth * 0.1;
-        return (
-          <React.Fragment key={i}>
-            <circle cx={x1} cy={y} r={5} fill="#a78bfa" opacity={op} />
-            <circle cx={x2} cy={y} r={5} fill="#f472b6" opacity={op} />
-            {i % 3 === 0 && <line x1={x1} y1={y} x2={x2} y2={y} stroke="#818cf8" strokeWidth="1" opacity={op * 0.4} />}
-          </React.Fragment>
-        );
-      })}
-      {/* Second helix offset */}
-      {rng(30).map(i => {
-        const y = ((i * 40 - t * 40 + 20) % 1200 + 1200) % 1200 - 60;
-        const phase = y * 0.008 + t * 2 + Math.PI;
-        const x1 = 400 + Math.sin(phase) * 120;
-        const x2 = 400 - Math.sin(phase) * 120;
-        const op = 0.08;
-        return (
-          <React.Fragment key={`b${i}`}>
-            <circle cx={x1} cy={y} r={3} fill="#c084fc" opacity={op} />
-            <circle cx={x2} cy={y} r={3} fill="#e879f9" opacity={op} />
-          </React.Fragment>
-        );
-      })}
-    </svg>
-    <Vig />
-  </AbsoluteFill>
-);
+        {/* Intersection dots */}
+        {Array.from({ length: (cols + 1) * (rows + 1) }, (_, idx) => {
+          const col = idx % (cols + 1);
+          const row = Math.floor(idx / (cols + 1));
+          const bx = col * spacing + Math.sin(row * spacing * 0.013 + t * waveSpeed + col * 0.55) * waveAmp;
+          const by = row * spacing + Math.sin(col * spacing * 0.013 + t * waveSpeed * 1.15 + row * 0.55) * waveAmp;
+          const isMajor = col % 3 === 0 && row % 3 === 0;
+          return (
+            <circle key={`d${idx}`} cx={bx} cy={by}
+              r={isMajor ? 3.5 : 1.8}
+              fill={isAurora ? `hsl(${(auroraHue + idx * 3) % 360}, 70%, 70%)` : c.dot}
+              opacity={isMajor ? 0.65 : 0.35} />
+          );
+        })}
 
-// ============================================================
-// 7. CITY — Skyline silhouette with animated lit windows.
-// ============================================================
-const City = ({ t }) => {
-  const buildings = [
-    { x: 0, w: 120, h: 400 }, { x: 110, w: 80, h: 550 }, { x: 180, w: 100, h: 350 },
-    { x: 270, w: 60, h: 480 }, { x: 320, w: 140, h: 620 }, { x: 450, w: 90, h: 380 },
-    { x: 530, w: 110, h: 500 }, { x: 630, w: 70, h: 440 }, { x: 690, w: 130, h: 580 },
-    { x: 810, w: 80, h: 350 }, { x: 880, w: 150, h: 650 }, { x: 1020, w: 90, h: 420 },
-    { x: 1100, w: 120, h: 520 }, { x: 1210, w: 70, h: 380 }, { x: 1270, w: 140, h: 600 },
-    { x: 1400, w: 100, h: 450 }, { x: 1490, w: 80, h: 560 }, { x: 1560, w: 130, h: 400 },
-    { x: 1680, w: 90, h: 480 }, { x: 1760, w: 160, h: 530 },
-  ];
-  return (
-    <AbsoluteFill>
-      <div style={{ ...full, background: "linear-gradient(180deg, #06080f 0%, #0c1020 60%, #0f1428 100%)" }} />
-      <svg width="1920" height="1080" style={abs}>
-        {buildings.map((b, i) => (
-          <React.Fragment key={i}>
-            <rect x={b.x} y={1080 - b.h} width={b.w} height={b.h} fill="#0a0e18" stroke="#1a2040" strokeWidth="1" />
-            {rng(Math.floor(b.h / 30)).map(r => rng(Math.floor(b.w / 20)).map(c => {
-              const on = Math.sin(t * 0.5 + i * 3 + r * 7 + c * 11) > 0.2;
-              return on ? <rect key={`${r}-${c}`} x={b.x + 6 + c * 20} y={1080 - b.h + 8 + r * 30}
-                width="10" height="16" fill="#fbbf24" opacity={0.15 + Math.sin(t * 2 + i + r + c) * 0.08} /> : null;
-            }))}
-          </React.Fragment>
+        {/* Floating particles */}
+        {particles.map((pt, i) => (
+          <circle key={`p${i}`} cx={pt.x} cy={pt.y} r={pt.r}
+            fill={isAurora ? `hsl(${(auroraHue + i * 8) % 360}, 80%, 75%)` : c.particle}
+            opacity={pt.opacity} />
         ))}
-        {/* Moon */}
-        <circle cx={1600} cy={120} r={40} fill="#fef3c7" opacity={0.15} />
-        <circle cx={1600} cy={120} r={80} fill="#fef3c7" opacity={0.02} />
       </svg>
-      <div style={{ ...full, position: "absolute", background: "linear-gradient(180deg, transparent 70%, rgba(15,20,40,0.5) 100%)" }} />
+
+      {/* Corner glow accents */}
+      <div style={{
+        position: "absolute", top: -180, right: -100,
+        width: 550, height: 550, borderRadius: "50%",
+        background: `radial-gradient(circle, ${c.glow1}55 0%, transparent 65%)`,
+        opacity: glowPulse,
+      }} />
+      <div style={{
+        position: "absolute", bottom: -180, left: -100,
+        width: 500, height: 500, borderRadius: "50%",
+        background: `radial-gradient(circle, ${c.glow2}44 0%, transparent 65%)`,
+        opacity: glowPulse * 0.85,
+      }} />
+
+      {/* Third accent glow — center-ish for more energy */}
+      <div style={{
+        position: "absolute", top: "30%", left: "50%",
+        transform: "translate(-50%, -50%)",
+        width: 700, height: 700, borderRadius: "50%",
+        background: `radial-gradient(circle, ${c.glow1}15 0%, transparent 60%)`,
+        opacity: glowPulse * 0.5,
+      }} />
+
+      {/* Soft vignette */}
+      <div style={{
+        position: "absolute", inset: 0,
+        background: "radial-gradient(ellipse at center, transparent 50%, rgba(3,5,15,0.55) 100%)",
+      }} />
     </AbsoluteFill>
   );
 };
-
-// ============================================================
-// 8. FLAMES — Rising embers/sparks. Motivational/fire.
-// ============================================================
-const Flames = ({ t }) => (
-  <AbsoluteFill>
-    <div style={{ ...full, background: "linear-gradient(180deg, #0a0404 0%, #120606 40%, #1a0808 70%, #200a04 100%)" }} />
-    {/* Bottom fire glow */}
-    <div style={{ position: "absolute", bottom: 0, left: "10%", width: "80%", height: "40%",
-      background: "radial-gradient(ellipse at 50% 100%, rgba(239,68,68,0.08), rgba(249,115,22,0.04) 40%, transparent 70%)",
-      filter: "blur(40px)" }} />
-    <svg width="1920" height="1080" style={abs}>
-      {/* Embers rising */}
-      {rng(50).map(i => {
-        const baseX = (i * 41.3) % 1920;
-        const speed = 30 + (i * 7) % 60;
-        const y = ((1100 - t * speed - i * 29) % 1300 + 1300) % 1300 - 100;
-        const x = baseX + Math.sin(t * 1.5 + i * 0.8) * (20 + i % 15);
-        const size = 1.5 + (i % 4) * 0.8;
-        const life = Math.max(0, Math.min(1, (1100 - y) / 900));
-        const colors = ["#ef4444", "#f97316", "#eab308", "#fbbf24", "#fde68a"];
-        return <circle key={i} cx={x} cy={y} r={size * life} fill={colors[i % 5]} opacity={life * 0.6} />;
-      })}
-      {/* Heat shimmer lines */}
-      {rng(5).map(i => {
-        const pts = rng(97).map(x => {
-          const px = x * 20;
-          const py = 900 - i * 60 + Math.sin(px * 0.01 + t * 3 + i) * 8;
-          return `${px},${py}`;
-        }).join(" ");
-        return <polyline key={i} points={pts} fill="none" stroke="#ef4444" strokeWidth="0.5" opacity={0.03} />;
-      })}
-    </svg>
-    <Vig />
-  </AbsoluteFill>
-);
-
-// ============================================================
-// 9. OCEAN — Deep underwater. Caustic light patterns + bubbles.
-// ============================================================
-const Ocean = ({ t }) => (
-  <AbsoluteFill>
-    <div style={{ ...full, background: "linear-gradient(180deg, #020a14 0%, #041220 30%, #061828 60%, #082030 100%)" }} />
-    {/* Caustic light patterns */}
-    <svg width="1920" height="1080" style={abs}>
-      {rng(8).map(i => {
-        const cx = 200 + (i * 247) % 1600;
-        const cy = 100 + (i * 139) % 600;
-        const r = 150 + (i % 3) * 80;
-        const op = 0.025 + Math.sin(t * 1.5 + i * 1.3) * 0.015;
-        return (
-          <React.Fragment key={`c${i}`}>
-            <ellipse cx={cx + Math.sin(t * 0.4 + i) * 30} cy={cy} rx={r} ry={r * 0.6}
-              fill={`rgba(56,189,248,${op})`} />
-            <ellipse cx={cx + Math.sin(t * 0.5 + i + 1) * 25} cy={cy + 20} rx={r * 0.7} ry={r * 0.4}
-              fill={`rgba(34,211,238,${op * 0.7})`} />
-          </React.Fragment>
-        );
-      })}
-      {/* Bubbles rising */}
-      {rng(25).map(i => {
-        const baseX = (i * 79.3) % 1920;
-        const speed = 20 + (i * 5) % 30;
-        const y = ((1100 - t * speed - i * 50) % 1300 + 1300) % 1300 - 100;
-        const x = baseX + Math.sin(t * 0.8 + i * 0.6) * 15;
-        const size = 2 + (i % 5) * 1.5;
-        return (
-          <React.Fragment key={i}>
-            <circle cx={x} cy={y} r={size} fill="none" stroke="rgba(147,197,253,0.15)" strokeWidth="1" />
-            <circle cx={x - size * 0.3} cy={y - size * 0.3} r={size * 0.25} fill="rgba(255,255,255,0.1)" />
-          </React.Fragment>
-        );
-      })}
-      {/* Light rays from top */}
-      {rng(4).map(i => {
-        const x = 300 + i * 400;
-        const op = 0.015 + Math.sin(t * 0.6 + i * 1.5) * 0.008;
-        return <polygon key={`r${i}`} points={`${x},0 ${x - 80},1080 ${x + 80},1080`} fill={`rgba(56,189,248,${op})`} />;
-      })}
-    </svg>
-    <Vig />
-  </AbsoluteFill>
-);
-
-// ============================================================
-// 10. STARS — Warp speed starfield tunnel.
-// ============================================================
-const Stars = ({ t }) => (
-  <AbsoluteFill>
-    <div style={{ ...full, background: "radial-gradient(ellipse at 50% 50%, #08060f 0%, #040310 50%, #010108 100%)" }} />
-    <svg width="1920" height="1080" style={abs}>
-      {rng(80).map(i => {
-        const seed = i * 137.508;
-        const angle = (seed * 2.4) % (Math.PI * 2);
-        const baseSpeed = 0.3 + (i * 0.01);
-        const dist = ((t * baseSpeed * 200 + seed * 3) % 1000);
-        const x = 960 + Math.cos(angle) * dist;
-        const y = 540 + Math.sin(angle) * dist;
-        if (x < -20 || x > 1940 || y < -20 || y > 1100) return null;
-        const size = Math.min(3, dist / 200);
-        const op = Math.min(0.8, dist / 300);
-        const streakLen = Math.min(20, dist / 40);
-        const dx = Math.cos(angle) * streakLen;
-        const dy = Math.sin(angle) * streakLen;
-        return (
-          <React.Fragment key={i}>
-            <line x1={x} y1={y} x2={x - dx} y2={y - dy} stroke="white" strokeWidth={size} opacity={op * 0.6} />
-            <circle cx={x} cy={y} r={size * 0.8} fill="white" opacity={op} />
-          </React.Fragment>
-        );
-      })}
-      {/* Center glow */}
-      <circle cx="960" cy="540" r="60" fill="rgba(167,139,250,0.04)" />
-      <circle cx="960" cy="540" r="150" fill="rgba(167,139,250,0.015)" />
-    </svg>
-    <Vig />
-  </AbsoluteFill>
-);
-
-// Helpers
-const rng = (n) => Array.from({ length: n }, (_, i) => i);
-const full = { position: "absolute", width: "100%", height: "100%" };
-const abs = { position: "absolute" };
-const Vig = () => (
-  <div style={{ position: "absolute", width: "100%", height: "100%", background: "radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(0,0,0,0.55) 100%)" }} />
-);

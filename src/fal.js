@@ -43,12 +43,12 @@ export async function removeBackground(imagePath, outputPath) {
 }
 
 /**
- * Generate an AI image using Fal.ai Flux Schnell.
- * Fast, cheap (~$0.03), good quality.
+ * Generate an AI image using Fal.ai Flux Pro.
+ * Higher quality than Schnell (~$0.05), sharper details, more photorealistic.
  */
 export async function generateAIImage(prompt, outputPath) {
   const resp = await axios.post(
-    "https://fal.run/fal-ai/flux/schnell",
+    "https://fal.run/fal-ai/flux-pro/v1.1",
     {
       prompt: prompt,
       image_size: "landscape_16_9",

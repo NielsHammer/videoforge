@@ -8,10 +8,12 @@ import { getAudioDuration } from "./ffmpeg.js";
 import { createStoryboard } from "./director.js";
 import { fetchPhoto } from "./pexels.js";
 import { removeBackground, generateAIImage } from "./fal.js";
+import { searchWebImage, isWebSearchAvailable } from "./web-images.js";
 import { detectMood, selectMusicTrack } from "./music.js";
 import { renderWithRemotion } from "./remotion-renderer.js";
+import axios from "axios";
 
-const CUTOUT_STYLES = ["cutout_right", "cutout_left", "cutout_center", "layered"];
+const CUTOUT_STYLES = [];
 
 function fixImageRotation(imagePath) {
   try {
@@ -21,6 +23,60 @@ function fixImageRotation(imagePath) {
       fs.renameSync(tmpPath, imagePath);
     }
   } catch {}
+}
+
+/**
+ * craftAIPrompt: Sends context to Claude API to get a detailed, cinematic image prompt for Fal.ai.
+ * This ensures every AI-generated image perfectly matches the script context.
+ */
+async function craftAIPrompt(basicPrompt, clip, scriptText) {
+  try {
+    // Find the script context around this clip's time
+    const clipStart = clip.start_time || 0;
+    const clipEnd = clip.end_time || clipStart + 3;
+    
+    const response = await axios.post(
+      "https://api.anthropic.com/v1/messages",
+      {
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 200,
+        messages: [{
+          role: "user",
+          content: `You are an expert at writing prompts for AI image generation (Flux model).
+
+Given this context from a video script, write ONE detailed image generation prompt (30-50 words) that would create the perfect visual for this moment.
+
+Basic concept: "${basicPrompt}"
+Script excerpt (nearby context): "${scriptText.slice(0, 500)}"
+Clip timing: ${clipStart.toFixed(1)}s - ${clipEnd.toFixed(1)}s
+
+Rules:
+- Describe a specific, concrete scene (not abstract concepts)
+- Include: subject, setting, lighting, camera angle, mood
+- Style: photorealistic, cinematic, 16:9 aspect ratio
+- Always include "high quality, sharp focus, professional photography"
+- NO text or words in the image
+- NO watermarks or logos
+
+Return ONLY the prompt, nothing else.`
+        }]
+      },
+      {
+        headers: {
+          "x-api-key": process.env.ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        timeout: 15000,
+      }
+    );
+
+    const prompt = response.data.content[0].text.trim();
+    return prompt;
+  } catch {
+    // If Claude call fails, use a basic enhanced prompt
+    return `${basicPrompt}, cinematic lighting, photorealistic, 16:9 aspect ratio, professional photography, high quality, sharp focus, dark moody background`;
+  }
 }
 
 export async function generateVideo(scriptPath, options) {
@@ -94,81 +150,142 @@ export async function generateVideo(scriptPath, options) {
   });
   console.log("");
 
-  // --- STEP 3: Fetch visuals ---
+  // --- STEP 3: Fetch visuals (Smart: Pexels → Claude prompt → AI generate) ---
   console.log(chalk.blue("📷 Fetching visuals...\n"));
+
+  const graphicTypes = ["number_reveal","comparison","section_break","text_flash",
+    "line_chart","donut_chart","progress_bar","timeline","leaderboard",
+    "process_flow","stat_card","quote_card","checklist",
+    "horizontal_bar","vertical_bar","scale_comparison","map_highlight",
+    "body_diagram","funnel_chart","growth_curve","ranking_cards",
+    "split_comparison","icon_grid","flow_diagram"];
+
+  const webImageAvailable = isWebSearchAvailable();
+  if (webImageAvailable) {
+    console.log(chalk.gray("  🌐 Web Image Search enabled (Brave)"));
+  }
+
   for (let i = 0; i < clips.length; i++) {
     const clip = clips[i];
-    
-    // Skip visual fetch for non-visual types
-    if (clip.visual_type === "number_reveal" || clip.visual_type === "comparison" || 
-        clip.visual_type === "section_break" || clip.visual_type === "text_flash") {
+
+    if (graphicTypes.includes(clip.visual_type)) {
       clip.imagePath = null;
       clip.isCutout = false;
       continue;
     }
 
-    const s = ora(`Clip ${i + 1}: "${clip.search_query || clip.ai_prompt || ''}"...`).start();
+    const s = ora(`Clip ${i + 1}: "${clip.search_query || clip.screenshot_query || clip.ai_prompt || ''}"...`).start();
     const baseName = `clip-${i + 1}`;
     const photoPath = path.join(assetsDir, `${baseName}.jpg`);
     const aiPath = path.join(assetsDir, `${baseName}-ai.jpg`);
-    const cutoutPath = path.join(assetsDir, `${baseName}-cutout.png`);
-    const needsCutout = CUTOUT_STYLES.includes(clip.display_style);
+    const webPath = path.join(assetsDir, `${baseName}-web.jpg`);
 
     try {
-      // AI-generated image
-      if (clip.visual_type === "ai_image" && clip.ai_prompt) {
-        const prompt = `${clip.ai_prompt}, cinematic lighting, 16:9 aspect ratio, professional photography, high quality`;
-        await generateAIImage(prompt, aiPath);
-        fixImageRotation(aiPath);
-        
-        if (needsCutout) {
+      // Route 0: web_screenshot → treat as web_image search (Puppeteer not available)
+      if (clip.visual_type === "web_screenshot") {
+        clip.visual_type = "web_image";
+        clip.search_query = clip.screenshot_query || clip.search_query;
+      }
+
+      // Route 0.5: Director chose web_image ? Brave search for real photos, AI fallback
+      if (clip.visual_type === "web_image" && clip.search_query && webImageAvailable) {
+        try {
+          const result = await searchWebImage(clip.search_query, webPath, clip);
+          if (fs.existsSync(webPath) && fs.statSync(webPath).size > 5000) {
+            fixImageRotation(webPath);
+            clip.imagePath = webPath;
+            clip.isCutout = false;
+            s.succeed(`Clip ${i + 1}: 🌐 web image ${clip.display_style}`);
+            continue;
+          }
+        } catch (webErr) {
+          // Brave miss → use AI to generate photorealistic image
+          s.text = `Clip ${i + 1}: Web miss → AI generating...`;
           try {
-            await removeBackground(aiPath, cutoutPath);
-            clip.imagePath = cutoutPath;
-            clip.isCutout = true;
-          } catch {
+            const detailedPrompt = await craftAIPrompt(
+              `Photorealistic photograph related to: ${clip.search_query}. Editorial photo style, high resolution, professional photography.`,
+              clip,
+              scriptText
+            );
+            await generateAIImage(detailedPrompt, aiPath);
+            fixImageRotation(aiPath);
             clip.imagePath = aiPath;
             clip.isCutout = false;
+            clip.visual_type = "ai_image";
+            s.succeed(`Clip ${i + 1}: AI 🎨 (web fallback) ${clip.display_style}`);
+            continue;
+          } catch {
+            clip.visual_type = "stock";
           }
-        } else {
-          clip.imagePath = aiPath;
-          clip.isCutout = false;
         }
-        s.succeed(`Clip ${i + 1}: AI 🎨 ${clip.display_style}${clip.isCutout ? " ✂️" : ""}`);
+      }
+
+      // web_image fallback handled by Brave above
+      if (false) {
+        clip.visual_type = "stock";
+      }
+
+      // Route 1: Director chose ai_image → Claude refines prompt → generate with Fal
+      if (clip.visual_type === "ai_image" && clip.ai_prompt) {
+        const detailedPrompt = await craftAIPrompt(clip.ai_prompt, clip, scriptText);
+        await generateAIImage(detailedPrompt, aiPath);
+        fixImageRotation(aiPath);
+        clip.imagePath = aiPath;
+        clip.isCutout = false;
+        s.succeed(`Clip ${i + 1}: AI 🎨 ${clip.display_style}`);
         continue;
       }
 
-      // Stock photo
-      await fetchPhoto(clip.search_query, photoPath);
-      fixImageRotation(photoPath);
-
-      if (needsCutout) {
-        try {
-          await removeBackground(photoPath, cutoutPath);
-          clip.imagePath = cutoutPath;
-          clip.isCutout = true;
-        } catch {
+      // Route 2: Try Pexels first for stock clips
+      let pexelsOk = false;
+      try {
+        await fetchPhoto(clip.search_query, photoPath);
+        if (fs.existsSync(photoPath) && fs.statSync(photoPath).size > 5000) {
+          fixImageRotation(photoPath);
           clip.imagePath = photoPath;
           clip.isCutout = false;
+          pexelsOk = true;
+          s.succeed(`Clip ${i + 1}: ${clip.display_style}`);
         }
-      } else {
-        clip.imagePath = photoPath;
+      } catch {}
+
+      // Route 3: Pexels failed → Claude crafts prompt → AI generates
+      if (!pexelsOk) {
+        s.text = `Clip ${i + 1}: Pexels miss → AI generating...`;
+        const detailedPrompt = await craftAIPrompt(
+          clip.search_query || "professional scene",
+          clip,
+          scriptText
+        );
+        await generateAIImage(detailedPrompt, aiPath);
+        fixImageRotation(aiPath);
+        clip.imagePath = aiPath;
         clip.isCutout = false;
+        clip.visual_type = "ai_image";
+        s.succeed(`Clip ${i + 1}: AI fallback 🎨 ${clip.display_style}`);
       }
-      s.succeed(`Clip ${i + 1}: ${clip.display_style}${clip.isCutout ? " ✂️" : ""}`);
     } catch {
+      // Emergency fallback: generic AI image
       try {
-        await fetchPhoto(clip.search_query.split(" ").slice(0, 2).join(" "), photoPath);
-        fixImageRotation(photoPath);
-        clip.imagePath = photoPath;
+        const emergency = `Professional cinematic photograph related to ${clip.search_query || "business"}, clean modern aesthetic, dramatic lighting, dark background, 16:9, high quality`;
+        await generateAIImage(emergency, aiPath);
+        fixImageRotation(aiPath);
+        clip.imagePath = aiPath;
         clip.isCutout = false;
-        s.succeed(`Clip ${i + 1}: fallback`);
+        clip.visual_type = "ai_image";
+        s.succeed(`Clip ${i + 1}: AI emergency 🎨`);
       } catch {
         clip.imagePath = null;
         clip.isCutout = false;
         s.warn(`Clip ${i + 1}: no image`);
       }
     }
+  }
+
+  // Report AI fallback stats
+  const finalAI = clips.filter(c => c.visual_type === "ai_image").length;
+  if (finalAI > aiClips) {
+    console.log(chalk.gray(`  ✔ AI replaced ${finalAI - aiClips} failed Pexels searches`));
   }
 
   // Select music
@@ -183,29 +300,44 @@ export async function generateVideo(scriptPath, options) {
     }
   }
 
-  // Detect visual template from mood + content keywords
-  const templateMap = {
-    serious: "grid",
-    motivational: "flames",
-    calm: "ocean",
-    dramatic: "stars",
-    curious: "particles",
-  };
+  // Detect visual background theme from content keywords — 20 themes
   const scriptLower = scriptText.toLowerCase();
-  let theme = templateMap[mood] || "grid";
-  if (/\b(ai|artificial intelligence|machine learning|neural|algorithm|code|programming|software|data)\b/.test(scriptLower)) theme = "particles";
-  if (/\b(crypto|bitcoin|blockchain|nft|web3)\b/.test(scriptLower)) theme = "radar";
-  if (/\b(space|universe|cosmos|galaxy|astronomy|stars|planet|astronaut)\b/.test(scriptLower)) theme = "stars";
-  if (/\b(health|medical|body|nutrition|diet|exercise|fitness|biology|dna|gene)\b/.test(scriptLower)) theme = "dna";
-  if (/\b(travel|nature|landscape|adventure|explore|mountain|hiking|outdoor)\b/.test(scriptLower)) theme = "topography";
-  if (/\b(luxury|premium|wealth|millionaire|billionaire|rich|gold)\b/.test(scriptLower)) theme = "diamond";
-  if (/\b(city|urban|new york|tokyo|london|real estate|apartment|housing)\b/.test(scriptLower)) theme = "city";
-  if (/\b(ocean|sea|water|marine|fish|diving|beach|surf)\b/.test(scriptLower)) theme = "ocean";
-  if (/\b(fire|burn|passion|hustle|grind|motivation|success|win)\b/.test(scriptLower)) theme = "flames";
+  let theme = "blue_grid"; // default
+
+  // Niche detection — order matters, more specific matches first
+  if (/\b(horror|scary|creepy|murder|serial killer|ghost|haunted|demon|paranormal)\b/.test(scriptLower)) theme = "dark_horror";
+  if (/\b(true crime|crime|criminal|prison|detective|forensic|investigation|cold case)\b/.test(scriptLower)) theme = "midnight_blue";
+  if (/\b(ai|artificial intelligence|machine learning|neural|chatgpt|gpt|llm|automation)\b/.test(scriptLower)) theme = "electric_cyan";
+  if (/\b(tech|software|programming|code|app|gadget|smartphone|computer|review)\b/.test(scriptLower)) theme = "ice_blue";
+  if (/\b(crypto|bitcoin|blockchain|nft|web3|ethereum|defi)\b/.test(scriptLower)) theme = "neon_green";
+  if (/\b(space|universe|cosmos|galaxy|astronomy|planet|astronaut|nasa|star|black hole)\b/.test(scriptLower)) theme = "purple_cosmic";
+  if (/\b(meditation|mindful|zen|spiritual|consciousness|chakra|yoga)\b/.test(scriptLower)) theme = "royal_purple";
+  if (/\b(philosophy|stoic|stoicism|wisdom|ancient|thinker|meaning of life)\b/.test(scriptLower)) theme = "royal_purple";
+  if (/\b(psychology|mental|brain|cognitive|bias|behavior|personality|therapy)\b/.test(scriptLower)) theme = "royal_purple";
+  if (/\b(health|medical|body|nutrition|diet|exercise|fitness|wellness|vitamin)\b/.test(scriptLower)) theme = "teal_ocean";
+  if (/\b(sleep|insomnia|dream|melatonin|circadian|rest|nap)\b/.test(scriptLower)) theme = "purple_cosmic";
+  if (/\b(history|ancient|medieval|empire|war|century|dynasty|civilization|mythology|folklore)\b/.test(scriptLower)) theme = "earth_brown";
+  if (/\b(travel|destination|country|tourism|flight|passport|backpack|adventure|explore)\b/.test(scriptLower)) theme = "forest_green";
+  if (/\b(nature|animal|pet|dog|cat|wildlife|ocean|marine|bird)\b/.test(scriptLower)) theme = "forest_green";
+  if (/\b(luxury|premium|wealthy|millionaire|billionaire|rich|gold|rolex|ferrari|mansion)\b/.test(scriptLower)) theme = "gold_luxury";
+  if (/\b(celebrity|net worth|famous|actor|singer|rapper|influencer|biography)\b/.test(scriptLower)) theme = "gold_luxury";
+  if (/\b(movie|film|tv show|netflix|series|recap|review|box office|streaming)\b/.test(scriptLower)) theme = "pink_neon";
+  if (/\b(social media|instagram|tiktok|youtube|viral|followers|subscribers)\b/.test(scriptLower)) theme = "pink_neon";
+  if (/\b(cooking|recipe|food|meal|kitchen|chef|baking|ingredient|calorie)\b/.test(scriptLower)) theme = "rose_gold";
+  if (/\b(car|automobile|vehicle|engine|horsepower|mph|speed|racing|tesla|bmw)\b/.test(scriptLower)) theme = "steel_grey";
+  if (/\b(real estate|house|property|mortgage|rent|apartment|housing)\b/.test(scriptLower)) theme = "gold_luxury";
+  if (/\b(side hustle|passive income|make money|freelance|gig|entrepreneur|startup|business)\b/.test(scriptLower)) theme = "orange_fire";
+  if (/\b(motivat|hustle|grind|success|winner|champion|goal|discipline|habit)\b/.test(scriptLower)) theme = "sunset_warm";
+  if (/\b(sport|nba|nfl|soccer|football|basketball|athlete|championship|olympic)\b/.test(scriptLower)) theme = "red_energy";
+  if (/\b(science|physics|chemistry|biology|experiment|research|study|data)\b/.test(scriptLower)) theme = "ice_blue";
+  if (/\b(invest|stock|dividend|portfolio|compound|index fund|etf|bond|market|finance|money|broke|salary|budget|saving|debt)\b/.test(scriptLower)) theme = "blue_grid";
+  if (/\b(reddit|askreddit|aita|tifu|story time)\b/.test(scriptLower)) theme = "neon_green";
+  if (/\b(top \d|ranking|ranked|list|best|worst|most|biggest|smallest)\b/.test(scriptLower)) theme = "aurora";
+
   console.log(chalk.blue(`🎨 Theme: ${theme}`));
   // CLI override
   if (options.theme) {
-    const valid = ["grid","particles","topography","diamond","radar","dna","city","flames","ocean","stars"];
+    const valid = ["blue_grid","green_matrix","gold_luxury","red_energy","purple_cosmic","teal_ocean","orange_fire","pink_neon","ice_blue","forest_green","sunset_warm","midnight_blue","electric_cyan","earth_brown","blood_red","royal_purple","neon_green","rose_gold","steel_grey","aurora","dark_horror"];
     if (valid.includes(options.theme)) {
       theme = options.theme;
       console.log(chalk.blue(`🎨 Theme override: ${theme}`));

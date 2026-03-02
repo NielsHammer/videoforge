@@ -51,7 +51,7 @@ export const ComparisonBar = ({ data, clipFrame = 0, theme = "grid" }) => {
             {/* Label with slide-in */}
             <div style={{
               fontSize: 28, fontWeight: 700, color: "white",
-              fontFamily: "Helvetica Neue, Arial, sans-serif",
+              fontFamily: "Arial Black, Arial, sans-serif",
               textTransform: "uppercase", letterSpacing: 3, marginBottom: 12,
               transform: `translateX(${labelSlide}px)`,
             }}>
@@ -83,7 +83,7 @@ export const ComparisonBar = ({ data, clipFrame = 0, theme = "grid" }) => {
                 transform: `translateY(-50%) ${barWidthPct > 30 ? "translateX(-100%)" : ""}`,
                 paddingRight: barWidthPct > 30 ? 16 : 0,
                 fontSize: 30, fontWeight: 900, color: "white",
-                fontFamily: "Helvetica Neue, Arial, sans-serif",
+                fontFamily: "Arial Black, Arial, sans-serif",
                 opacity: valueOp,
                 textShadow: "0 2px 8px rgba(0,0,0,0.6)",
               }}>

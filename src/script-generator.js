@@ -29,29 +29,71 @@ export async function generateScript(topic, options = {}) {
 
 "${topic}"
 
-STRUCTURE (this is critical for retention):
-1. HOOK (first 5 seconds): Start with a shocking stat, bold claim, or provocative question. NO "hey guys" or "welcome to my channel". Jump straight into the hook. Example: "A single dollar invested in 1970 would be worth forty-three thousand today."
-2. PATTERN INTERRUPT (every 60-90 seconds): Shift energy. Ask a question, introduce a twist, or change topic angle.
-3. SECTION BREAKS: Use 4-6 numbered sections/tips/steps. These become visual title cards.
-4. SUBSCRIBE CTA (at ~40% mark): Work it naturally into the content. "If this is clicking for you, hit subscribe — most viewers aren't subscribed yet."
-5. OPEN LOOP before each section: Tease what's coming. "But here's where it gets interesting..."
-6. STRONG CLOSE: Recap the key insight, end with a forward-looking statement or call to action.
+TONE: ${style}
+${style === "humor" ? "Use witty observations, unexpected comparisons, and comedic timing. Be funny but still informative." : ""}
+${style === "serious" ? "Be authoritative and data-driven. Use precise language and expert tone." : ""}
+${style === "dramatic" ? "Build tension and suspense. Use cliffhangers and dramatic reveals." : ""}
+${style === "engaging" ? "Be conversational and energetic. Mix facts with relatable examples." : ""}
+
+STRUCTURE (critical for retention):
+1. HOOK (first 5-8 seconds — THIS IS THE MOST IMPORTANT PART):
+   The first 3 sentences must create a RAPID-FIRE visual barrage. Each sentence becomes its own visual clip.
+   
+   Sentence 1: A SHOCKING NUMBER. Start with the most jaw-dropping statistic.
+   Example: "Ninety-five percent of people will never retire comfortably."
+   
+   Sentence 2: A COMPARISON or CONTEXT that makes the number hit harder.
+   Example: "That means only five out of every hundred people you know will have enough money to stop working."
+   
+   Sentence 3: THE PROMISE — what the viewer will learn.
+   Example: "But there are exactly four steps that separate the five percent from everyone else."
+   
+   NEVER start with just a vague statement. ALWAYS lead with a specific number.
+   
+2. PATTERN INTERRUPT (every 60-90 seconds): Ask a question, introduce a twist, or shift angle.
+3. SECTION BREAKS: Use 3-5 numbered sections. These become visual title cards.
+4. SUBSCRIBE CTA (at ~40% mark): Natural integration. "If this is clicking, hit subscribe."
+5. OPEN LOOPS before sections: "But here's where it gets wild..."
+6. STRONG CLOSE: Key takeaway + forward-looking statement.
+
+VISUAL-FRIENDLY WRITING (this is critical — the script feeds an automated video system):
+Your script will be paired with infographic animations. Write to CREATE opportunities for visuals:
+
+- Include SPECIFIC NUMBERS frequently (percentages, dollar amounts, stats, measurements).
+  Good: "Your cortisol drops by thirty-eight percent within the first week."
+  Bad: "Your stress levels decrease significantly."
+
+- Include COMPARISONS between 2+ things with real data.
+  Good: "The average American spends two hundred forty minutes on their phone daily compared to just twenty-two minutes exercising."
+  Bad: "People spend too much time on phones."
+
+- Include LISTS of 3-5 items when explaining concepts.
+  Good: "Three things happen to your liver: first, fat deposits shrink by fifteen percent. Second, enzyme levels normalize. Third, inflammation markers drop in half."
+  Bad: "Your liver starts getting healthier."
+
+- Include TIMELINE/PROGRESSION moments.
+  Good: "At twelve hours, your blood sugar stabilizes. By day three, cravings peak. At two weeks, your taste buds actually reset."
+  Bad: "Over time your body adjusts."
+
+- Include RANKING or SCALE references.
+  Good: "The top five hidden sugar sources are: yogurt at twenty-six grams, granola bars at eighteen, pasta sauce at twelve, salad dressing at eight, and bread at six per serving."
+  Bad: "Many foods contain hidden sugar."
 
 VOICE & TONE:
-- Write like you're talking to a smart friend over coffee
-- Use contractions: "you'd", "that's", "wouldn't", "here's"
+- Write like talking to a smart friend over coffee
+- Use contractions: "you'd", "that's", "wouldn't"
 - Short sentences mixed with longer ones for rhythm
-- Rhetorical questions: "So what does this actually mean for you?"
-- Specific numbers and examples — never vague
-- No filler phrases: remove "actually", "basically", "you know", "to be honest"
+- Rhetorical questions: "So what does this actually mean?"
+- Specific numbers and examples — NEVER vague
+- No filler: remove "actually", "basically", "you know"
 - No AI clichés: never say "dive into", "landscape", "game-changer", "let's unpack"
-- Spell out numbers as words (write "two hundred sixty thousand" not "260,000")
-- This will be read by text-to-speech, so write phonetically where needed
+- Spell out ALL numbers as words (write "thirty-eight percent" not "38%")
+- This will be read by text-to-speech, so write phonetically
 
 FORMAT:
-- Write ONLY the narration text, no stage directions or [brackets]
-- Use blank lines between paragraphs (these become natural pauses)
-- Start numbered sections with the format: "Number one. SECTION TITLE." on its own line
+- Write ONLY narration text, no stage directions or [brackets]
+- Blank lines between paragraphs (natural pauses)
+- Numbered sections: "Number one. SECTION TITLE." on its own line
 - Target ${duration} minutes at ~150 words per minute
 
 Write the complete script now.`,

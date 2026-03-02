@@ -26,13 +26,13 @@ export const SectionBreak = ({ data, theme = "grid" }) => {
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, zIndex: 1 }}>
         <div style={{
           fontSize: 110, fontWeight: 900, fontStyle: "italic",
-          fontFamily: "Helvetica Neue, Arial, sans-serif",
+          fontFamily: "Arial Black, Arial, sans-serif",
           color: th.numberColor, opacity: numOp, transform: `scale(${numScale})`,
           textShadow: `0 0 40px ${th.glowColor}`,
         }}>{number}</div>
         <div style={{
           fontSize: 52, fontWeight: 800, fontStyle: "italic",
-          fontFamily: "Helvetica Neue, Arial, sans-serif",
+          fontFamily: "Arial Black, Arial, sans-serif",
           color: th.titleColor, textTransform: "uppercase", textAlign: "center",
           maxWidth: 1200, lineHeight: 1.2,
           textShadow: "0 4px 30px rgba(0,0,0,0.7)",

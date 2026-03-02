@@ -28,7 +28,7 @@ export const AccentElements = ({ sceneIndex, totalScenes }) => {
       {/* Scene counter - top right */}
       <div style={{ position: "absolute", top: 20, right: 55, display: "flex", alignItems: "center", gap: 6, opacity: 0.25 }}>
         <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#4a9eff", opacity: 0.3 + Math.sin(t * 3) * 0.2 }} />
-        <div style={{ fontSize: 10, fontWeight: 500, color: "#4a9eff", fontFamily: "Helvetica Neue, Arial, sans-serif", letterSpacing: 2 }}>
+        <div style={{ fontSize: 15, fontWeight: 500, color: "#4a9eff", fontFamily: "Helvetica Neue, Arial, sans-serif", letterSpacing: 2 }}>
           {String(sceneIndex + 1).padStart(2, "0")}/{String(totalScenes).padStart(2, "0")}
         </div>
       </div>
