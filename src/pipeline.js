@@ -4,6 +4,7 @@ import { execSync } from "child_process";
 import ora from "ora";
 import chalk from "chalk";
 import { generateVoiceoverWithTimestamps, getVoiceId, getAutoVoice, generateWithFallback } from "./elevenlabs.js";
+import { enhanceScript } from "./script-enhancer.js";
 import { getAudioDuration } from "./ffmpeg.js";
 import { createStoryboard } from "./director.js";
 import { fetchPhoto } from "./pexels.js";
@@ -12,6 +13,7 @@ import { searchWebImage, isWebSearchAvailable } from "./web-images.js";
 import { detectMood, selectMusicTrack } from "./music.js";
 import { renderWithRemotion } from "./remotion-renderer.js";
 import axios from "axios";
+import { generateThumbnail } from "./thumbnail.js";
 
 const CUTOUT_STYLES = [];
 
@@ -120,8 +122,9 @@ export async function generateVideo(scriptPath, options) {
     totalDuration = cached.duration;
     s.succeed(`Voiceover: cached (${totalDuration.toFixed(1)}s, ${wordTimestamps.length} words)`);
   } else {
+    const enhancedScript = enhanceScript(scriptText, mood || "default");
     const s = ora("Generating voiceover with timestamps...").start();
-    const result = await generateVoiceoverWithTimestamps(scriptText, voiceId, audioPath);
+    const result = await generateVoiceoverWithTimestamps(enhancedScript, voiceId, audioPath);
     wordTimestamps = result.words;
     totalDuration = result.duration;
     s.succeed(`Voiceover: ${totalDuration.toFixed(1)}s, ${wordTimestamps.length} words with timestamps`);
@@ -366,6 +369,16 @@ export async function generateVideo(scriptPath, options) {
   await mergeAudioVideoSimple(silentPath, audioPath, finalPath, musicTrack?.path || null, totalDuration);
 
   const elapsed = ((Date.now() - startTime) / 1000 / 60).toFixed(1);
+  // --- STEP 6: Generate Thumbnail ---
+  console.log(chalk.blue("\nGenerating thumbnail...\n"));
+  try {
+    const thumbTitle = scriptText.split("\n")[0].replace(/^#\s*/, "").trim() || projectName;
+    await generateThumbnail(outputDir, thumbTitle, theme.replace(/_/g, " "));
+    console.log(chalk.green("  Thumbnail saved!"));
+  } catch (thumbErr) {
+    console.log(chalk.yellow("  Thumbnail skipped: " + thumbErr.message));
+  }
+
   console.log(chalk.green.bold("\n✅ Video complete!"));
   console.log(chalk.white(`📁 Output: ${finalPath}`));
   console.log(chalk.white(`⏱️  Duration: ${(totalDuration / 60).toFixed(1)} minutes`));

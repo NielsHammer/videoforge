@@ -37,7 +37,7 @@ program
   .alias('make')
   .description('Generate a video from a script file')
   .argument('<script>', 'Path to the script text file')
-  .option('-v, --voice <voice>', 'ElevenLabs voice ID or name', 'S9GPGBaMND8XWwwzxQXp')
+  .option('-v, --voice <voice>', 'ElevenLabs voice ID or name')
   .option('-o, --output <dir>', 'Output directory', './output')
   .option('--no-ai-clips', 'Skip AI-generated clips, use only stock footage')
   .option('--no-music', 'Skip background music')
