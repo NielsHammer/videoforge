@@ -1,42 +1,166 @@
 import axios from "axios";
 import fs from "fs";
+import path from "path";
 import chalk from "chalk";
 
 const API_BASE = "https://api.elevenlabs.io/v1";
 
+// ═══════════════════════════════════════════
+// VOICE LIBRARY — 16 voices organized by style
+// ═══════════════════════════════════════════
 const VOICE_MAP = {
-  josh: "2EiwWnXFnvU5JabPnv8n", adam: "pNInz6obpgDQGcFmaJgB",
-  rachel: "21m00Tcm4TlvDq8ikWAM", antoni: "ErXwobaYiN019PkySvjV",
-  sam: "yoZ06aMxZJJ28mfd3POQ", callum: "N2lVS1w4EtoT3dr4eOWO",
-  charlie: "IKne3meq5aSn9XLyUdCD", daniel: "onwK4e9ZLuTAKqWW03F9",
-  fin: "D38z5RcWu1voky8WS1ja", george: "JBFqnCBsd6RMkjVDRZzb",
-  harry: "SOYHLrjzK2X1ezoPC6cr", james: "ZQe5CZNOzWyzPSCn5a3c",
-  liam: "TX3LPaxmHKxFdv7VOQHJ", matilda: "XrExE9yKIg1WjnnlVkGX",
-  patrick: "ODq5zmih8GrVes37Dizd", will: "bIHbv24MWmeRgasZH58o",
+  // Community voices (from My Voices library)
+  heisenberg:       "iEBOK9alpKauGRvBSsFi",
+  brian_nguyen:     "bP8FJDHmWVEgXJDitdQd",
+  drew:             "q0IMILNRPxOgtBTS4taI",
+  frank:            "V2bPluzT7MuirpucVAKH",
+  australian:       "KmnvDXRA0HU55Q0aqkPG",
+  cedric:           "BQOei2tk6QCBMHQWPhbj",
+  daniel:           "9fHP3GqJWwJmIbYQwQ1V",
+  casey:            "mKoqwDP2laxTdq1gEgU6",
+  aaron:            "3DR8c2yd30eztg65o4jV",
+  charles:          "S9GPGBaMND8XWwwzxQXp",
+  ray:              "Uh6UEmMIUnnL0GOOUghh",
+  klaus:            "K3Yt39lYHrB4wyU3kaCG",
+  archer:           "oQV06a7Gn8pbCJh5DXcO",
+  carters_edge:     "pSfivq1mIHnYTVwluxnz",
+  king_chuku:       "XALcFq0WF65uNKzmpcZW",
+  frederick:        "j9jfwdrw7BRfcR43Qohk",
 };
 
+// Voice metadata for order form display + auto-selection
+export const VOICE_CATALOG = [
+  { id: "heisenberg",   voiceId: "iEBOK9alpKauGRvBSsFi", name: "Heisenberg",               description: "Polished, clear, cinematic. Deep resonance with authority.",       style: "authority",     gender: "male",   accent: "american" },
+  { id: "brian_nguyen",  voiceId: "bP8FJDHmWVEgXJDitdQd", name: "Brian Nguyen",             description: "Balanced, wise, calm. Young American-Asian male.",                style: "calm",          gender: "male",   accent: "american" },
+  { id: "drew",          voiceId: "q0IMILNRPxOgtBTS4taI", name: "Drew",                      description: "Casual, curious, fun. Perfect for food, travel, lifestyle.",      style: "casual",        gender: "male",   accent: "american" },
+  { id: "frank",         voiceId: "V2bPluzT7MuirpucVAKH", name: "Frank",                     description: "Wise, deep, motivational. Like an experienced mentor.",           style: "motivational",  gender: "male",   accent: "american" },
+  { id: "australian",    voiceId: "KmnvDXRA0HU55Q0aqkPG", name: "Australian Baritone",       description: "Soft, slow, calming. Great for meditation & documentaries.",      style: "calm",          gender: "male",   accent: "australian" },
+  { id: "cedric",        voiceId: "BQOei2tk6QCBMHQWPhbj", name: "Cedric",                    description: "Slow-burn horror storyteller. Deep, deliberate, eerie.",          style: "horror",        gender: "male",   accent: "american" },
+  { id: "daniel",        voiceId: "9fHP3GqJWwJmIbYQwQ1V", name: "Daniel",                    description: "Calm, natural, clear. Instructional narrator for education.",     style: "educational",   gender: "male",   accent: "american" },
+  { id: "casey",         voiceId: "mKoqwDP2laxTdq1gEgU6", name: "Countdown Casey",          description: "Vintage radio DJ. Energetic, fun, great for countdowns.",         style: "entertainment", gender: "male",   accent: "american" },
+  { id: "aaron",         voiceId: "3DR8c2yd30eztg65o4jV", name: "Aaron",                     description: "Clear, tech-focused, modern. AI & tech news style.",              style: "tech",          gender: "male",   accent: "american" },
+  { id: "charles",       voiceId: "S9GPGBaMND8XWwwzxQXp", name: "Charles",                   description: "Bold, charismatic. Social media, TV & commercials.",              style: "social",        gender: "male",   accent: "american" },
+  { id: "ray",           voiceId: "Uh6UEmMIUnnL0GOOUghh", name: "Ray",                       description: "Scary stories narrator. Grunge, breathy, horror delivery.",       style: "horror",        gender: "male",   accent: "american" },
+  { id: "klaus",         voiceId: "K3Yt39lYHrB4wyU3kaCG", name: "Klaus",                     description: "Versatile male narrator. Clean, neutral delivery.",               style: "neutral",       gender: "male",   accent: "american" },
+  { id: "archer",        voiceId: "oQV06a7Gn8pbCJh5DXcO", name: "Archer",                    description: "Storytelling & narration. Smooth, engaging voice.",               style: "storytelling",  gender: "male",   accent: "american" },
+  { id: "carters_edge",  voiceId: "pSfivq1mIHnYTVwluxnz", name: "Carter's Edge",            description: "Rugged, masculine, authoritative. Commands the room.",            style: "authority",     gender: "male",   accent: "american" },
+  { id: "king_chuku",    voiceId: "XALcFq0WF65uNKzmpcZW", name: "King Chuku",               description: "Deep, powerful, stoic. Perfect for speeches & motivation.",        style: "motivational",  gender: "male",   accent: "american" },
+  { id: "frederick",     voiceId: "j9jfwdrw7BRfcR43Qohk", name: "Frederick Surrey",         description: "Professional British narrator. Nature, science, mystery.",         style: "documentary",   gender: "male",   accent: "british" },
+];
+
+// ═══════════════════════════════════════════
+// AUTO-SELECTION: theme/mood → voice (primary + backup)
+// Used when customer doesn't pick a voice
+// ═══════════════════════════════════════════
+const STYLE_VOICES = {
+  finance:       { primary: "heisenberg",   backup: "daniel" },
+  business:      { primary: "heisenberg",   backup: "aaron" },
+  tech:          { primary: "aaron",         backup: "daniel" },
+  horror:        { primary: "cedric",        backup: "ray" },
+  true_crime:    { primary: "ray",           backup: "cedric" },
+  motivational:  { primary: "frank",         backup: "king_chuku" },
+  documentary:   { primary: "frederick",     backup: "archer" },
+  science:       { primary: "frederick",     backup: "daniel" },
+  travel:        { primary: "drew",          backup: "australian" },
+  food:          { primary: "drew",          backup: "charles" },
+  lifestyle:     { primary: "drew",          backup: "brian_nguyen" },
+  entertainment: { primary: "casey",         backup: "charles" },
+  celebrity:     { primary: "charles",       backup: "casey" },
+  luxury:        { primary: "heisenberg",    backup: "carters_edge" },
+  gaming:        { primary: "charles",       backup: "klaus" },
+  education:     { primary: "daniel",        backup: "brian_nguyen" },
+  health:        { primary: "australian",    backup: "brian_nguyen" },
+  calm:          { primary: "australian",    backup: "brian_nguyen" },
+  storytelling:  { primary: "archer",        backup: "frank" },
+  social_media:  { primary: "charles",       backup: "drew" },
+  default:       { primary: "heisenberg",    backup: "daniel" },
+};
+
+// Detect best voice style from script content
+const STYLE_KEYWORDS = {
+  finance:       /invest|stock|dividend|market|portfolio|wealth|compound|retire|s&p|nasdaq|crypto|bitcoin/i,
+  horror:        /horror|scary|creepy|haunted|ghost|demon|paranormal|nightmare|terror|curse|evil|possessed/i,
+  true_crime:    /murder|serial killer|crime|criminal|investigation|detective|victim|suspect|forensic/i,
+  motivational:  /motivat|discipline|grind|hustle|success|mindset|habit|routine|transform|achieve|goal/i,
+  documentary:   /history|ancient|century|civilization|war|empire|revolution|documentary/i,
+  science:       /science|research|study|brain|neuroscience|physics|chemistry|biology|experiment/i,
+  tech:          /ai|artificial intelligence|tech|software|programming|robot|algorithm|machine learning/i,
+  travel:        /travel|destination|country|vacation|adventure|explore|tourism|beach|mountain|island/i,
+  food:          /recipe|cooking|chef|restaurant|food|cuisine|ingredient|meal|kitchen/i,
+  entertainment: /movie|film|celebrity|actor|singer|album|top 10|ranking|best.*ever|worst.*ever/i,
+  luxury:        /luxury|million|billion|expensive|rich|yacht|ferrari|rolex|mansion|designer/i,
+  health:        /health|nutrition|exercise|diet|sleep|wellness|mental health|anxiety|meditation/i,
+  gaming:        /gaming|game|playstation|xbox|nintendo|esports|streamer|twitch/i,
+  education:     /learn|education|tutorial|explain|guide|how to|step by step|beginner/i,
+};
+
+export function detectVoiceStyle(scriptText) {
+  let best = "default";
+  let bestScore = 0;
+  for (const [style, pattern] of Object.entries(STYLE_KEYWORDS)) {
+    const matches = scriptText.match(new RegExp(pattern, "gi"));
+    const score = matches ? matches.length : 0;
+    if (score > bestScore) { bestScore = score; best = style; }
+  }
+  return best;
+}
+
+export function getAutoVoice(scriptText) {
+  const style = detectVoiceStyle(scriptText);
+  const voices = STYLE_VOICES[style] || STYLE_VOICES.default;
+  return {
+    style,
+    primary: { id: voices.primary, voiceId: VOICE_MAP[voices.primary] },
+    backup:  { id: voices.backup,  voiceId: VOICE_MAP[voices.backup] },
+  };
+}
+
+// ═══════════════════════════════════════════
+// VOICE RESOLUTION
+// ═══════════════════════════════════════════
 export async function getVoiceId(voiceNameOrId) {
-  if (voiceNameOrId.length > 15) return voiceNameOrId;
-  const lower = voiceNameOrId.toLowerCase();
+  // If it's already a voice ID (long string), use directly
+  if (voiceNameOrId && voiceNameOrId.length > 15) return voiceNameOrId;
+
+  const lower = (voiceNameOrId || "").toLowerCase().replace(/['\s-]/g, "_");
+
+  // Check our local map first
   if (VOICE_MAP[lower]) return VOICE_MAP[lower];
+
+  // Try partial match on catalog
+  const match = VOICE_CATALOG.find(v =>
+    v.id.includes(lower) || v.name.toLowerCase().includes(lower.replace(/_/g, " "))
+  );
+  if (match) return match.voiceId;
+
+  // Try ElevenLabs API lookup
   try {
-    const r = await axios.get(`${API_BASE}/voices`, { headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY } });
-    const m = r.data.voices.find((v) => v.name.toLowerCase().includes(lower));
+    const r = await axios.get(`${API_BASE}/voices`, {
+      headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY },
+    });
+    const m = r.data.voices.find((v) =>
+      v.name.toLowerCase().includes((voiceNameOrId || "").toLowerCase())
+    );
     if (m) return m.voice_id;
   } catch {}
-  console.log(chalk.yellow(`Voice "${voiceNameOrId}" not found, using Daniel`));
-  return VOICE_MAP["daniel"];
+
+  console.log(chalk.yellow(`Voice "${voiceNameOrId}" not found, using Heisenberg`));
+  return VOICE_MAP["heisenberg"];
 }
+
+// ═══════════════════════════════════════════
+// VOICEOVER GENERATION
+// ═══════════════════════════════════════════
 
 /**
  * Generate voiceover for ENTIRE script at once, with word-level timestamps.
- * Returns: { audioPath, words: [{ word, start, end }], duration }
+ * Uses ElevenLabs /with-timestamps endpoint for precise word sync.
  */
 export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath) {
-  const response = await axios.post(
+  const r = await axios.post(
     `${API_BASE}/text-to-speech/${voiceId}/with-timestamps`,
     {
-      text: text,
+      text,
       model_id: "eleven_multilingual_v2",
       voice_settings: {
         stability: 0.35,
@@ -53,110 +177,87 @@ export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath)
     }
   );
 
-  const data = response.data;
+  // Save audio
+  const audioBuf = Buffer.from(r.data.audio_base64, "base64");
+  fs.writeFileSync(outputPath, audioBuf);
 
-  // Save audio from base64
-  const audioBuffer = Buffer.from(data.audio_base64, "base64");
-  fs.writeFileSync(outputPath, audioBuffer);
-
-  // Convert character-level timestamps to word-level
-  const alignment = data.normalized_alignment || data.alignment;
-  const words = charsToWords(alignment);
-
-  // Save timestamps alongside audio
-  const tsPath = outputPath.replace(/\.[^.]+$/, "-timestamps.json");
-  fs.writeFileSync(tsPath, JSON.stringify({ words, duration: words.length > 0 ? words[words.length - 1].end : 0 }, null, 2));
-
-  return {
-    audioPath: outputPath,
-    words,
-    duration: words.length > 0 ? words[words.length - 1].end : 0,
-  };
-}
-
-/**
- * Convert character-level alignment to word-level timestamps.
- * Groups characters between spaces into words.
- */
-function charsToWords(alignment) {
-  if (!alignment || !alignment.characters) return [];
-
-  const chars = alignment.characters;
-  const starts = alignment.character_start_times_seconds;
-  const ends = alignment.character_end_times_seconds;
+  // Parse character-level alignment into word-level timestamps
+  const chars = r.data.alignment?.characters || [];
+  const starts = r.data.alignment?.character_start_times_seconds || [];
+  const ends = r.data.alignment?.character_end_times_seconds || [];
 
   const words = [];
   let currentWord = "";
-  let wordStart = null;
-  let wordEnd = null;
+  let wordStart = 0;
+  let wordEnd = 0;
 
   for (let i = 0; i < chars.length; i++) {
-    const c = chars[i];
-
-    if (c === " " || c === "\n") {
-      // End of word
+    const ch = chars[i];
+    if (ch === " " || ch === "\n") {
       if (currentWord.length > 0) {
-        words.push({
-          word: currentWord,
-          start: wordStart,
-          end: wordEnd,
-        });
+        words.push({ word: currentWord, start: wordStart, end: wordEnd });
         currentWord = "";
-        wordStart = null;
-        wordEnd = null;
       }
     } else {
-      if (wordStart === null) wordStart = starts[i];
-      wordEnd = ends[i];
-      currentWord += c;
+      if (currentWord.length === 0) wordStart = starts[i] || 0;
+      currentWord += ch;
+      wordEnd = ends[i] || wordEnd;
     }
   }
-
-  // Last word
   if (currentWord.length > 0) {
     words.push({ word: currentWord, start: wordStart, end: wordEnd });
   }
 
-  return words;
+  const duration = words.length > 0 ? words[words.length - 1].end : 0;
+
+  return { words, duration, audioPath: outputPath };
 }
 
 /**
- * Load cached timestamps from file.
+ * Generate voiceover with automatic fallback.
+ * Tries primary voice, falls back to backup if it fails.
  */
-export function loadCachedTimestamps(audioPath) {
-  const tsPath = audioPath.replace(/\.[^.]+$/, "-timestamps.json");
-  if (fs.existsSync(tsPath)) {
-    return JSON.parse(fs.readFileSync(tsPath, "utf-8"));
+export async function generateWithFallback(text, primaryVoiceId, backupVoiceId, outputPath) {
+  try {
+    return await generateVoiceoverWithTimestamps(text, primaryVoiceId, outputPath);
+  } catch (err) {
+    console.log(chalk.yellow(`⚠️  Primary voice failed (${err.message}), trying backup...`));
+    if (backupVoiceId) {
+      return await generateVoiceoverWithTimestamps(text, backupVoiceId, outputPath);
+    }
+    throw err;
   }
-  return null;
 }
 
 // Legacy: per-scene voiceover (kept for backwards compat)
 export async function generateVoiceover(text, voiceId, outputPath) {
-  const response = await axios.post(
+  const r = await axios.post(
     `${API_BASE}/text-to-speech/${voiceId}`,
     {
-      text: text,
+      text,
       model_id: "eleven_multilingual_v2",
       voice_settings: { stability: 0.35, similarity_boost: 0.8, style: 0.55, use_speaker_boost: true },
     },
     {
-      headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY, "Content-Type": "application/json", Accept: "audio/mpeg" },
+      headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY, "Content-Type": "application/json" },
       responseType: "arraybuffer",
     }
   );
-  fs.writeFileSync(outputPath, Buffer.from(response.data));
-  return outputPath;
+  fs.writeFileSync(outputPath, r.data);
 }
 
+// List all voices on account
 export async function listVoices() {
   try {
-    const r = await axios.get(`${API_BASE}/voices`, { headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY } });
+    const r = await axios.get(`${API_BASE}/voices`, {
+      headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY },
+    });
     console.log(chalk.blue.bold("\nAvailable ElevenLabs Voices:\n"));
     r.data.voices.forEach((v) => {
-      const labels = v.labels ? Object.values(v.labels).join(", ") : "";
-      console.log(`  ${chalk.white.bold(v.name)} ${chalk.gray(`(${v.voice_id})`)}`);
-      if (labels) console.log(`    ${chalk.gray(labels)}`);
+      const cat = v.category || "";
+      console.log(`  ${chalk.white.bold(v.name)} ${chalk.gray(`(${v.voice_id})`)} ${chalk.dim(cat)}`);
     });
-  } catch { console.error(chalk.red("Failed to fetch voices.")); }
+  } catch {
+    console.error(chalk.red("Failed to fetch voices."));
+  }
 }

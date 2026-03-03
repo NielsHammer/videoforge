@@ -3,7 +3,7 @@ import path from "path";
 import { execSync } from "child_process";
 import ora from "ora";
 import chalk from "chalk";
-import { generateVoiceoverWithTimestamps, getVoiceId, loadCachedTimestamps } from "./elevenlabs.js";
+import { generateVoiceoverWithTimestamps, getVoiceId, getAutoVoice, generateWithFallback } from "./elevenlabs.js";
 import { getAudioDuration } from "./ffmpeg.js";
 import { createStoryboard } from "./director.js";
 import { fetchPhoto } from "./pexels.js";
@@ -97,8 +97,16 @@ export async function generateVideo(scriptPath, options) {
   const assetsDir = path.join(outputDir, "assets");
   fs.mkdirSync(assetsDir, { recursive: true });
 
-  const voice = options.voice || "S9GPGBaMND8XWwwzxQXp";
-  const voiceId = await getVoiceId(voice);
+  // voice selection below
+  let voiceId;
+  if (options.voice) {
+    voiceId = await getVoiceId(options.voice);
+    console.log(chalk.blue(`???  Voice override: ${options.voice}`));
+  } else {
+    const autoVoice = getAutoVoice(scriptText);
+    voiceId = autoVoice.primary.voiceId;
+    console.log(chalk.blue(`???  Auto-voice: ${autoVoice.primary.id} (${autoVoice.style} style)`));
+  }
   const audioPath = path.join(assetsDir, "voiceover.mp3");
   const tsPath = path.join(assetsDir, "voiceover-timestamps.json");
 
