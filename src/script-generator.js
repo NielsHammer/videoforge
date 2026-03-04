@@ -139,14 +139,17 @@ VOICE & TONE:
 - No AI clichés: never say "dive into", "landscape", "game-changer", "let's unpack"
 - Spell out ALL numbers as words (write "thirty-eight percent" not "38%")
 - This will be read by text-to-speech, so write phonetically
+- For foreign place names, use the ENGLISH pronunciation. Write "Barcelona" not "Barthelona", "Paris" not "Paree", "Rome" not "Roma". Always use the common English name and spelling. Avoid native-language pronunciations that sound awkward in English TTS.
 
 FORMAT:
 - Write ONLY narration text, no stage directions or [brackets]
 - Blank lines between paragraphs (natural pauses)
 - Numbered sections: "Number one. SECTION TITLE." on its own line
 - Target ${duration} minutes at ~150 words per minute
+- This means your script MUST be at least 1,400 words. Count carefully. Scripts under 1,200 words are TOO SHORT and will be rejected.
+- Aim for 1,400-1,600 words to hit the 10-minute mark.
 
-Write the complete script now.`;
+Write the complete script now. Remember: MINIMUM 1,400 words.`;
 }
 
 // ═══════════════════════════════════════════════════
@@ -217,18 +220,21 @@ VOICE & TONE:
 - No AI clichés: never say "dive into", "landscape", "game-changer", "let's unpack"
 - Spell out ALL numbers as words (write "three hundred" not "300")
 - This will be read by text-to-speech, so write phonetically
+- For foreign place names, use the ENGLISH pronunciation. Write "Barcelona" not "Barthelona", "Paris" not "Paree", "Rome" not "Roma". Always use the common English name and spelling. Avoid native-language pronunciations that sound awkward in English TTS.
 
 FORMAT:
 - Write ONLY narration text, no stage directions or [brackets]
 - Blank lines between paragraphs (natural pauses)
 - Numbered sections: "Number one. SECTION TITLE." on its own line
 - Target ${duration} minutes at ~150 words per minute
+- This means your script MUST be at least 1,400 words. Count carefully. Scripts under 1,200 words are TOO SHORT and will be rejected.
+- Aim for 1,400-1,600 words to hit the 10-minute mark.
 
-Write the complete script now.`;
+Write the complete script now. Remember: MINIMUM 1,400 words.`;
 }
 
 export async function generateScript(topic, options = {}) {
-  const duration = options.duration || "8-10";
+  const duration = options.duration || "10";
   const style = options.style || "engaging";
   const outputDir = options.output || "./scripts";
   
