@@ -373,7 +373,7 @@ export async function generateVideo(scriptPath, options) {
   console.log(chalk.blue("\nGenerating thumbnail...\n"));
   try {
     const thumbTitle = scriptText.split("\n")[0].replace(/^#\s*/, "").trim() || projectName;
-    await generateThumbnail(outputDir, thumbTitle, theme.replace(/_/g, " "));
+    await generateThumbnail(outputDir, thumbTitle, projectName.replace(/-/g, " "));
     console.log(chalk.green("  Thumbnail saved!"));
   } catch (thumbErr) {
     console.log(chalk.yellow("  Thumbnail skipped: " + thumbErr.message));

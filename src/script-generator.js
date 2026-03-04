@@ -39,7 +39,7 @@ const INFOGRAPHIC_KEYWORDS = [
 const VISUAL_KEYWORDS = [
   "horror", "scary", "creepy", "haunted", "ghost", "demon", "paranormal", "murder",
   "true crime", "crime", "serial killer", "cold case", "detective", "investigation",
-  "travel", "destination", "country", "tourism", "adventure", "explore", "vacation",
+  "travel", "destination", "country", "tourism", "adventure", "explore", "vacation", "visit", "places", "city", "cities", "beach", "island",
   "celebrity", "actor", "singer", "rapper", "influencer", "famous", "biography",
   "movie", "film", "tv show", "netflix", "series", "recap", "review", "box office",
   "entertainment", "gaming", "video game", "anime", "manga",

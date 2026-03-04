@@ -209,8 +209,11 @@ export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath)
   }
 
   const duration = words.length > 0 ? words[words.length - 1].end : 0;
+  // Strip SSML tags from word list
+  const cleanWords = words.filter(w => !w.word.match(/<|>|break|time=|\/>/));
+  const finalWords = cleanWords.filter(w => w.word.trim().length > 0);
 
-  return { words, duration, audioPath: outputPath };
+  return { words: finalWords, duration, audioPath: outputPath };
 }
 
 /**
