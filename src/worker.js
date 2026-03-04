@@ -27,7 +27,7 @@ app.use('/output', express.static(path.join(VIDEOFORGE_DIR, 'output'), {
 }));
 app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
 app.listen(FILE_SERVER_PORT, '0.0.0.0', () => {
-  log(`File server running on http://${SERVER_IP}:${FILE_SERVER_PORT}`);
+  log(`File server running on https://files.tubeautomate.com`);
 });
 
 function log(msg) {
@@ -36,7 +36,7 @@ function log(msg) {
 }
 
 async function generateUploadGuide(topic, outputDir) {
-  const guidePath = path.join(outputDir, 'upload-guide.txt');
+  const guidePath = path.join(outputDir, 'upload-guide.html');
   const topicClean = topic.replace(/"/g, '');
   
   // Use Claude to generate title, description, tags
@@ -108,7 +108,7 @@ async function processOrder(order) {
     // Generate upload guide
     await generateUploadGuide(topic, outputPath);
 
-    const baseUrl = `http://${SERVER_IP}:${FILE_SERVER_PORT}/output/${outputDir}`;
+    const baseUrl = `https://files.tubeautomate.com/output/${outputDir}`;
     const videoUrl = `${baseUrl}/final.mp4`;
     let thumbUrl = null;
     if (fs.existsSync(thumbFile)) {
@@ -146,8 +146,8 @@ async function processApproved(order) {
     outputDir = dirs[0];
   }
 
-  const baseUrl = `http://${SERVER_IP}:${FILE_SERVER_PORT}/output/${outputDir}`;
-  const guideUrl = `${baseUrl}/upload-guide.txt`;
+  const baseUrl = `https://files.tubeautomate.com/output/${outputDir}`;
+  const guideUrl = `${baseUrl}/upload-guide.html`;
 
   await supabase.from('orders').update({
     status: 'delivered',
@@ -172,6 +172,6 @@ async function pollForOrders() {
 
 log('VideoForge Worker v3 started');
 log(`Polling every ${POLL_INTERVAL / 1000}s`);
-log(`File server: http://${SERVER_IP}:${FILE_SERVER_PORT}`);
+log(`File server: https://files.tubeautomate.com`);
 pollForOrders();
 setInterval(pollForOrders, POLL_INTERVAL);

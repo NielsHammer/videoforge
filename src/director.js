@@ -8,13 +8,13 @@ import chalk from "chalk";
  * - Must use a MIX of all visual types
  * - Better context about what each visual type looks like
  */
-export async function createStoryboard(scriptText, wordTimestamps, totalDuration) {
+export async function createStoryboard(scriptText, wordTimestamps, totalDuration, contentMode = "visual") {
   const CHUNK_SECONDS = 120;
 
   let allClips;
 
   if (totalDuration <= 180) {
-    allClips = await processChunk(scriptText, wordTimestamps, 0, totalDuration, 0, 1);
+    allClips = await processChunk(scriptText, wordTimestamps, 0, totalDuration, 0, 1, contentMode);
   } else {
     const chunks = [];
     let chunkStart = 0;
@@ -37,9 +37,35 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
       console.log(chalk.gray(`  Directing chunk ${i + 1}/${chunks.length} (${chunk.startTime.toFixed(0)}s-${chunk.endTime.toFixed(0)}s)...`));
-      const chunkClips = await processChunk(scriptText, chunk.words, chunk.startTime, chunk.endTime, i, chunks.length);
+      const chunkClips = await processChunk(scriptText, chunk.words, chunk.startTime, chunk.endTime, i, chunks.length, contentMode);
       allClips.push(...chunkClips);
     }
+  }
+
+  // HOOK PROTECTION: First 5 seconds must be stock/ai_image, never infographic
+  const infraTypes = ["number_reveal","line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","stat_card"];
+  allClips.forEach(clip => {
+    if (clip.start_time < 5 && infraTypes.includes(clip.visual_type)) {
+      clip.visual_type = "stock";
+      clip.search_query = clip.search_query || "cinematic dramatic opening shot";
+      clip.display_style = "fullscreen";
+    }
+  });
+
+  // VISUAL MODE: Cap infographics at 10% of total clips
+  if (contentMode === "visual") {
+    let infraCount = 0;
+    const maxInfra = Math.max(2, Math.floor(allClips.length * 0.1));
+    allClips.forEach(clip => {
+      if (infraTypes.includes(clip.visual_type)) {
+        infraCount++;
+        if (infraCount > maxInfra) {
+          clip.visual_type = "stock";
+          clip.search_query = clip.search_query || "cinematic landscape";
+          clip.display_style = "framed";
+        }
+      }
+    });
   }
 
   // Enforce text flash limit globally — max 4
@@ -140,7 +166,7 @@ function validateSubtitleTiming(clips, wordTimestamps) {
   return fixCount;
 }
 
-async function processChunk(scriptText, chunkWords, startTime, endTime, chunkIndex, totalChunks) {
+async function processChunk(scriptText, chunkWords, startTime, endTime, chunkIndex, totalChunks, contentMode = "visual") {
   const wordRef = chunkWords.map((w) => {
     const idx = w.originalIndex !== undefined ? w.originalIndex : chunkWords.indexOf(w);
     return `[${idx}] "${w.word}" ${w.start.toFixed(2)}s`;
@@ -159,7 +185,10 @@ async function processChunk(scriptText, chunkWords, startTime, endTime, chunkInd
       messages: [
         {
           role: "user",
-          content: `You are the creative director of a professional YouTube video production studio that adapts its style to the content. Analyze the script and determine if this is a DATA-DRIVEN topic (finance, health, science, business) or a VISUAL topic (travel, entertainment, horror, celebrity, food, lifestyle, nature, sports, true crime). Your style is similar to channels like Kurzgesagt, The Infographics Show, and Bright Side — For DATA-DRIVEN: use infographics heavily like Kurzgesagt. For VISUAL: use 70-80% real photos/images, infographics ONLY when hard data is mentioned.
+          content: `You are the creative director of a professional YouTube video production studio.
+
+CONTENT MODE: ${contentMode.toUpperCase()}
+${contentMode === "visual" ? "THIS IS A VISUAL VIDEO. Use 85-95% real photos and images. Infographics should be MAX 5-10% of clips — ONLY when a specific hard number or statistic is mentioned in the narration. NEVER use infographics in the first 5 seconds (the hook). The hook MUST be a striking photo or cinematic image. Default to stock photos and AI images for everything." : "THIS IS A DATA-DRIVEN VIDEO. Use 40-60% infographics when numbers and data are mentioned. Use real photos for scene-setting and transitions. Still avoid infographics in the first 3 seconds — start with a compelling image."}
 
 Create a visually compelling storyboard for this ${duration.toFixed(0)}s segment (${startTime.toFixed(1)}s to ${endTime.toFixed(1)}s).
 

@@ -81,6 +81,16 @@ Return ONLY the prompt, nothing else.`
   }
 }
 
+function detectContentMode(topic, script) {
+  const lower = (topic + " " + script.slice(0, 500)).toLowerCase();
+  const visualWords = ["travel","horror","scary","celebrity","movie","food","nature","animal","mystery","sports","history","luxury","crime","entertainment","beach","island","city","visit","places","adventure"];
+  const infraWords = ["invest","stock","finance","money","health","science","business","crypto","budget","revenue","profit","data","study"];
+  let vScore = 0, iScore = 0;
+  for (const w of visualWords) if (lower.includes(w)) vScore++;
+  for (const w of infraWords) if (lower.includes(w)) iScore++;
+  return vScore >= iScore ? "visual" : "infographic";
+}
+
 export async function generateVideo(scriptPath, options) {
   const startTime = Date.now();
   const projectRoot = path.resolve(".");
@@ -137,7 +147,10 @@ export async function generateVideo(scriptPath, options) {
 
   // --- STEP 2: Director creates storyboard ---
   const s2 = ora("Director creating storyboard...").start();
-  const clips = await createStoryboard(scriptText, wordTimestamps, totalDuration);
+  // Detect content mode from project name
+  const contentMode = detectContentMode(projectName, scriptText);
+  console.log(chalk.blue(`🎯 Content mode: ${contentMode}`));
+  const clips = await createStoryboard(scriptText, wordTimestamps, totalDuration, contentMode);
   
   const numReveals = clips.filter(c => c.visual_type === "number_reveal").length;
   const comparisons = clips.filter(c => c.visual_type === "comparison").length;
