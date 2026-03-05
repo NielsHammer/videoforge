@@ -93,7 +93,7 @@ async function generateClickbaitImage(title, topic) {
 async function generateTitleText(videoTitle, topic) {
   console.log("  [Title] Generating hook text...");
   const r = await anthropic.messages.create({ model:"claude-sonnet-4-20250514", max_tokens:100,
-    messages:[{role:"user",content:"Create a 4-6 word YouTube thumbnail text with curiosity gap.\n\nVideo: "+videoTitle+"\nTopic: "+topic+"\n\nRules: 4-6 words, ALL CAPS, power words (SECRET, TRUTH, NEVER, EXPOSED, HIDDEN).\n\nReply with ONLY the text."}]
+    messages:[{role:"user",content:"Create a 4-6 word YouTube thumbnail text for maximum clicks.\n\nVideo title: "+videoTitle+"\nTopic: "+topic+"\n\nRules:\n- 4-6 words, ALL CAPS\n- Use power words: SECRET, TRUTH, NEVER, EXPOSED, HIDDEN, SHOCKING, REAL REASON\n- NEVER use abbreviations or acronyms (write full names)\n- Must create curiosity gap - viewer NEEDS to click\n- Reference the specific person, company, or subject by name if possible\n\nReply with ONLY the text, nothing else."}]
   });
   return r.content[0].text.trim().replace(/"/g,"");
 }
@@ -119,7 +119,7 @@ function generateArrowSVG(style, accent) {
 
 function assembleHTML(gridHTML, imageUrl, titleText, arrowStyle, themeName) {
   const th = GRID_THEMES[themeName] || GRID_THEMES.blue_grid;
-  const imgLayer = imageUrl ? '<div style="position:absolute;left:40px;top:80px;width:540px;height:560px;border-radius:20px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.6),0 0 20px '+th.glow+';"><img src="'+imageUrl+'" style="width:100%;height:100%;object-fit:cover;" crossorigin="anonymous"/></div>' : '';
+  const imgLayer = imageUrl ? '<div style="position:absolute;left:40px;top:80px;width:540px;height:560px;border-radius:20px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.6),0 0 20px '+th.glow+';"><img src="'+imageUrl+'" style="width:100%;height:100%;object-fit:cover;"/></div>' : '';
   const arrowLayer = generateArrowSVG(arrowStyle, th.accent);
   const words = titleText.split(" ");
   let l1,l2;
@@ -132,8 +132,8 @@ function assembleHTML(gridHTML, imageUrl, titleText, arrowStyle, themeName) {
   if (totalChars > 30) fontSize = 58;
   if (totalChars > 36) fontSize = 52;
   if (totalChars > 42) fontSize = 48;
-  const titleLayer = '<div style="position:absolute;right:30px;top:80px;width:620px;height:340px;z-index:10;padding:24px 30px;background:rgba(0,0,0,0.55);border-radius:16px;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.08);overflow:hidden;display:flex;flex-direction:column;justify-content:center;"><div style="font-family:Arial Black,Impact,sans-serif;font-weight:900;font-size:'+fontSize+'px;color:#FFF;text-transform:uppercase;line-height:0.95;letter-spacing:-2px;text-shadow:4px 4px 0 rgba(0,0,0,0.95),8px 8px 16px rgba(0,0,0,0.7),0 0 40px rgba(0,0,0,0.5);-webkit-text-stroke:2px rgba(0,0,0,0.3);">'+l1+'</div>'+(l2?'<div style="font-family:Arial Black,Impact,sans-serif;font-weight:900;font-size:'+fontSize+'px;color:'+th.accent+';text-transform:uppercase;line-height:0.95;letter-spacing:-2px;text-shadow:4px 4px 0 rgba(0,0,0,0.95),8px 8px 16px rgba(0,0,0,0.7),0 0 30px '+th.glow+';-webkit-text-stroke:2px rgba(0,0,0,0.3);margin-top:4px;">'+l2+'</div>':'')+'</div>';
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box;}body{width:1280px;height:720px;overflow:hidden;background:#000;}</style></head><body>'+gridHTML+imgLayer+arrowLayer+titleLayer+'</body></html>';
+  const titleLayer = '<div style="position:absolute;right:30px;top:80px;width:620px;height:340px;z-index:10;padding:24px 30px;background:rgba(0,0,0,0.55);border-radius:16px;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.08);overflow:hidden;display:flex;flex-direction:column;justify-content:center;"><div style="font-family:Oswald,Arial Black,Impact,sans-serif;font-weight:700;font-size:'+fontSize+'px;color:#FFF;text-transform:uppercase;line-height:0.95;letter-spacing:-2px;text-shadow:4px 4px 0 rgba(0,0,0,0.95),8px 8px 16px rgba(0,0,0,0.7),0 0 40px rgba(0,0,0,0.5);">'+l1+'</div>'+(l2?'<div style="font-family:Oswald,Arial Black,Impact,sans-serif;font-weight:700;font-size:'+fontSize+'px;color:'+th.accent+';text-transform:uppercase;line-height:0.95;letter-spacing:-2px;text-shadow:4px 4px 0 rgba(0,0,0,0.95),8px 8px 16px rgba(0,0,0,0.7),0 0 30px '+th.glow+';margin-top:4px;">'+l2+'</div>':'')+'</div>';
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>@import url("https://fonts.googleapis.com/css2?family=Oswald:wght@700&display=swap");*{margin:0;padding:0;box-sizing:border-box;}body{width:1280px;height:720px;overflow:hidden;background:#000;}</style></head><body>'+gridHTML+imgLayer+arrowLayer+titleLayer+'</body></html>';
 }
 
 export async function generateThumbnail(outputDir, title, topic) {
@@ -153,7 +153,7 @@ export async function generateThumbnail(outputDir, title, topic) {
   const html = assembleHTML(gridHTML,imageUrl,titleText,arrowStyle,themeName);
   fs.writeFileSync(path.join(outputDir,"thumbnail.html"),html);
   console.log("\n--- Rendering PNG ---");
-  const browser = await puppeteer.launch({headless:"new",args:["--no-sandbox","--disable-setuid-sandbox","--disable-dev-shm-usage"]});
+  const browser = await puppeteer.launch({headless:"new",args:["--no-sandbox","--disable-setuid-sandbox","--disable-dev-shm-usage","--font-render-hinting=none","--disable-gpu"]});
   try {
     const page = await browser.newPage();
     await page.setViewport({width:1280,height:720,deviceScaleFactor:1});
