@@ -21,7 +21,12 @@ function log(msg) {
 
 async function generateUploadGuide(topic, outputDir) {
   const guidePath = path.join(outputDir, 'upload-guide.html');
-  const topicClean = topic.replace(/"/g, '');
+  const topicClean = topic.replace(/"/g, '').replace(/'/g, "\\'");
+
+  let title = topic;
+  let description = `A detailed video about ${topic}. Subscribe for more content!`;
+  let tags = topic.split(' ').slice(0, 10).join(', ');
+
   try {
     const out = execSync(
       `node -e "
@@ -29,19 +34,113 @@ const Anthropic = require('@anthropic-ai/sdk');
 const c = new Anthropic();
 c.messages.create({
   model: 'claude-sonnet-4-20250514',
-  max_tokens: 1000,
-  messages: [{role:'user',content:'Generate a YouTube upload guide for a video about: ${topicClean.replace(/'/g, "\\'")}. Return ONLY this format, no other text:\\n\\nTITLE: (catchy YouTube title, max 60 chars)\\nDESCRIPTION: (YouTube description, 150-200 words with keywords, include a call to action)\\nTAGS: (15-20 comma-separated tags)\\n\\nUPLOAD INSTRUCTIONS:\\n1. Go to youtube.com/upload\\n2. Select the video file (final.mp4)\\n3. Paste the title above\\n4. Paste the description above\\n5. Add the tags above\\n6. Upload the thumbnail file (thumbnail.png)\\n7. Set visibility to Public\\n8. Click Publish'}]
+  max_tokens: 800,
+  messages: [{role:'user',content:'Generate YouTube metadata for a video about: ${topicClean}. Return ONLY valid JSON, no other text, no markdown: {\"title\":\"catchy title max 60 chars\",\"description\":\"150-200 word YouTube description with keywords and call to action\",\"tags\":\"tag1, tag2, tag3, up to 20 tags\"}'}]
 }).then(r => process.stdout.write(r.content[0].text));
 "`,
       { cwd: VIDEOFORGE_DIR, timeout: 30000, encoding: 'utf8' }
     );
-    fs.writeFileSync(guidePath, out);
+    const parsed = JSON.parse(out.trim());
+    if (parsed.title) title = parsed.title;
+    if (parsed.description) description = parsed.description;
+    if (parsed.tags) tags = parsed.tags;
     log('  Upload guide generated');
   } catch (e) {
-    const fallback = `TITLE: ${topicClean}\n\nDESCRIPTION: ${topicClean}\n\nTAGS: ${topicClean.split(' ').join(', ')}\n\nUPLOAD INSTRUCTIONS:\n1. Go to youtube.com/upload\n2. Select the video file (final.mp4)\n3. Paste the title above\n4. Paste the description above\n5. Upload the thumbnail file (thumbnail.png)\n6. Set visibility to Public\n7. Click Publish`;
-    fs.writeFileSync(guidePath, fallback);
-    log('  Upload guide generated (fallback)');
+    log('  Upload guide using fallback (Claude error)');
   }
+
+  const tagsArray = tags.split(',').map(t => t.trim()).filter(Boolean);
+  const tagsHtml = tagsArray.map(t => `<span class="tag">${t}</span>`).join('');
+  const tagsPlain = tagsArray.join(', ');
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upload Guide - ${title}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: #f5f5f7; color: #1d1d1f; padding: 32px 16px; }
+    .container { max-width: 780px; margin: 0 auto; }
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+    .subtitle { color: #6e6e73; font-size: 15px; margin-bottom: 32px; }
+    .card { background: white; border-radius: 16px; padding: 24px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+    .card-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #6e6e73; margin-bottom: 10px; }
+    .card-content { font-size: 15px; line-height: 1.65; color: #1d1d1f; white-space: pre-wrap; }
+    .copy-btn { margin-top: 14px; background: #0071e3; color: white; border: none; padding: 9px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .copy-btn:hover { background: #0077ed; }
+    .copy-btn.copied { background: #34c759; }
+    .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+    .tag { background: #e8f0fe; color: #1a73e8; padding: 5px 12px; border-radius: 20px; font-size: 13px; font-weight: 500; }
+    .steps { list-style: none; }
+    .steps li { display: flex; align-items: flex-start; gap: 14px; padding: 10px 0; border-bottom: 1px solid #f2f2f7; font-size: 15px; }
+    .steps li:last-child { border-bottom: none; }
+    .step-num { background: #0071e3; color: white; border-radius: 50%; width: 28px; height: 28px; min-width: 28px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+    .steps a { color: #0071e3; text-decoration: none; }
+    .header-icon { font-size: 32px; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header-icon">📹</div>
+    <h1>YouTube Upload Guide</h1>
+    <p class="subtitle">Your video is ready. Follow these steps to publish it.</p>
+
+    <div class="card">
+      <div class="card-label">Title</div>
+      <div class="card-content" id="title-text">${title}</div>
+      <button class="copy-btn" onclick="copyText('title-text', this)">Copy Title</button>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Description</div>
+      <div class="card-content" id="desc-text">${description}</div>
+      <button class="copy-btn" onclick="copyText('desc-text', this)">Copy Description</button>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Tags</div>
+      <div class="tags">${tagsHtml}</div>
+      <button class="copy-btn" onclick="copyRaw('${tagsPlain.replace(/'/g, "\\'")}', this)">Copy Tags</button>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Upload Steps</div>
+      <ul class="steps">
+        <li><div class="step-num">1</div><div>Go to <a href="https://youtube.com/upload" target="_blank">youtube.com/upload</a></div></li>
+        <li><div class="step-num">2</div><div>Click <strong>Select Files</strong> and upload <strong>final.mp4</strong></div></li>
+        <li><div class="step-num">3</div><div>Paste the <strong>title</strong> above into the title field</div></li>
+        <li><div class="step-num">4</div><div>Paste the <strong>description</strong> above into the description field</div></li>
+        <li><div class="step-num">5</div><div>Under <strong>Tags</strong>, paste the tags above</div></li>
+        <li><div class="step-num">6</div><div>Click <strong>Thumbnail</strong> and upload <strong>thumbnail.png</strong></div></li>
+        <li><div class="step-num">7</div><div>Set visibility to <strong>Public</strong></div></li>
+        <li><div class="step-num">8</div><div>Click <strong>Publish</strong> 🎉</div></li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    function copyText(id, btn) {
+      const text = document.getElementById(id).innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = btn.textContent.replace('Copied!', 'Copy ' + (id === 'title-text' ? 'Title' : 'Description')); btn.classList.remove('copied'); }, 2000);
+      });
+    }
+    function copyRaw(text, btn) {
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'Copy Tags'; btn.classList.remove('copied'); }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>`;
+
+  fs.writeFileSync(guidePath, html);
   return guidePath;
 }
 
