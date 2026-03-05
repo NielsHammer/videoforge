@@ -430,7 +430,7 @@ async function mergeAudioVideoSimple(videoPath, audioPath, outputPath, musicPath
       execSync(
         `ffmpeg -y -i "${videoPath}" -i "${audioPath}" -stream_loop -1 -i "${musicPath}" ` +
         `-filter_complex "` +
-        `[2:a]atrim=0:${duration},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=2,afade=t=out:st=${fadeOut}:d=3,volume=0.18[music];` +
+        `[2:a]atrim=0:${duration},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=2,afade=t=out:st=${fadeOut}:d=3,volume=0.30[music];` +
         `[1:a]asetpts=PTS-STARTPTS[voice];` +
         `[voice][music]amix=inputs=2:duration=first:dropout_transition=2[aout]` +
         `" -map 0:v -map "[aout]" -c:v copy -c:a aac -b:a 192k -shortest "${outputPath}"`,

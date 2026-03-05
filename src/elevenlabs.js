@@ -253,7 +253,7 @@ export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath)
     const words = parseWordsFromAlignment(data, timeOffset);
     allWords.push(...words);
     const chunkDuration = words.length > 0 ? words[words.length - 1].end - timeOffset : 0;
-    timeOffset += chunkDuration + 0.3;
+    timeOffset += chunkDuration + 0.05;
   }
 
   // Write each chunk to temp file, then use FFmpeg to concat properly
@@ -268,10 +268,24 @@ export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath)
   const listPath = path.join(tmpDir, '_concat_list.txt');
   fs.writeFileSync(listPath, chunkPaths.map(p => `file '${p}'`).join('\n'));
   try {
-    execSync(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -c copy "${outputPath}"`, { stdio: 'pipe' });
+    const n = chunkPaths.length;
+    const trimmedPaths = [];
+    for (let i = 0; i < chunkPaths.length; i++) {
+      const trimmed = chunkPaths[i].replace('.mp3', '_trimmed.mp3');
+      execSync(`ffmpeg -y -i "${chunkPaths[i]}" -af "silenceremove=start_periods=1:start_silence=0.04:start_threshold=-50dB:stop_periods=1:stop_silence=0.04:stop_threshold=-50dB" -acodec libmp3lame -b:a 192k "${trimmed}"`, { stdio: 'pipe' });
+      trimmedPaths.push(trimmed);
+    }
+    const trimListPath = listPath.replace('.txt', '_trimmed.txt');
+    fs.writeFileSync(trimListPath, trimmedPaths.map(p => `file '${p}'`).join('\n'));
+    execSync(`ffmpeg -y -f concat -safe 0 -i "${trimListPath}" -acodec libmp3lame -b:a 192k "${outputPath}"`, { stdio: 'pipe' });
+    trimmedPaths.forEach(p => { try { fs.unlinkSync(p); } catch(e) {} });
+    try { fs.unlinkSync(trimListPath); } catch(e) {}
   } catch (e) {
-    // Fallback: re-encode if copy fails
-    execSync(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -acodec libmp3lame -b:a 192k "${outputPath}"`, { stdio: 'pipe' });
+    try {
+      execSync(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -c copy "${outputPath}"`, { stdio: 'pipe' });
+    } catch (e2) {
+      execSync(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -acodec libmp3lame -b:a 192k "${outputPath}"`, { stdio: 'pipe' });
+    }
   }
   // Clean up temp files
   chunkPaths.forEach(p => { try { fs.unlinkSync(p); } catch(e) {} });

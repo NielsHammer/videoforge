@@ -61,7 +61,7 @@ export const Leaderboard = ({ data, clipFrame = 0, theme = "grid" }) => {
               </div>
 
               {/* Label */}
-              <div style={{ width: 200, fontSize: 22, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600, fontFamily: "Arial Black, Arial, sans-serif", color: "#ffffff", flexShrink: 0 }}>
+              <div style={{ width: 240, fontSize: 22, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600, fontFamily: "Arial Black, Arial, sans-serif", color: "#ffffff", flexShrink: 0 }}>
                 {item.label}
               </div>
 

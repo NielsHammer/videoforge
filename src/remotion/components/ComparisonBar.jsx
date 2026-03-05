@@ -53,6 +53,7 @@ export const ComparisonBar = ({ data, clipFrame = 0, theme = "grid" }) => {
               fontSize: 28, fontWeight: 700, color: "white",
               fontFamily: "Arial Black, Arial, sans-serif",
               textTransform: "uppercase", letterSpacing: 3, marginBottom: 12,
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
               transform: `translateX(${labelSlide}px)`,
             }}>
               {item.label}
