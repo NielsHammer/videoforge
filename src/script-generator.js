@@ -235,7 +235,7 @@ Write the complete script now. Remember: MINIMUM 1,400 words.`;
 
 export async function generateScript(topic, options = {}) {
   const duration = options.duration || "10";
-  const style = options.style || "engaging";
+  const style = options.tone || options.style || "engaging";
   const outputDir = options.output || "./scripts";
   
   // Auto-detect or use CLI override

@@ -65,7 +65,7 @@ c.messages.create({
 }
 
 async function processOrder(order) {
-  const { id: orderId, topic, script_upload } = order;
+  const { id: orderId, topic, script_upload, tone, voice_id, voice_name, key_points } = order;
   log(`Processing order ${orderId}: "${topic}"`);
   await supabase.from('orders').update({ status: 'processing' }).eq('id', orderId);
   try {
@@ -79,7 +79,11 @@ async function processOrder(order) {
     } else {
       log('  Generating script...');
       const out = execSync(
-        `node src/cli.js script "${topic.replace(/"/g, '\\"')}"`,
+        (() => {
+          const toneMap = { professional: 'serious', entertaining: 'engaging', dramatic: 'dramatic', casual: 'engaging', mysterious: 'dramatic', motivational: 'engaging', humorous: 'humor', humourous: 'humor', funny: 'humor' };
+          const mappedTone = toneMap[(tone || '').toLowerCase()] || 'engaging';
+          return `node src/cli.js script "${topic.replace(/"/g, '\\"')}" --tone ${mappedTone}`;
+        })(),
         { cwd: VIDEOFORGE_DIR, timeout: 120000, encoding: 'utf8' }
       );
       const match = out.match(/Saved:\s*(.+\.txt)/);
@@ -88,23 +92,27 @@ async function processOrder(order) {
     }
     log(`  Script: ${scriptPath}`);
     log('  Generating video (~10-15 min)...');
+    // Record what folders exist BEFORE generation
+    const outputBase = path.join(VIDEOFORGE_DIR, 'output');
+    const beforeDirs = new Set(fs.readdirSync(outputBase));
     execSync(
-      `node src/cli.js generate "${scriptPath}"`,
+      `node src/cli.js generate "${scriptPath}"${voice_id ? ` --voice ${voice_id}` : ""}`,
       { cwd: VIDEOFORGE_DIR, timeout: 1800000, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 }
     );
-    const outputBase = path.join(VIDEOFORGE_DIR, 'output');
-    const dirs = fs.readdirSync(outputBase)
-      .filter(d => {
-        const full = path.join(outputBase, d);
-        return fs.statSync(full).isDirectory() && fs.existsSync(path.join(full, 'final.mp4'));
-      })
-      .sort((a, b) => {
-        const aTime = fs.statSync(path.join(outputBase, a)).mtimeMs;
-        const bTime = fs.statSync(path.join(outputBase, b)).mtimeMs;
-        return bTime - aTime;
-      });
-    if (dirs.length === 0) throw new Error('No output directory with final.mp4 found');
-    const outputDir = dirs[0];
+    // Find the NEW folder that was just created (exists now but not before)
+    const afterDirs = fs.readdirSync(outputBase);
+    const newDirs = afterDirs.filter(d => !beforeDirs.has(d) && fs.existsSync(path.join(outputBase, d, 'final.mp4')));
+    let outputDir;
+    if (newDirs.length > 0) {
+      outputDir = newDirs[0];
+    } else {
+      // Fallback: find most recently modified folder with final.mp4
+      const allDirs = afterDirs
+        .filter(d => fs.statSync(path.join(outputBase, d)).isDirectory() && fs.existsSync(path.join(outputBase, d, 'final.mp4')))
+        .sort((a, b) => fs.statSync(path.join(outputBase, b)).mtimeMs - fs.statSync(path.join(outputBase, a)).mtimeMs);
+      if (allDirs.length === 0) throw new Error('No output directory with final.mp4 found');
+      outputDir = allDirs[0];
+    }
     const outputPath = path.join(outputBase, outputDir);
     const thumbFile = path.join(outputPath, 'thumbnail.png');
     log(`  Video generated! Output: ${outputDir}`);
