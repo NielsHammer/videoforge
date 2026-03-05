@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 import { execSync } from 'child_process';
-import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
@@ -10,25 +9,12 @@ const SUPABASE_URL = 'https://fhrznlqtnjgyzpvthyyl.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const POLL_INTERVAL = 30000;
 const VIDEOFORGE_DIR = '/opt/videoforge';
-const SERVER_IP = '178.156.209.219';
-const FILE_SERVER_PORT = 3001;
 
 if (!SUPABASE_SERVICE_KEY) { console.error('SUPABASE_SERVICE_ROLE_KEY not set'); process.exit(1); }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-// File server for video delivery
-const app = express();
-app.use('/output', express.static(path.join(VIDEOFORGE_DIR, 'output'), {
-  setHeaders: (res) => {
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'GET');
-  }
-}));
-app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
-app.listen(FILE_SERVER_PORT, '0.0.0.0', () => {
-  log(`File server running on https://files.tubeautomate.com`);
-});
+
 
 function log(msg) {
   const ts = new Date().toISOString().replace('T', ' ').slice(0, 19);
@@ -184,6 +170,6 @@ async function pollForOrders() {
 
 log('VideoForge Worker v3 started');
 log(`Polling every ${POLL_INTERVAL / 1000}s`);
-log(`File server: https://files.tubeautomate.com`);
+log('Worker started. File server runs separately.');
 pollForOrders();
 setInterval(pollForOrders, POLL_INTERVAL);
