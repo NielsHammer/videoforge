@@ -126,7 +126,7 @@ export function mixMusicWithVoice(musicPath, voicePath, outputPath, duration) {
     `-filter_complex "` +
     `[0:a]atrim=0:${duration},asetpts=PTS-STARTPTS,` +
     `afade=t=in:st=0:d=2,afade=t=out:st=${fadeOutStart}:d=3,` +
-    `volume=0.12[music];` +
+    `volume=0.30[music];` +
     `[1:a]asetpts=PTS-STARTPTS[voice];` +
     `[music][voice]amix=inputs=2:duration=longest:dropout_transition=2[out]` +
     `" -map "[out]" -c:a aac -b:a 192k "${outputPath}"`,

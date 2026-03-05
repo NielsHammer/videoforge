@@ -2,4 +2,14 @@ node_modules/
 output/
 .env
 google-credentials.json
-google-credentials.json
+
+# Generated scripts (auto-created by pipeline, not source code)
+scripts/*.txt
+
+# Patch/fix scripts (one-time use, never commit)
+*.cjs
+fix-*.js
+
+# Temp files from pipeline
+src/**/_chunk_*.mp3
+src/**/_concat_list*.txt
