@@ -38,7 +38,7 @@ export const RankingCards = ({ data = {}, clipFrame = 0, theme }) => {
 
           return (
             <div key={i} style={{
-              background: "rgba(255,255,255,0.04)",
+              background: "rgba(0,0,0,0.55)",
               border: `1.5px solid ${medal || color}33`,
               borderRadius: 16, padding: "20px 16px",
               display: "flex", flexDirection: "column", alignItems: "center", gap: 8,

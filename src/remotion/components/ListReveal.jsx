@@ -37,7 +37,7 @@ export const ListReveal = ({ data }) => {
 
               <div style={{
                 flex: 1, borderRadius: 14, padding: "18px 26px",
-                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(74,158,255,0.08)",
+                background: "rgba(0,0,0,0.55)", border: "1px solid rgba(74,158,255,0.08)",
                 position: "relative", overflow: "hidden",
               }}>
                 <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: `${barW}%`, background: "linear-gradient(90deg, rgba(74,158,255,0.07), transparent)" }} />

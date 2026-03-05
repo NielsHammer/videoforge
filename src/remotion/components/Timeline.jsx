@@ -37,7 +37,7 @@ export const Timeline = ({ data, clipFrame = 0, theme = "grid" }) => {
 
       <svg width="1920" height="880" viewBox="0 0 1920 880">
         {/* Background line (dim) */}
-        <line x1={lineX1} y1={lineY} x2={lineX2} y2={lineY} stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
+        <line x1={lineX1} y1={lineY} x2={lineX2} y2={lineY} stroke="rgba(255,255,255,0.3)" strokeWidth="3" />
 
         {/* Animated line */}
         <line x1={lineX1} y1={lineY} x2={lineX1 + (lineX2 - lineX1) * lineProgress} y2={lineY} stroke="#4a9eff" strokeWidth="3" />

@@ -42,8 +42,8 @@ export const SplitLayout = ({ imageSrc, position = "left", clipFrame = 0, clipIn
           overflow: "hidden",
           opacity: imgOp,
           transform: `scale(${imgScale}) translate(${driftX}px, ${driftY}px) rotate(${tilt}deg)`,
-          boxShadow: "0 12px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)",
-          border: "2px solid rgba(255,255,255,0.08)",
+          boxShadow: "0 12px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,0,0,0.50)",
+          border: "2px solid rgba(255,255,255,0.3)",
         }}>
           <Img
             src={imageSrc}

@@ -51,8 +51,8 @@ export const Leaderboard = ({ data, clipFrame = 0, theme = "grid" }) => {
               {/* Rank number */}
               <div style={{
                 width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center",
-                background: i < 3 ? `${medalColors[i]}25` : "rgba(255,255,255,0.05)",
-                border: i < 3 ? `2px solid ${medalColors[i]}50` : "1px solid rgba(255,255,255,0.08)",
+                background: i < 3 ? `${medalColors[i]}25` : "rgba(0,0,0,0.50)",
+                border: i < 3 ? `2px solid ${medalColors[i]}50` : "2px solid rgba(255,255,255,0.3)",
                 fontSize: 22, fontWeight: 800, fontFamily: "Arial Black, Arial, sans-serif",
                 color: i < 3 ? medalColors[i] : "#8899bb",
                 flexShrink: 0,
@@ -66,7 +66,7 @@ export const Leaderboard = ({ data, clipFrame = 0, theme = "grid" }) => {
               </div>
 
               {/* Bar */}
-              <div style={{ flex: 1, height: 28, borderRadius: 8, background: "rgba(255,255,255,0.04)", overflow: "hidden" }}>
+              <div style={{ flex: 1, height: 28, borderRadius: 8, background: "rgba(0,0,0,0.55)", overflow: "hidden" }}>
                 <div style={{
                   width: `${barW}%`, height: "100%", borderRadius: 8,
                   background: `linear-gradient(90deg, ${color}99, ${color})`,

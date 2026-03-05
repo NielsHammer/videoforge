@@ -38,7 +38,7 @@ export const SplitComparison = ({ data = {}, clipFrame = 0, theme }) => {
             const delay = i * 0.08;
             const statOp = interpolate(clipFrame, [fps * (0.35 + delay), fps * (0.5 + delay)], [0, 1], { extrapolateRight: "clamp" });
             return (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", width: "100%", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)", opacity: statOp }}>
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", width: "100%", padding: "8px 0", borderBottom: "1px solid rgba(0,0,0,0.50)", opacity: statOp }}>
                 <span style={{ fontSize: 15, color: "#ffffffdd", fontFamily: "'Arial Black', Arial, sans-serif" }}>{stat.label}</span>
                 <span style={{ fontSize: 17, fontWeight: 800, color: leftColor, fontFamily: "'Arial Black', Arial, sans-serif" }}>
                   {stat.left_value}{stat.suffix || ""}
@@ -52,7 +52,7 @@ export const SplitComparison = ({ data = {}, clipFrame = 0, theme }) => {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{
             width: 56, height: 56, borderRadius: "50%",
-            background: "rgba(255,255,255,0.08)", border: "2px solid rgba(255,255,255,0.15)",
+            background: "rgba(255,255,255,0.3)", border: "2px solid rgba(255,255,255,0.15)",
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: 18, fontWeight: 900, color: "#ffffffcc", fontFamily: "'Arial Black', Arial, sans-serif",
           }}>
@@ -73,7 +73,7 @@ export const SplitComparison = ({ data = {}, clipFrame = 0, theme }) => {
             const delay = i * 0.08;
             const statOp = interpolate(clipFrame, [fps * (0.35 + delay), fps * (0.5 + delay)], [0, 1], { extrapolateRight: "clamp" });
             return (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", width: "100%", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)", opacity: statOp }}>
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", width: "100%", padding: "8px 0", borderBottom: "1px solid rgba(0,0,0,0.50)", opacity: statOp }}>
                 <span style={{ fontSize: 15, color: "#ffffffdd", fontFamily: "'Arial Black', Arial, sans-serif" }}>{stat.label}</span>
                 <span style={{ fontSize: 17, fontWeight: 800, color: rightColor, fontFamily: "'Arial Black', Arial, sans-serif" }}>
                   {stat.right_value}{stat.suffix || ""}

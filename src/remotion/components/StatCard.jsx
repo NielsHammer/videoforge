@@ -43,8 +43,8 @@ export const StatCard = ({ data, clipFrame = 0, theme = "grid" }) => {
             <div key={i} style={{
               width: cardWidth, padding: "40px 30px",
               borderRadius: 20,
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(0,0,0,0.55)",
+              border: "2px solid rgba(255,255,255,0.3)",
               backdropFilter: "blur(10px)",
               display: "flex", flexDirection: "column", alignItems: "center",
               transform: `scale(${cardProgress})`, opacity: cardOp,

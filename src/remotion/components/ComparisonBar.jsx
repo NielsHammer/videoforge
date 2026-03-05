@@ -61,8 +61,8 @@ export const ComparisonBar = ({ data, clipFrame = 0, theme = "grid" }) => {
             {/* Bar */}
             <div style={{
               width: "100%", height: 60, borderRadius: 10,
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.1)",
+              background: "rgba(0,0,0,0.50)",
+              border: "2px solid rgba(255,255,255,0.3)",
               overflow: "hidden", position: "relative",
             }}>
               {/* Fill */}

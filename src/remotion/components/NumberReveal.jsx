@@ -81,7 +81,7 @@ const GaugeReveal = ({ value, displayValue, label, progress, clipFrame, fps, th 
     <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", opacity, zIndex: 10 }}>
       <div style={{ position: "relative", width: 340, height: 340 }}>
         <svg width="340" height="340" viewBox="0 0 340 340" style={{ transform: "rotate(-90deg)" }}>
-          <circle cx="170" cy="170" r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="14" />
+          <circle cx="170" cy="170" r={radius} fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="14" />
           <circle cx="170" cy="170" r={radius} fill="none" stroke={`rgba(${th.glowRgb},0.9)`} strokeWidth="14" strokeLinecap="round"
             strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} />
         </svg>
@@ -125,7 +125,7 @@ const SpotlightReveal = ({ displayValue, label, clipFrame, fps, th }) => {
 
   return (
     <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
-      <div style={{ position: "absolute", width: spotSize, height: spotSize, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.06), transparent 70%)", filter: "blur(30px)" }} />
+      <div style={{ position: "absolute", width: spotSize, height: spotSize, borderRadius: "50%", background: "radial-gradient(circle, rgba(0,0,0,0.50), transparent 70%)", filter: "blur(30px)" }} />
       <div style={{ fontSize: 160, fontWeight: 900, fontFamily: "Arial Black, Arial, sans-serif", color: "white", transform: `translateY(${dropY}px)`, opacity, textShadow: `0 10px 40px rgba(${th.glowRgb},0.4), 0 0 80px rgba(${th.glowRgb},0.15)`, letterSpacing: -4, maxWidth: 1400, textAlign: "center" }}>
         {displayValue}
       </div>
@@ -144,7 +144,7 @@ const TickerReveal = ({ displayValue, label, clipFrame, fps, th }) => {
 
   return (
     <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
-      <div style={{ background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: "30px 60px", backdropFilter: "blur(10px)", transform: `translateX(${slideX}px) scale(${pulse})`, opacity }}>
+      <div style={{ background: "rgba(0,0,0,0.5)", border: "2px solid rgba(255,255,255,0.3)", borderRadius: 16, padding: "30px 60px", backdropFilter: "blur(10px)", transform: `translateX(${slideX}px) scale(${pulse})`, opacity }}>
         <div style={{ fontSize: 20, fontWeight: 600, color: "#4ade80", textTransform: "uppercase", letterSpacing: 3, marginBottom: 8 }}>▲ LIVE</div>
         <div style={{ fontSize: 110, fontWeight: 900, fontFamily: "Arial Black, Arial, sans-serif", color: "white", letterSpacing: -2, lineHeight: 1 }}>{displayValue}</div>
         {label && <div style={{ fontSize: 24, fontWeight: 500, color: "#ffffffdd", marginTop: 12, textTransform: "uppercase", letterSpacing: 2, opacity: labelOp }}>{label}</div>}

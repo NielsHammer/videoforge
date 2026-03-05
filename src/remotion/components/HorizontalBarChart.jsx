@@ -34,7 +34,7 @@ export const HorizontalBarChart = ({ data = {}, clipFrame = 0, theme }) => {
               <div style={{ width: 180, textAlign: "right", fontSize: 18, fontWeight: 700, color: "#ffffff", fontFamily: "'Arial Black', Arial, sans-serif", flexShrink: 0 }}>
                 {item.label || ""}
               </div>
-              <div style={{ flex: 1, height: 32, borderRadius: 8, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+              <div style={{ flex: 1, height: 32, borderRadius: 8, background: "rgba(0,0,0,0.50)", overflow: "hidden" }}>
                 <div style={{
                   width: `${barWidth}%`, height: "100%", borderRadius: 8,
                   background: `linear-gradient(90deg, ${color}99, ${color})`,

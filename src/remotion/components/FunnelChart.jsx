@@ -39,7 +39,7 @@ export const FunnelChart = ({ data = {}, clipFrame = 0, theme }) => {
               display: "flex", alignItems: "center", justifyContent: "center",
               position: "relative", overflow: "hidden",
             }}>
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(255,255,255,0.08), transparent)" }} />
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(255,255,255,0.3), transparent)" }} />
               <div style={{ display: "flex", alignItems: "center", gap: 12, opacity: labelOp, zIndex: 1 }}>
                 <span style={{ fontSize: 18, fontWeight: 900, color: "#ffffff", fontFamily: "'Arial Black', Arial, sans-serif" }}>
                   {stage.value}{stage.suffix || "%"}

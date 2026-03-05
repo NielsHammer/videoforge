@@ -67,8 +67,8 @@ export const QuoteCard = ({ data, clipFrame = 0, theme = "grid" }) => {
       <div style={{
         display: "flex", padding: "50px 60px",
         borderRadius: 20,
-        background: "rgba(255,255,255,0.03)",
-        border: "1px solid rgba(255,255,255,0.06)",
+        background: "rgba(0,0,0,0.55)",
+        border: "1px solid rgba(0,0,0,0.50)",
         boxShadow: "0 10px 40px rgba(0,0,0,0.3)",
       }}>
         {/* Accent bar */}

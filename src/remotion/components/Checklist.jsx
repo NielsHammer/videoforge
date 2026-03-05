@@ -46,14 +46,14 @@ export const Checklist = ({ data, clipFrame = 0, theme = "grid" }) => {
               transform: `translateX(${translateX}px)`, opacity: itemOp,
               padding: "16px 24px", borderRadius: 14,
               background: "rgba(255,255,255,0.025)",
-              border: "1px solid rgba(255,255,255,0.05)",
+              border: "1px solid rgba(0,0,0,0.50)",
             }}>
               {/* Check / Number */}
               <div style={{
                 width: 44, height: 44, borderRadius: 12, flexShrink: 0,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                background: isChecked ? `${color}15` : "rgba(255,255,255,0.05)",
-                border: `2px solid ${isChecked ? `${color}40` : "rgba(255,255,255,0.1)"}`,
+                background: isChecked ? `${color}15` : "rgba(0,0,0,0.50)",
+                border: `2px solid ${isChecked ? `${color}40` : "rgba(255,255,255,0.3)"}`,
                 transform: `scale(${checkScale})`,
               }}>
                 {isChecked ? (
