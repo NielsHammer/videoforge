@@ -326,7 +326,28 @@ export async function generateVideo(scriptPath, options) {
 
   // Detect visual background theme from content keywords — 20 themes
   const scriptLower = scriptText.toLowerCase();
-  let theme = "blue_grid"; // default
+  // Theme pools for variety — picks randomly within category
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const themePools = {
+    default: ["blue_grid", "steel_grey", "ice_blue", "midnight_blue", "electric_cyan"],
+    horror: ["dark_horror", "blood_red"],
+    crime: ["midnight_blue", "steel_grey", "dark_horror"],
+    ai: ["electric_cyan", "neon_green", "purple_cosmic"],
+    tech: ["ice_blue", "electric_cyan", "steel_grey"],
+    crypto: ["neon_green", "electric_cyan", "gold_luxury"],
+    space: ["purple_cosmic", "midnight_blue", "electric_cyan"],
+    spiritual: ["royal_purple", "purple_cosmic", "teal_ocean"],
+    health: ["teal_ocean", "forest_green", "ice_blue"],
+    sleep: ["purple_cosmic", "royal_purple", "midnight_blue"],
+    history: ["earth_brown", "gold_luxury", "steel_grey"],
+    travel: ["forest_green", "sunset_warm", "teal_ocean"],
+    nature: ["forest_green", "teal_ocean", "earth_brown"],
+    finance: ["gold_luxury", "steel_grey", "midnight_blue", "blue_grid"],
+    luxury: ["gold_luxury", "rose_gold", "royal_purple"],
+    entertainment: ["pink_neon", "neon_green", "sunset_warm", "orange_fire"],
+    motivation: ["orange_fire", "red_energy", "sunset_warm", "gold_luxury"],
+  };
+  let theme = pick(themePools.default);
 
   // Niche detection — order matters, more specific matches first
   if (/\b(horror|scary|creepy|murder|serial killer|ghost|haunted|demon|paranormal)\b/.test(scriptLower)) theme = "dark_horror";
@@ -409,7 +430,7 @@ async function mergeAudioVideoSimple(videoPath, audioPath, outputPath, musicPath
       execSync(
         `ffmpeg -y -i "${videoPath}" -i "${audioPath}" -stream_loop -1 -i "${musicPath}" ` +
         `-filter_complex "` +
-        `[2:a]atrim=0:${duration},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=2,afade=t=out:st=${fadeOut}:d=3,volume=0.07[music];` +
+        `[2:a]atrim=0:${duration},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=2,afade=t=out:st=${fadeOut}:d=3,volume=0.18[music];` +
         `[1:a]asetpts=PTS-STARTPTS[voice];` +
         `[voice][music]amix=inputs=2:duration=first:dropout_transition=2[aout]` +
         `" -map 0:v -map "[aout]" -c:v copy -c:a aac -b:a 192k -shortest "${outputPath}"`,
