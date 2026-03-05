@@ -68,7 +68,7 @@ export const Timeline = ({ data, clipFrame = 0, theme = "grid" }) => {
               </text>
 
               {/* Description */}
-              <text x={ex} y={isAbove ? lineY - 115 : lineY + 125} textAnchor="middle" fill="#ffffffcc" fontSize="22" fontWeight="700" fontFamily="Arial Black, Arial, sans-serif">
+              <text x={ex} y={isAbove ? lineY - 115 : lineY + 125} textAnchor="middle" fill="#ffffff" fontSize="22" fontWeight="700" fontFamily="Arial Black, Arial, sans-serif">
                 {(ev.label || "").length > 25 ? ev.label.slice(0, 25) + "..." : ev.label}
               </text>
             </g>

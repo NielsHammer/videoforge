@@ -41,7 +41,7 @@ export const ScaleComparison = ({ data = {}, clipFrame = 0, theme }) => {
                   background: `linear-gradient(to top, ${color}66, ${color})`,
                   boxShadow: `0 0 25px ${color}30`,
                 }} />
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#ffffffdd", textAlign: "center", width: 90, opacity: labelOp, fontFamily: "'Arial Black', Arial, sans-serif" }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#ffffff", textAlign: "center", width: 90, opacity: labelOp, fontFamily: "'Arial Black', Arial, sans-serif" }}>
                   {item.label}
                 </div>
               </div>

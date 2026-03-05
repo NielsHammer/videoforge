@@ -89,7 +89,7 @@ const GaugeReveal = ({ value, displayValue, label, progress, clipFrame, fps, th 
           <div style={{ fontSize: 68, fontWeight: 900, fontFamily: "Arial Black, Arial, sans-serif", color: "white", letterSpacing: -2 }}>{displayValue}</div>
         </div>
       </div>
-      {label && <div style={{ fontSize: 28, fontWeight: 700, color: "#ffffffdd", marginTop: 16, textTransform: "uppercase", letterSpacing: 3, opacity: labelOp, textShadow: `0 0 15px rgba(${th.glowRgb},0.3)` }}>{label}</div>}
+      {label && <div style={{ fontSize: 28, fontWeight: 700, color: "#ffffff", marginTop: 16, textTransform: "uppercase", letterSpacing: 3, opacity: labelOp, textShadow: `0 0 15px rgba(${th.glowRgb},0.3)` }}>{label}</div>}
     </div>
   );
 };
@@ -111,7 +111,7 @@ const BarsReveal = ({ displayValue, label, progress, clipFrame, fps, th }) => {
           return <div key={i} style={{ width: 22, height: barH, borderRadius: 6, background: `linear-gradient(to top, ${colors[i]}88, ${colors[i]})`, boxShadow: `0 0 12px ${colors[i]}40` }} />;
         })}
       </div>
-      {label && <div style={{ fontSize: 28, fontWeight: 600, color: "#ffffffdd", marginTop: 24, textTransform: "uppercase", letterSpacing: 3, opacity: labelOp }}>{label}</div>}
+      {label && <div style={{ fontSize: 28, fontWeight: 600, color: "#ffffff", marginTop: 24, textTransform: "uppercase", letterSpacing: 3, opacity: labelOp }}>{label}</div>}
     </div>
   );
 };
@@ -130,7 +130,7 @@ const SpotlightReveal = ({ displayValue, label, clipFrame, fps, th }) => {
         {displayValue}
       </div>
       <div style={{ width: 200, height: 2, background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)", marginTop: 16, opacity: labelOp }} />
-      {label && <div style={{ fontSize: 30, fontWeight: 600, color: "#ffffffdd", marginTop: 14, textTransform: "uppercase", letterSpacing: 4, opacity: labelOp }}>{label}</div>}
+      {label && <div style={{ fontSize: 30, fontWeight: 600, color: "#ffffff", marginTop: 14, textTransform: "uppercase", letterSpacing: 4, opacity: labelOp }}>{label}</div>}
     </div>
   );
 };
@@ -147,7 +147,7 @@ const TickerReveal = ({ displayValue, label, clipFrame, fps, th }) => {
       <div style={{ background: "rgba(0,0,0,0.5)", border: "2px solid rgba(255,255,255,0.3)", borderRadius: 16, padding: "30px 60px", backdropFilter: "blur(10px)", transform: `translateX(${slideX}px) scale(${pulse})`, opacity }}>
         <div style={{ fontSize: 20, fontWeight: 600, color: "#4ade80", textTransform: "uppercase", letterSpacing: 3, marginBottom: 8 }}>▲ LIVE</div>
         <div style={{ fontSize: 110, fontWeight: 900, fontFamily: "Arial Black, Arial, sans-serif", color: "white", letterSpacing: -2, lineHeight: 1 }}>{displayValue}</div>
-        {label && <div style={{ fontSize: 24, fontWeight: 500, color: "#ffffffdd", marginTop: 12, textTransform: "uppercase", letterSpacing: 2, opacity: labelOp }}>{label}</div>}
+        {label && <div style={{ fontSize: 24, fontWeight: 500, color: "#ffffff", marginTop: 12, textTransform: "uppercase", letterSpacing: 2, opacity: labelOp }}>{label}</div>}
       </div>
     </div>
   );

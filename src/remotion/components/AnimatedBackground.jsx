@@ -37,7 +37,7 @@ export const AnimatedBackground = ({ theme = "blue_grid", bgStyle }) => {
     royal_purple:   { bg: "#100820", bg2: "#201040", line: "#7733cc", lineB: "#9955ee", dot: "#bb77ff", particle: "#cc99ff", glow1: "#8844dd", glow2: "#aa33ff" },
     neon_green:     { bg: "#040a04", bg2: "#081408", line: "#00ff44", lineB: "#33ff66", dot: "#66ff88", particle: "#88ffaa", glow1: "#00ff55", glow2: "#44ff00" },
     rose_gold:      { bg: "#1a1012", bg2: "#332024", line: "#cc7788", lineB: "#ee99aa", dot: "#ffaabb", particle: "#ffccdd", glow1: "#dd8899", glow2: "#eeaa88" },
-    steel_grey:     { bg: "#0e1014", bg2: "#1c2028", line: "#7788aa", lineB: "#99aacc", dot: "#aabbdd", particle: "#bbccee", glow1: "#8899bb", glow2: "#6677aa" },
+    steel_grey:     { bg: "#0e1014", bg2: "#1c2028", line: "#7788aa", lineB: "#99aacc", dot: "#aabbdd", particle: "#bbccee", glow1: "#ccddff", glow2: "#6677aa" },
     dark_horror:    { bg: "#140204", bg2: "#280408", line: "#881111", lineB: "#aa2222", dot: "#cc3333", particle: "#dd4444", glow1: "#aa0000", glow2: "#660000" },
     aurora:         { bg: "#060c1a", bg2: "#0c1833", line: "#44aa88", lineB: "#66ccaa", dot: "#88eebb", particle: "#aaffdd", glow1: "#22ddaa", glow2: "#6644ff" },
   };

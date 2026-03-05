@@ -92,7 +92,7 @@ export const DonutChart = ({ data, clipFrame = 0, theme = "grid" }) => {
           return pct >= 5 ? (
             <g key={i} opacity={labelOp}>
               <text x={arc.lx} y={arc.ly - 8} textAnchor="middle" fill="white" fontSize="22" fontWeight="700" fontFamily="Arial Black, Arial, sans-serif">{pct}%</text>
-              <text x={arc.lx} y={arc.ly + 16} textAnchor="middle" fill="#ffffffcc" fontSize="20" fontFamily="Arial Black, Arial, sans-serif">{arc.label}</text>
+              <text x={arc.lx} y={arc.ly + 16} textAnchor="middle" fill="#ffffff" fontSize="20" fontFamily="Arial Black, Arial, sans-serif">{arc.label}</text>
             </g>
           ) : null;
         })}
@@ -108,7 +108,7 @@ export const DonutChart = ({ data, clipFrame = 0, theme = "grid" }) => {
         {segments.map((seg, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 14, height: 14, borderRadius: 3, background: seg.color || defaultColors[i % defaultColors.length] }} />
-            <span style={{ fontSize: 18, fontFamily: "Arial Black, Arial, sans-serif", color: "#ffffffdd" }}>{seg.label}</span>
+            <span style={{ fontSize: 18, fontFamily: "Arial Black, Arial, sans-serif", color: "#ffffff" }}>{seg.label}</span>
           </div>
         ))}
       </div>

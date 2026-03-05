@@ -41,8 +41,7 @@ export const StatCard = ({ data, clipFrame = 0, theme = "grid" }) => {
 
           return (
             <div key={i} style={{
-              width: cardWidth, padding: "40px 30px",
-              borderRadius: 20,
+              width: cardWidth, padding: "40px 30px", borderRadius: 20, overflow: "hidden",
               background: "rgba(0,0,0,0.55)",
               border: "2px solid rgba(255,255,255,0.3)",
               backdropFilter: "blur(10px)",
@@ -80,7 +79,7 @@ export const StatCard = ({ data, clipFrame = 0, theme = "grid" }) => {
               {/* Label */}
               <div style={{
                 fontSize: 18, fontWeight: 500, fontFamily: "Arial Black, Arial, sans-serif",
-                color: "#ffffffcc", textAlign: "center", textTransform: "uppercase", letterSpacing: 2,
+                color: "#ffffff", textAlign: "center", textTransform: "uppercase", letterSpacing: 2,
               }}>
                 {stat.label}
               </div>

@@ -41,7 +41,7 @@ export const ListReveal = ({ data }) => {
                 position: "relative", overflow: "hidden",
               }}>
                 <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: `${barW}%`, background: "linear-gradient(90deg, rgba(74,158,255,0.07), transparent)" }} />
-                <div style={{ fontSize: 34, fontWeight: 500, color: "#d8e2f0", fontFamily: "Helvetica Neue, Arial, sans-serif", position: "relative", zIndex: 1 }}>{item}</div>
+                <div style={{ fontSize: 34, fontWeight: 500, color: "#ffffff", fontFamily: "Helvetica Neue, Arial, sans-serif", position: "relative", zIndex: 1 }}>{item}</div>
               </div>
             </div>
           );

@@ -88,14 +88,14 @@ export const GrowthCurve = ({ data = {}, clipFrame = 0, theme }) => {
             <div style={{ fontSize: 26, fontWeight: 900, color, fontFamily: "'Arial Black', Arial, sans-serif" }}>
               {prefix}{Math.round(currentVal).toLocaleString()}{suffix}
             </div>
-            {label && <div style={{ fontSize: 19, color: "#ffffffdd", fontFamily: "'Arial Black', Arial, sans-serif" }}>{label}</div>}
+            {label && <div style={{ fontSize: 19, color: "#ffffff", fontFamily: "'Arial Black', Arial, sans-serif" }}>{label}</div>}
           </div>
         )}
 
         {/* Year labels */}
         <div style={{ position: "absolute", bottom: 20, left: 100, right: 100, display: "flex", justifyContent: "space-between" }}>
           {[0, Math.round(years * 0.25), Math.round(years * 0.5), Math.round(years * 0.75), years].map((yr, i) => (
-            <div key={i} style={{ fontSize: 18, fontWeight: 700, color: "#ffffffcc", fontFamily: "'Arial Black', Arial, sans-serif" }}>Year {yr}</div>
+            <div key={i} style={{ fontSize: 18, fontWeight: 700, color: "#ffffff", fontFamily: "'Arial Black', Arial, sans-serif" }}>Year {yr}</div>
           ))}
         </div>
       </div>

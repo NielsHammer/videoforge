@@ -42,7 +42,7 @@ export const VerticalBarChart = ({ data = {}, clipFrame = 0, theme }) => {
                 background: `linear-gradient(to top, ${color}88, ${color})`,
                 boxShadow: `0 0 20px ${color}25, inset 0 1px 0 rgba(255,255,255,0.15)`,
               }} />
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#ffffffdd", textAlign: "center", width: barWidth + 10, lineHeight: 1.2, opacity: labelOp, fontFamily: "'Arial Black', Arial, sans-serif" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#ffffff", textAlign: "center", width: barWidth + 10, lineHeight: 1.2, opacity: labelOp, fontFamily: "'Arial Black', Arial, sans-serif" }}>
                 {item.label || ""}
               </div>
             </div>

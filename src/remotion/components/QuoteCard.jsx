@@ -52,7 +52,7 @@ export const QuoteCard = ({ data, clipFrame = 0, theme = "grid" }) => {
             {quote}
           </div>
           {attribution && (
-            <div style={{ fontSize: 22, fontFamily: "Arial Black, Arial, sans-serif", color: "#ffffffcc", marginTop: 20, opacity: attrOp }}>
+            <div style={{ fontSize: 22, fontFamily: "Arial Black, Arial, sans-serif", color: "#ffffff", marginTop: 20, opacity: attrOp }}>
               {attribution}
             </div>
           )}
@@ -65,8 +65,7 @@ export const QuoteCard = ({ data, clipFrame = 0, theme = "grid" }) => {
   return (
     <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 140px", opacity: cardOp }}>
       <div style={{
-        display: "flex", padding: "50px 60px",
-        borderRadius: 20,
+        display: "flex", padding: "50px 60px", borderRadius: 20, overflow: "hidden",
         background: "rgba(0,0,0,0.55)",
         border: "1px solid rgba(0,0,0,0.50)",
         boxShadow: "0 10px 40px rgba(0,0,0,0.3)",

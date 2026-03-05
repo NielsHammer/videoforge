@@ -66,7 +66,7 @@ export const MapHighlight = ({ data = {}, clipFrame = 0, theme }) => {
                 <div style={{ fontSize: 22, fontWeight: 900, color: color, fontFamily: "'Arial Black', Arial, sans-serif" }}>
                   {h.value}{h.suffix || ""}
                 </div>
-                <div style={{ fontSize: 19, fontWeight: 700, color: "#ffffffdd", fontFamily: "'Arial Black', Arial, sans-serif" }}>
+                <div style={{ fontSize: 19, fontWeight: 700, color: "#ffffff", fontFamily: "'Arial Black', Arial, sans-serif" }}>
                   {h.label || h.region || ""}
                 </div>
               </div>

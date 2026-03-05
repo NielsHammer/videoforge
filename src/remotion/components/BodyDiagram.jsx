@@ -78,7 +78,7 @@ export const BodyDiagram = ({ data = {}, clipFrame = 0, theme }) => {
                 <div style={{ fontSize: 20, fontWeight: 900, color, fontFamily: "'Arial Black', Arial, sans-serif" }}>
                   {zone.value}{zone.suffix || ""}
                 </div>
-                <div style={{ fontSize: 19, fontWeight: 700, color: "#ffffffdd", fontFamily: "'Arial Black', Arial, sans-serif" }}>
+                <div style={{ fontSize: 19, fontWeight: 700, color: "#ffffff", fontFamily: "'Arial Black', Arial, sans-serif" }}>
                   {zone.label}
                 </div>
               </div>

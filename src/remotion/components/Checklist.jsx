@@ -44,7 +44,7 @@ export const Checklist = ({ data, clipFrame = 0, theme = "grid" }) => {
             <div key={i} style={{
               display: "flex", alignItems: "center", gap: 20,
               transform: `translateX(${translateX}px)`, opacity: itemOp,
-              padding: "16px 24px", borderRadius: 14,
+              padding: "16px 24px", borderRadius: 14, overflow: "hidden",
               background: "rgba(255,255,255,0.025)",
               border: "1px solid rgba(0,0,0,0.50)",
             }}>
@@ -61,7 +61,7 @@ export const Checklist = ({ data, clipFrame = 0, theme = "grid" }) => {
                     <path d="M5 13l4 4L19 7" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 ) : (
-                  <span style={{ fontSize: 20, fontWeight: 800, fontFamily: "Arial Black, Arial, sans-serif", color: "#ffffffcc" }}>{i + 1}</span>
+                  <span style={{ fontSize: 20, fontWeight: 800, fontFamily: "Arial Black, Arial, sans-serif", color: "#ffffff" }}>{i + 1}</span>
                 )}
               </div>
 

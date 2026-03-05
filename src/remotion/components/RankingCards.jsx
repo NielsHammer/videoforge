@@ -66,7 +66,7 @@ export const RankingCards = ({ data = {}, clipFrame = 0, theme }) => {
               </div>
               {/* Subtitle */}
               {item.subtitle && (
-                <div style={{ fontSize: 19, color: "#ffffffbb", fontFamily: "'Arial Black', Arial, sans-serif" }}>
+                <div style={{ fontSize: 19, color: "#ffffff", fontFamily: "'Arial Black', Arial, sans-serif" }}>
                   {item.subtitle}
                 </div>
               )}

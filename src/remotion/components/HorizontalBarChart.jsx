@@ -31,7 +31,7 @@ export const HorizontalBarChart = ({ data = {}, clipFrame = 0, theme }) => {
 
           return (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 16, opacity: itemOp }}>
-              <div style={{ width: 180, textAlign: "right", fontSize: 18, fontWeight: 700, color: "#ffffff", fontFamily: "'Arial Black', Arial, sans-serif", flexShrink: 0 }}>
+              <div style={{ width: 180, textAlign: "right", fontSize: 18, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 700, color: "#ffffff", fontFamily: "'Arial Black', Arial, sans-serif", flexShrink: 0 }}>
                 {item.label || ""}
               </div>
               <div style={{ flex: 1, height: 32, borderRadius: 8, background: "rgba(0,0,0,0.50)", overflow: "hidden" }}>

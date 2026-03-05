@@ -107,7 +107,7 @@ export const AnimatedLineChart = ({ data, clipFrame = 0, theme = "grid" }) => {
               <text x={c.x} y={c.y - 20} textAnchor="middle" fill="white" fontSize="26" fontWeight="800" fontFamily="Arial Black, Arial, sans-serif">
                 {prefix}{typeof c.value === "number" ? c.value.toLocaleString() : c.value}{suffix}
               </text>
-              <text x={c.x} y={chartY + chartH + 35} textAnchor="middle" fill="#ffffffcc" fontSize="22" fontWeight="700" fontFamily="Arial Black, Arial, sans-serif">
+              <text x={c.x} y={chartY + chartH + 35} textAnchor="middle" fill="#ffffff" fontSize="22" fontWeight="700" fontFamily="Arial Black, Arial, sans-serif">
                 {c.label}
               </text>
             </g>

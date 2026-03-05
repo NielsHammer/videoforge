@@ -70,7 +70,7 @@ export const ProcessFlow = ({ data, clipFrame = 0, theme = "grid" }) => {
                 {step.label}
               </div>
               {step.description && (
-                <div style={{ fontSize: 18, fontFamily: "Arial Black, Arial, sans-serif", color: "#ffffffcc", marginTop: 6 }}>
+                <div style={{ fontSize: 18, fontFamily: "Arial Black, Arial, sans-serif", color: "#ffffff", marginTop: 6 }}>
                   {step.description}
                 </div>
               )}

@@ -54,14 +54,14 @@ export const Leaderboard = ({ data, clipFrame = 0, theme = "grid" }) => {
                 background: i < 3 ? `${medalColors[i]}25` : "rgba(0,0,0,0.50)",
                 border: i < 3 ? `2px solid ${medalColors[i]}50` : "2px solid rgba(255,255,255,0.3)",
                 fontSize: 22, fontWeight: 800, fontFamily: "Arial Black, Arial, sans-serif",
-                color: i < 3 ? medalColors[i] : "#8899bb",
+                color: i < 3 ? medalColors[i] : "#ccddff",
                 flexShrink: 0,
               }}>
                 {i + 1}
               </div>
 
               {/* Label */}
-              <div style={{ width: 200, fontSize: 22, fontWeight: 600, fontFamily: "Arial Black, Arial, sans-serif", color: "#ffffff", flexShrink: 0 }}>
+              <div style={{ width: 200, fontSize: 22, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600, fontFamily: "Arial Black, Arial, sans-serif", color: "#ffffff", flexShrink: 0 }}>
                 {item.label}
               </div>
 

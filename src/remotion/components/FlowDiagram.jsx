@@ -57,7 +57,7 @@ export const FlowDiagram = ({ data = {}, clipFrame = 0, theme }) => {
           </div>
           {/* Subtitle */}
           {node.subtitle && (
-            <div style={{ fontSize: 19, color: "#ffffffbb", textAlign: "center", fontFamily: "'Arial Black', Arial, sans-serif" }}>
+            <div style={{ fontSize: 19, color: "#ffffff", textAlign: "center", fontFamily: "'Arial Black', Arial, sans-serif" }}>
               {node.subtitle}
             </div>
           )}
