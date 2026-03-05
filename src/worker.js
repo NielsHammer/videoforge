@@ -98,7 +98,11 @@ async function processOrder(order) {
         const full = path.join(outputBase, d);
         return fs.statSync(full).isDirectory() && fs.existsSync(path.join(full, 'final.mp4'));
       })
-      .sort().reverse();
+      .sort((a, b) => {
+        const aTime = fs.statSync(path.join(outputBase, a)).mtimeMs;
+        const bTime = fs.statSync(path.join(outputBase, b)).mtimeMs;
+        return bTime - aTime;
+      });
     if (dirs.length === 0) throw new Error('No output directory with final.mp4 found');
     const outputDir = dirs[0];
     const outputPath = path.join(outputBase, outputDir);
@@ -141,7 +145,7 @@ async function processApproved(order) {
   } else {
     const dirs = fs.readdirSync(outputBase)
       .filter(d => fs.statSync(path.join(outputBase, d)).isDirectory() && fs.existsSync(path.join(outputBase, d, 'final.mp4')))
-      .sort().reverse();
+      .sort((a, b) => fs.statSync(path.join(outputBase, b)).mtimeMs - fs.statSync(path.join(outputBase, a)).mtimeMs);
     if (dirs.length === 0) { log('  No output found'); return; }
     outputDir = dirs[0];
   }

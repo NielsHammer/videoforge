@@ -1,0 +1,71 @@
+Eight billion dollars vanished overnight from customer accounts at FTX. To put that in perspective, that's more money than the entire GDP of over sixty countries combined, stolen by one twenty-nine-year-old college dropout who fooled the world into thinking he was a genius. Today, we're breaking down exactly how Sam Bankman-Fried pulled off one of the biggest financial frauds in human history, and why millions of people trusted him with their life savings.
+
+Picture this: you're scrolling through social media and you see this curly-haired guy in cargo shorts worth thirty-two billion dollars telling everyone he's going to give away ninety-nine percent of his fortune. He's on magazine covers, he's advising politicians, he's the golden boy of cryptocurrency. Then in seventy-two hours, his entire empire collapses and investigators discover he's been using customer money as his personal piggy bank for over two years.
+
+Number one. The rise of the crypto wonderkid.
+
+Sam Bankman-Fried wasn't your typical Wall Street suit. At twenty-two, he was working at Jane Street Capital, one of the most exclusive trading firms on the planet, pulling in a base salary of three hundred thousand dollars annually. But here's where it gets interesting: while his colleagues were buying Ferraris and penthouse apartments, Sam was sleeping on a bean bag in his studio apartment, calculating how to maximize every dollar he donated to charity.
+
+In twenty seventeen, he discovered something that would change everything. Bitcoin was trading for eight thousand dollars in the United States, but on South Korean exchanges, that same Bitcoin was selling for over ten thousand dollars. That's a twenty-five percent price difference just sitting there, waiting to be captured.
+
+Within six months, Sam and his college roommate Gary Wang had figured out how to exploit these price differences across dozens of cryptocurrency exchanges. They called their trading firm Alameda Research, and by the end of twenty eighteen, they were generating profits of over one million dollars per day. Let me repeat that: one million dollars every single day from what's essentially digital arbitrage.
+
+But Sam wasn't satisfied with just trading. In twenty nineteen, he launched FTX, his own cryptocurrency exchange, and this is where the story takes a dark turn. Within twelve months, FTX was processing over ten billion dollars in daily trading volume. By twenty twenty-one, the platform was valued at thirty-two billion dollars, making Sam one of the richest people under thirty on the entire planet.
+
+If this breakdown is opening your eyes to how quickly fortunes can be built and destroyed in crypto, hit that subscribe button because we're just getting started.
+
+Number two. The house of cards begins.
+
+Here's what nobody knew: from day one, FTX and Alameda Research were essentially the same company with two different names. Sam controlled both, but he told investors, regulators, and customers that they were completely separate entities. This lie would become the foundation of his entire fraud scheme.
+
+Think of it like this: imagine you run a bank where customers deposit their money, but you also run a casino next door. Now imagine you start using the bank deposits to place bets at your casino. That's exactly what Sam was doing, except instead of a casino, he was using customer funds to make increasingly risky trades at Alameda Research.
+
+The numbers are staggering. By early twenty twenty-two, Alameda had borrowed over eight billion dollars directly from FTX customer deposits. But here's the kicker: there was no formal loan agreement, no interest rate, no collateral, and no approval process. Sam just moved money between the two companies whenever he felt like it.
+
+Internal documents later revealed that Alameda had a negative balance of over thirteen billion dollars by June twenty twenty-two. To put that in perspective, that's more debt than the entire market cap of companies like Ford Motor Company or Delta Airlines. Yet somehow, FTX's balance sheets showed everything was perfectly fine.
+
+How did he hide such massive losses? Sam created fake accounting entries that made it look like Alameda's debt to FTX was actually an asset. It's like owing your friend a thousand dollars but writing it down in your books as if your friend owes you a thousand dollars instead. Except in this case, we're talking about billions.
+
+Number three. Living like a king with stolen money.
+
+While customers thought their money was safely stored on FTX, Sam was using those funds to live like a tech billionaire. The spending spree was absolutely insane, and every dollar came from customer accounts.
+
+He bought a two hundred and fifty million dollar real estate portfolio in the Bahamas, including a thirty-five million dollar penthouse that became his personal residence. His inner circle of ten roommates and executives lived in luxury beachfront properties, all purchased with FTX customer funds. The monthly costs for maintaining these properties? Over two million dollars per month.
+
+But real estate was just the beginning. Sam donated over one hundred million dollars to political campaigns and causes in twenty twenty-two alone. He spent forty million dollars on naming rights for the Miami Heat's basketball arena, now known as FTX Arena. He even considered paying twenty-three billion dollars to buy Twitter before Elon Musk closed that deal.
+
+The lifestyle was equally extravagant. Private jets, luxury cars, a staff of over fifty people managing his personal affairs. Internal expense reports show that Sam's inner circle was spending an average of seven hundred thousand dollars monthly on entertainment, dining, and travel. All while customer withdrawal requests were being delayed due to "liquidity issues."
+
+Here's what's truly mind-blowing: while Sam was publicly preaching about effective altruism and giving away his wealth, he was simultaneously stealing customer money to fund a lifestyle that most billionaires would consider excessive. The hypocrisy is breathtaking.
+
+Number four. The seventy-two hour collapse.
+
+Everything unraveled in November twenty twenty-two, and the speed was unprecedented in financial history. On November second, CoinDesk published a leaked balance sheet showing that Alameda Research's assets were primarily FTT tokens, which were essentially IOUs created by FTX itself. It's like discovering that a company's main asset is its own company stock.
+
+Changpeng Zhao, the CEO of Binance and Sam's biggest competitor, saw the report and announced that Binance would be selling their entire position of five hundred million dollars worth of FTT tokens. This single tweet triggered a death spiral that destroyed both companies within seventy-two hours.
+
+Here's the timeline: November sixth, customers requested over six billion dollars in withdrawals from FTX. The platform could only process three hundred and seventy-seven million dollars before completely running out of money. That's a shortfall of over five point six billion dollars in customer funds.
+
+November seventh, Sam tweeted that FTX had a liquidity crunch but was processing all withdrawals. This was a complete lie. Internal messages show that Sam knew FTX was missing at least eight billion dollars in customer money and had zero ability to honor withdrawal requests.
+
+November eighth, Binance briefly considered acquiring FTX to save customers, but after examining the books for just six hours, they walked away. Changpeng Zhao said the hole in FTX's balance sheet was too large and the misuse of customer funds was too severe to fix.
+
+November eleventh, FTX filed for bankruptcy. Sam resigned as CEO, but the damage was done. Over one million customers had lost access to their funds, and the total shortfall was estimated at over eight billion dollars.
+
+Number five. Justice served.
+
+The legal reckoning was swift and decisive. In December twenty twenty-two, Sam was arrested at his Bahamas compound and extradited to the United States. Federal prosecutors charged him with seven counts of fraud and conspiracy, each carrying potential sentences of over ten years in prison.
+
+The trial lasted four weeks and featured testimony from Sam's closest associates, all of whom had pleaded guilty and agreed to cooperate. Caroline Ellison, the CEO of Alameda Research and Sam's ex-girlfriend, testified that Sam explicitly directed her to use FTX customer funds for Alameda's trading operations and personal expenses.
+
+Gary Wang, Sam's college roommate and co-founder of FTX, testified that he created special software code that gave Alameda Research unlimited access to customer deposits, essentially turning FTX into Alameda's personal bank account.
+
+The evidence was overwhelming. Prosecutors presented bank records, internal communications, and software code that proved Sam had been stealing customer funds since twenty twenty. The jury deliberated for just four hours before returning guilty verdicts on all seven counts.
+
+In March twenty twenty-four, Sam Bankman-Fried was sentenced to twenty-five years in federal prison. The judge called his crimes among the most serious financial frauds in American history and ordered him to pay eleven billion dollars in restitution to victims.
+
+Here's what makes this story so important: Sam Bankman-Fried didn't just steal money, he destroyed trust in an entire industry that was already struggling for legitimacy. His actions set back cryptocurrency adoption by years and reminded everyone that when something seems too good to be true, it usually is.
+
+The victims of his fraud weren't just wealthy investors, they were teachers, nurses, small business owners, and retirees who believed Sam's promises about revolutionizing finance. Today, many of them are still fighting to recover their life savings from the bankruptcy proceedings.
+
+The Sam Bankman-Fried saga proves that even in the digital age, the oldest rule in finance still applies: never trust anyone with your money who isn't willing to be held accountable for every single dollar.
