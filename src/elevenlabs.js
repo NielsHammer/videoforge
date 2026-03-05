@@ -1,4 +1,5 @@
 import axios from "axios";
+import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import chalk from "chalk";
@@ -255,8 +256,26 @@ export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath)
     timeOffset += chunkDuration + 0.3;
   }
 
-  const combined = Buffer.concat(audioBuffers);
-  fs.writeFileSync(outputPath, combined);
+  // Write each chunk to temp file, then use FFmpeg to concat properly
+  const tmpDir = path.dirname(outputPath);
+  const chunkPaths = [];
+  for (let i = 0; i < audioBuffers.length; i++) {
+    const chunkPath = path.join(tmpDir, `_chunk_${i}.mp3`);
+    fs.writeFileSync(chunkPath, audioBuffers[i]);
+    chunkPaths.push(chunkPath);
+  }
+  // Create FFmpeg concat list
+  const listPath = path.join(tmpDir, '_concat_list.txt');
+  fs.writeFileSync(listPath, chunkPaths.map(p => `file '${p}'`).join('\n'));
+  try {
+    execSync(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -c copy "${outputPath}"`, { stdio: 'pipe' });
+  } catch (e) {
+    // Fallback: re-encode if copy fails
+    execSync(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -acodec libmp3lame -b:a 192k "${outputPath}"`, { stdio: 'pipe' });
+  }
+  // Clean up temp files
+  chunkPaths.forEach(p => { try { fs.unlinkSync(p); } catch(e) {} });
+  try { fs.unlinkSync(listPath); } catch(e) {}
   const cleanWords = allWords.filter(w => !w.word.match(/<|>|break|time=|\/>/)).filter(w => w.word.trim().length > 0);
   const duration = cleanWords.length > 0 ? cleanWords[cleanWords.length - 1].end : 0;
   console.log(chalk.gray(`  Combined: ${cleanWords.length} words, ${duration.toFixed(1)}s`));
