@@ -54,10 +54,7 @@ export const ProcessFlow = ({ data, clipFrame = 0, theme = "grid" }) => {
               opacity: stepOp,
               boxShadow: `0 0 30px ${color}20`,
             }}>
-              {step.icon && <span style={{ fontSize: 36, marginBottom: 2 }}>{step.icon}</span>}
-              {!step.icon && (
-                <span style={{ fontSize: 32, fontWeight: 900, fontFamily: "Arial Black, Arial, sans-serif", color }}>{i + 1}</span>
-              )}
+              <span style={{ fontSize: 32, fontWeight: 900, fontFamily: "Arial Black, Arial, sans-serif", color }}>{i + 1}</span>
             </div>
 
             {/* Step label below */}

@@ -378,12 +378,13 @@ MINIMUM REQUIREMENTS:
 - Mix infographics with imagery to keep energy high
 
 ═══ TECHNICAL RULES ═══
-- PACING IS CRITICAL FOR RETENTION: Switch visuals every 2-4 seconds. Default to 3 seconds per clip.
-  - Quick factual statements = 2-3 seconds
-  - Important data/stats = 3-4 seconds (viewer needs time to read)  
-  - Section breaks = 2-3 seconds (just a title card, keep it snappy)
-  - Text flash = 2 seconds max
-  - NEVER exceed 5 seconds on any clip. Viewers will click away.
+- PACING: Switch visuals every 3-5 seconds. Default to 4 seconds per clip.
+  - Quick factual statements = 3-4 seconds
+  - Important data/stats = 4-5 seconds (viewer needs time to read)
+  - Section breaks = 2-3 seconds (title card)
+  - Text flash = 2-3 seconds
+  - Maximum 6 seconds on any clip
+  - CRITICAL: NEVER cut a scene in the middle of a sentence. Each clip should start and end at a natural speech pause — after a period, comma, or between sentences. Subtitles should never feel cut off mid-thought.
 - Cover ${startTime.toFixed(1)}s to ${endTime.toFixed(1)}s with NO gaps
 - subtitle_words: array of word indices spoken during this clip
 - Each clip's end_time must be 0.5s AFTER the last spoken word

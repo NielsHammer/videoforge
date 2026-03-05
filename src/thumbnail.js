@@ -62,6 +62,49 @@ function generateGridHTML(themeName) {
   return '<div style="position:absolute;inset:0;background:linear-gradient(135deg,'+th.bg1+' 0%,'+th.bg2+' 50%,'+th.bg1+' 100%);overflow:hidden;"><svg width="1280" height="720" style="position:absolute;inset:0;" xmlns="http://www.w3.org/2000/svg">'+vL+hL+dots+'</svg><div style="position:absolute;top:-100px;left:-100px;width:400px;height:400px;background:radial-gradient(circle,'+th.glow+',transparent 70%);"></div><div style="position:absolute;bottom:-100px;right:-100px;width:400px;height:400px;background:radial-gradient(circle,'+th.glow+',transparent 70%);"></div><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;height:400px;background:radial-gradient(ellipse,'+th.glow+',transparent 70%);"></div>'+p+'</div>';
 }
 
+
+const BRAVE_API_KEY = process.env.BRAVE_API_KEY;
+
+async function searchBraveImage(query) {
+  if (!BRAVE_API_KEY) return null;
+  try {
+    console.log("  [Image] Searching Brave for: " + query);
+    const r = await axios.get("https://api.search.brave.com/res/v1/images/search", {
+      params: { q: query + " high quality photo", count: 5 },
+      headers: { "Accept": "application/json", "X-Subscription-Token": BRAVE_API_KEY },
+      timeout: 10000
+    });
+    const results = r.data?.results || [];
+    // Pick the best image - prefer larger images, skip tiny ones
+    for (const img of results) {
+      if (img.properties?.url && img.properties.width > 400 && img.properties.height > 400) {
+        console.log("  [Image] Found Brave image: " + img.properties.url.substring(0, 60) + "...");
+        return img.properties.url;
+      }
+    }
+    // Fallback to thumbnail URL
+    for (const img of results) {
+      if (img.thumbnail?.src) {
+        console.log("  [Image] Found Brave thumbnail: " + img.thumbnail.src.substring(0, 60) + "...");
+        return img.thumbnail.src;
+      }
+    }
+  } catch(e) { console.log("  [Image] Brave search failed: " + e.message); }
+  return null;
+}
+
+async function shouldUseRealPhoto(title, topic) {
+  // Ask Claude if this topic is about a specific person, company, or brand
+  try {
+    const r = await anthropic.messages.create({ model: "claude-sonnet-4-20250514", max_tokens: 100,
+      messages: [{ role: "user", content: "Is this video about a SPECIFIC real person, company, or brand? If yes, reply with ONLY the search query to find a dramatic/clickbaity photo of them (e.g. 'Sam Bankman-Fried shocked face' or 'FTX logo dramatic'). If no specific person/company, reply with just 'NO'.\n\nVideo: " + title + "\nTopic: " + topic }]
+    });
+    const answer = r.content[0].text.trim();
+    if (answer === "NO" || answer.length < 3) return null;
+    return answer;
+  } catch(e) { return null; }
+}
+
 async function generateClickbaitImage(title, topic) {
   if (!FAL_KEY) { console.log("  [Image] No FAL_KEY"); return null; }
   console.log("  [Image] Generating clickbait image...");
@@ -145,7 +188,16 @@ export async function generateThumbnail(outputDir, title, topic) {
   const themeName = getThemeForTopic(topic);
   console.log("  Theme: "+themeName);
   const gridHTML = generateGridHTML(themeName);
-  const [imageUrl, titleText] = await Promise.all([generateClickbaitImage(title,topic),generateTitleText(title,topic)]);
+  // Try real photo first for person/company topics, then fall back to AI
+  const [realPhotoQuery, titleText] = await Promise.all([shouldUseRealPhoto(title, topic), generateTitleText(title, topic)]);
+  let imageUrl = null;
+  if (realPhotoQuery) {
+    imageUrl = await searchBraveImage(realPhotoQuery);
+    if (imageUrl) console.log("  [Image] Using real photo from Brave");
+  }
+  if (!imageUrl) {
+    imageUrl = await generateClickbaitImage(title, topic);
+  }
   console.log("\n  Image: "+(imageUrl?"Generated":"NONE"));
   console.log("  Title: "+titleText);
   const arrowStyle = 1+Math.floor(Math.random()*5);
