@@ -156,46 +156,49 @@ export async function getVoiceId(voiceNameOrId) {
  * Generate voiceover for ENTIRE script at once, with word-level timestamps.
  * Uses ElevenLabs /with-timestamps endpoint for precise word sync.
  */
-export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath) {
-  const r = await axios.post(
-    `${API_BASE}/text-to-speech/${voiceId}/with-timestamps`,
-    {
-      text,
-      model_id: "eleven_multilingual_v2",
-      voice_settings: {
-        stability: 0.35,
-        similarity_boost: 0.8,
-        style: 0.55,
-        use_speaker_boost: true,
-      },
-    },
-    {
-      headers: {
-        "xi-api-key": process.env.ELEVENLABS_API_KEY,
-        "Content-Type": "application/json",
-      },
+// Split text into chunks at paragraph boundaries, max ~4500 chars each
+function chunkText(text, maxChars = 4500) {
+  const paragraphs = text.split(/\n\n+/);
+  const chunks = [];
+  let current = "";
+  for (const para of paragraphs) {
+    if (current.length + para.length + 2 > maxChars && current.length > 0) {
+      chunks.push(current.trim());
+      current = "";
     }
-  );
+    current += (current ? "\n\n" : "") + para;
+  }
+  if (current.trim()) chunks.push(current.trim());
+  const final = [];
+  for (const chunk of chunks) {
+    if (chunk.length <= maxChars) { final.push(chunk); continue; }
+    const sentences = chunk.split(/(?<=[.!?])\s+/);
+    let sub = "";
+    for (const s of sentences) {
+      if (sub.length + s.length + 1 > maxChars && sub.length > 0) {
+        final.push(sub.trim());
+        sub = "";
+      }
+      sub += (sub ? " " : "") + s;
+    }
+    if (sub.trim()) final.push(sub.trim());
+  }
+  return final;
+}
 
-  // Save audio
-  const audioBuf = Buffer.from(r.data.audio_base64, "base64");
-  fs.writeFileSync(outputPath, audioBuf);
-
-  // Parse character-level alignment into word-level timestamps
-  const chars = r.data.alignment?.characters || [];
-  const starts = r.data.alignment?.character_start_times_seconds || [];
-  const ends = r.data.alignment?.character_end_times_seconds || [];
-
+function parseWordsFromAlignment(data, timeOffset = 0) {
+  const chars = data.alignment?.characters || [];
+  const starts = data.alignment?.character_start_times_seconds || [];
+  const ends = data.alignment?.character_end_times_seconds || [];
   const words = [];
   let currentWord = "";
   let wordStart = 0;
   let wordEnd = 0;
-
   for (let i = 0; i < chars.length; i++) {
     const ch = chars[i];
     if (ch === " " || ch === "\n") {
       if (currentWord.length > 0) {
-        words.push({ word: currentWord, start: wordStart, end: wordEnd });
+        words.push({ word: currentWord, start: wordStart + timeOffset, end: wordEnd + timeOffset });
         currentWord = "";
       }
     } else {
@@ -205,15 +208,59 @@ export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath)
     }
   }
   if (currentWord.length > 0) {
-    words.push({ word: currentWord, start: wordStart, end: wordEnd });
+    words.push({ word: currentWord, start: wordStart + timeOffset, end: wordEnd + timeOffset });
+  }
+  return words;
+}
+
+async function ttsChunk(text, voiceId) {
+  const r = await axios.post(
+    `${API_BASE}/text-to-speech/${voiceId}/with-timestamps`,
+    {
+      text,
+      model_id: "eleven_multilingual_v2",
+      voice_settings: { stability: 0.35, similarity_boost: 0.8, style: 0.55, use_speaker_boost: true },
+    },
+    { headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY, "Content-Type": "application/json" } }
+  );
+  return r.data;
+}
+
+export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath) {
+  const chunks = chunkText(text);
+
+  if (chunks.length === 1) {
+    const data = await ttsChunk(chunks[0], voiceId);
+    const audioBuf = Buffer.from(data.audio_base64, "base64");
+    fs.writeFileSync(outputPath, audioBuf);
+    const words = parseWordsFromAlignment(data);
+    const cleanWords = words.filter(w => !w.word.match(/<|>|break|time=|\/>/)).filter(w => w.word.trim().length > 0);
+    const duration = cleanWords.length > 0 ? cleanWords[cleanWords.length - 1].end : 0;
+    return { words: cleanWords, duration, audioPath: outputPath };
   }
 
-  const duration = words.length > 0 ? words[words.length - 1].end : 0;
-  // Strip SSML tags from word list
-  const cleanWords = words.filter(w => !w.word.match(/<|>|break|time=|\/>/));
-  const finalWords = cleanWords.filter(w => w.word.trim().length > 0);
+  console.log(chalk.gray(`  Splitting voiceover into ${chunks.length} chunks (${text.length} chars total)`));
+  const audioBuffers = [];
+  const allWords = [];
+  let timeOffset = 0;
 
-  return { words: finalWords, duration, audioPath: outputPath };
+  for (let i = 0; i < chunks.length; i++) {
+    console.log(chalk.gray(`  Chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)...`));
+    const data = await ttsChunk(chunks[i], voiceId);
+    const buf = Buffer.from(data.audio_base64, "base64");
+    audioBuffers.push(buf);
+    const words = parseWordsFromAlignment(data, timeOffset);
+    allWords.push(...words);
+    const chunkDuration = words.length > 0 ? words[words.length - 1].end - timeOffset : 0;
+    timeOffset += chunkDuration + 0.3;
+  }
+
+  const combined = Buffer.concat(audioBuffers);
+  fs.writeFileSync(outputPath, combined);
+  const cleanWords = allWords.filter(w => !w.word.match(/<|>|break|time=|\/>/)).filter(w => w.word.trim().length > 0);
+  const duration = cleanWords.length > 0 ? cleanWords[cleanWords.length - 1].end : 0;
+  console.log(chalk.gray(`  Combined: ${cleanWords.length} words, ${duration.toFixed(1)}s`));
+  return { words: cleanWords, duration, audioPath: outputPath };
 }
 
 /**
