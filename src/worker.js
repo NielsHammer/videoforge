@@ -145,7 +145,7 @@ c.messages.create({
 }
 
 async function processOrder(order) {
-  const { id: orderId, topic, script_upload, tone, voice_id, admin_notes } = order;
+  const { id: orderId, topic, script_upload, tone, voice_id, admin_notes, video_length } = order;
   log(`Processing order ${orderId}: "${topic}"`);
   await supabase.from('orders').update({ status: 'processing' }).eq('id', orderId);
 
@@ -173,7 +173,11 @@ async function processOrder(order) {
         : topic;
 
       const out = execSync(
-        `node src/cli.js script "${topicWithNotes.replace(/"/g, '\\"')}" --tone ${mappedTone}`,
+        (() => {
+          const durationMap = { '3 minutes': '3', '5 minutes': '5', '7 minutes': '7', '10 minutes': '10', '15 minutes': '15', '20 minutes': '20' };
+          const duration = durationMap[(video_length || '').toLowerCase()] || '10';
+          return `node src/cli.js script "${topicWithNotes.replace(/"/g, '\\"')}" --tone ${mappedTone} --duration ${duration}`;
+        })(),
         { cwd: VIDEOFORGE_DIR, timeout: 120000, encoding: 'utf8' }
       );
       const match = out.match(/Saved:\s*(.+\.txt)/);
@@ -190,7 +194,7 @@ async function processOrder(order) {
 
     execSync(
       `node src/cli.js generate "${scriptPath}"${voice_id ? ` --voice ${voice_id}` : ''}`,
-      { cwd: VIDEOFORGE_DIR, timeout: 1800000, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 }
+      { cwd: VIDEOFORGE_DIR, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 }
     );
 
     // Find the new output folder

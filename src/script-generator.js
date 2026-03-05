@@ -146,10 +146,10 @@ FORMAT:
 - Blank lines between paragraphs (natural pauses)
 - Numbered sections: "Number one. SECTION TITLE." on its own line
 - Target ${duration} minutes at ~150 words per minute
-- This means your script MUST be at least 1,400 words. Count carefully. Scripts under 1,200 words are TOO SHORT and will be rejected.
-- Aim for 1,400-1,600 words to hit the 10-minute mark.
+- This means your script MUST be at least ${Math.round(parseInt(duration)*150*0.9)} words. Count carefully.
+- Aim for ${Math.round(parseInt(duration)*150)}-${Math.round(parseInt(duration)*150*1.1)} words to hit the ${duration}-minute mark.
 
-Write the complete script now. Remember: MINIMUM 1,400 words.`;
+Write the complete script now. Remember: MINIMUM ${Math.round(parseInt(duration)*150*0.9)} words.`;
 }
 
 // ═══════════════════════════════════════════════════
@@ -227,10 +227,10 @@ FORMAT:
 - Blank lines between paragraphs (natural pauses)
 - Numbered sections: "Number one. SECTION TITLE." on its own line
 - Target ${duration} minutes at ~150 words per minute
-- This means your script MUST be at least 1,400 words. Count carefully. Scripts under 1,200 words are TOO SHORT and will be rejected.
-- Aim for 1,400-1,600 words to hit the 10-minute mark.
+- This means your script MUST be at least ${Math.round(parseInt(duration)*150*0.9)} words. Count carefully.
+- Aim for ${Math.round(parseInt(duration)*150)}-${Math.round(parseInt(duration)*150*1.1)} words to hit the ${duration}-minute mark.
 
-Write the complete script now. Remember: MINIMUM 1,400 words.`;
+Write the complete script now. Remember: MINIMUM ${Math.round(parseInt(duration)*150*0.9)} words.`;
 }
 
 export async function generateScript(topic, options = {}) {
