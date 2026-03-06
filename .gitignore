@@ -13,3 +13,4 @@ fix-*.js
 # Temp files from pipeline
 src/**/_chunk_*.mp3
 src/**/_concat_list*.txt
+asset-cache/
