@@ -81,7 +81,7 @@ async function generateUploadGuide(topic, outputDir) {
       max_tokens: 800,
       messages: [{ role: 'user', content: 'Generate YouTube metadata for a video about: ' + topic + '. Return ONLY valid JSON, no other text, no markdown: {"title":"catchy title max 60 chars","description":"150-200 word YouTube description with keywords and call to action","tags":"tag1, tag2, tag3, up to 20 tags"}' }]
     });
-    const out = msg.content[0].text;;
+    const out = msg.content[0].text;
     const parsed = JSON.parse(out.trim());
     if (parsed.title) title = parsed.title;
     if (parsed.description) description = parsed.description;
@@ -208,7 +208,7 @@ async function regenerateThumbnail(order) {
 
     execSync(
       `node src/cli.js generate ${scriptArg} --order-id ${orderId} --skip-voice --no-render`,
-      { cwd: VIDEOFORGE_DIR, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 }
+      { cwd: VIDEOFORGE_DIR, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024, timeout: 600000 } // 10 min max for thumbnail regen
     );
 
     const baseUrl = `https://files.tubeautomate.com/output/${outputDirName}`;
