@@ -192,7 +192,7 @@ async function processOrder(order) {
     const outputBase = path.join(VIDEOFORGE_DIR, 'output');
 
     execSync(
-      `node src/cli.js generate "${scriptPath}"${voice_id ? ` --voice ${voice_id}` : ''}`,
+      `node src/cli.js generate "${scriptPath}"${voice_id ? ` --voice ${voice_id}` : ''} --order-id ${orderId}`,
       { cwd: VIDEOFORGE_DIR, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 }
     );
 
