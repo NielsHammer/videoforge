@@ -139,10 +139,15 @@ async function generateClickbaitImage(title, topic) {
 
 async function generateTitleText(videoTitle, topic) {
   console.log("  [Title] Generating hook text...");
-  const r = await anthropic.messages.create({ model:"claude-sonnet-4-20250514", max_tokens:100,
-    messages:[{role:"user",content:"Create a 4-6 word YouTube thumbnail text for maximum clicks.\n\nVideo title: "+videoTitle+"\nTopic: "+topic+"\n\nRules:\n- 4-6 words, ALL CAPS\n- Use power words: SECRET, TRUTH, NEVER, EXPOSED, HIDDEN, SHOCKING, REAL REASON\n- NEVER use abbreviations or acronyms (write full names)\n- Must create curiosity gap - viewer NEEDS to click\n- Reference the specific person, company, or subject by name if possible\n\nReply with ONLY the text, nothing else."}]
-  });
-  return r.content[0].text.trim().replace(/"/g,"");
+  try {
+    const r = await anthropic.messages.create({ model:"claude-sonnet-4-20250514", max_tokens:100,
+      messages:[{role:"user",content:"Create a 4-6 word YouTube thumbnail text for maximum clicks.\n\nVideo title: "+videoTitle+"\nTopic: "+topic+"\n\nRules:\n- 4-6 words, ALL CAPS\n- Use power words: SECRET, TRUTH, NEVER, EXPOSED, HIDDEN, SHOCKING, REAL REASON\n- NEVER use abbreviations or acronyms (write full names)\n- Must create curiosity gap - viewer NEEDS to click\n- Reference the specific person, company, or subject by name if possible\n\nReply with ONLY the text, nothing else."}]
+    });
+    return r.content[0].text.trim().replace(/"/g,"");
+  } catch(e) {
+    console.log("  [Title] Claude failed, using fallback: " + e.message);
+    return videoTitle.toUpperCase().split(' ').slice(0, 5).join(' ');
+  }
 }
 
 function generateArrowSVG(style, accent) {
@@ -276,7 +281,6 @@ export async function generateThumbnail(outputDir, title, topic) {
     await page.setViewport({width:1280,height:720,deviceScaleFactor:1});
     await page.setContent(html,{waitUntil:"networkidle0",timeout:30000});
     await new Promise(r => setTimeout(r, 2000));
-    await new Promise(function(r){setTimeout(r,3000);});
     const pngPath = path.join(outputDir,"thumbnail.png");
     await page.screenshot({path:pngPath,type:"png",clip:{x:0,y:0,width:1280,height:720}});
     console.log("  Saved: "+pngPath);

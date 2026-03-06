@@ -13,6 +13,7 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const POLL_INTERVAL = 30000;           // 30s poll for new orders
 const STUCK_INTERVAL = 30 * 60 * 1000; // 30 min stuck order recovery
 const VIDEOFORGE_DIR = '/opt/videoforge';
+const OUTPUT_DIR = path.join(VIDEOFORGE_DIR, 'output');
 const OUTPUT_BASE = path.join(VIDEOFORGE_DIR, 'output');
 // ASSET_CACHE_DIR lives in asset-cache.js — removed from here
 
@@ -319,11 +320,13 @@ async function processOrder(order) {
     const baseUrl = `https://files.tubeautomate.com/output/${outputDirName}`;
     const thumbUrl = fs.existsSync(thumbFile) ? `${baseUrl}/thumbnail.png` : null;
 
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     await supabase.from('orders').update({
       status: 'review',
       video_url: `${baseUrl}/final.mp4`,
       thumbnail_url: thumbUrl,
       output_dir: outputDirName,
+      expires_at: expiresAt,
       admin_notes: null, // clear after use so review modal is clean
     }).eq('id', orderId);
 
@@ -334,6 +337,33 @@ async function processOrder(order) {
       status: 'failed',
       admin_notes: `Generation failed: ${err.message}`
     }).eq('id', orderId);
+  }
+}
+
+// ─── Cleanup Expired Files ───────────────────────────────────────────────────
+async function cleanupExpiredFiles() {
+  try {
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('orders')
+      .select('id, topic, output_dir')
+      .lt('expires_at', now)
+      .not('output_dir', 'is', null);
+    if (error) { log(`Cleanup check failed: ${error.message}`); return; }
+    if (!data || data.length === 0) { log('Cleanup: no expired files found.'); return; }
+    for (const order of data) {
+      const folderPath = path.join(OUTPUT_DIR, order.output_dir);
+      if (fs.existsSync(folderPath)) {
+        fs.rmSync(folderPath, { recursive: true, force: true });
+        log(`Cleanup: deleted expired folder "${order.output_dir}" (order: ${order.topic})`);
+      }
+      await supabase.from('orders')
+        .update({ output_dir: null })
+        .eq('id', order.id);
+    }
+    log(`Cleanup: removed ${data.length} expired order(s)`);
+  } catch (err) {
+    log(`Cleanup error: ${err.message}`);
   }
 }
 
@@ -408,6 +438,7 @@ log(`Polling every ${POLL_INTERVAL / 1000}s | Stuck check every 30 min`);
 log('Checking for stuck orders on startup...');
 
 recoverStuckOrders().then(() => {
+  cleanupExpiredFiles();
   pollForOrders();
   setInterval(pollForOrders, POLL_INTERVAL);
   // Periodic stuck order recovery — catches crashes between restarts
@@ -415,4 +446,9 @@ recoverStuckOrders().then(() => {
     log('Running periodic stuck order check...');
     recoverStuckOrders();
   }, STUCK_INTERVAL);
+  // Daily cleanup of expired files (every 24 hours)
+  setInterval(() => {
+    log('Running daily expired file cleanup...');
+    cleanupExpiredFiles();
+  }, 24 * 60 * 60 * 1000);
 });
