@@ -24,44 +24,12 @@ import chalk from "chalk";
  * @returns {string} Enhanced script with SSML breaks
  */
 export function enhanceScript(scriptText, mood = "default") {
-  let enhanced = scriptText;
-
-  // Get mood-specific pause durations
-  const pauses = getPauseDurations(mood);
-
-  // 1. Add break after the first sentence (intro hook pause)
-  enhanced = addIntroBreak(enhanced, pauses.introBreak);
-
-  // 2. Add breaks between paragraphs (double newlines)
-  enhanced = addParagraphBreaks(enhanced, pauses.paragraphBreak);
-
-  // 3. Add breaks before numbered items (Number 1, #2, First, etc.)
-  enhanced = addNumberedBreaks(enhanced, pauses.numberedBreak);
-
-  // 4. Add breaks before dramatic reveal words
-  enhanced = addDramaticBreaks(enhanced, pauses.dramaticBreak, mood);
-
-  // 5. Add breaks after questions (let them land)
-  enhanced = addQuestionBreaks(enhanced, pauses.questionBreak);
-
-  // 6. Add a closing pause before the final sentence
-  enhanced = addClosingBreak(enhanced, pauses.closingBreak);
-
-  // Count breaks added
+  // Simple: only short paragraph breaks to avoid ElevenLabs hissing/slow-pace glitches
+  const enhanced = scriptText.replace(/\n\n+/g, ' <break time="0.4s" />\n\n');
   const breakCount = (enhanced.match(/<break/g) || []).length;
-  
-  // Safety: too many breaks can cause ElevenLabs to speed up or glitch
-  // Max ~1 break per 100 characters
-  const maxBreaks = Math.floor(scriptText.length / 100);
-  if (breakCount > maxBreaks) {
-    console.log(chalk.yellow(`⚠️  Too many breaks (${breakCount}), trimming to ${maxBreaks}`));
-    enhanced = trimExcessBreaks(enhanced, maxBreaks);
-  }
-
   if (breakCount > 0) {
-    console.log(chalk.blue(`✨ Script enhanced: ${breakCount} natural pauses added (${mood} mood)`));
+    console.log(chalk.blue(`✨ Script enhanced: ${breakCount} paragraph pauses added`));
   }
-
   return enhanced;
 }
 

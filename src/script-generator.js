@@ -74,7 +74,7 @@ function detectMode(topic) {
 // INFOGRAPHIC MODE PROMPT — data-heavy, number-rich
 // ═══════════════════════════════════════════════════
 function buildInfographicPrompt(topic, duration, style) {
-  return `You are a top YouTube scriptwriter for faceless channels that get millions of views. Write a ${duration} minute narration script about:
+  return `You are a top YouTube scriptwriter for faceless channels that get millions of views. The current year is 2026. Write a ${duration} minute narration script about:
 
 "${topic}"
 
@@ -156,7 +156,7 @@ Write the complete script now. Remember: MINIMUM ${Math.round(parseInt(duration)
 // VISUAL MODE PROMPT — scene-driven, imagery-focused
 // ═══════════════════════════════════════════════════
 function buildVisualPrompt(topic, duration, style) {
-  return `You are a top YouTube scriptwriter for faceless channels that get millions of views. Write a ${duration} minute narration script about:
+  return `You are a top YouTube scriptwriter for faceless channels that get millions of views. The current year is 2026. Write a ${duration} minute narration script about:
 
 "${topic}"
 
