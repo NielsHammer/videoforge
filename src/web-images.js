@@ -103,7 +103,7 @@ async function claudePickBest(candidates, query, sceneContext) {
   ).join("\n");
 
   const response = await axios.post("https://api.anthropic.com/v1/messages", {
-    model: "claude-sonnet-4-5-20250929",
+    model: "claude-sonnet-4-20250514",
     max_tokens: 100,
     messages: [{
       role: "user",
