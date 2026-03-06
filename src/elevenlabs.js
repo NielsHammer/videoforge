@@ -214,17 +214,33 @@ function parseWordsFromAlignment(data, timeOffset = 0) {
   return words;
 }
 
-async function ttsChunk(text, voiceId) {
-  const r = await axios.post(
-    `${API_BASE}/text-to-speech/${voiceId}/with-timestamps`,
-    {
-      text,
-      model_id: "eleven_multilingual_v2",
-      voice_settings: { stability: 0.35, similarity_boost: 0.8, style: 0.55, use_speaker_boost: true },
-    },
-    { headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY, "Content-Type": "application/json" } }
-  );
-  return r.data;
+async function ttsChunk(rawText, voiceId) {
+  // Strip SSML tags before sending - ElevenLabs multilingual v2 can glitch on them
+  const text = rawText.replace(/<break[^>]*/>/g, ' ').replace(/<[^>]+>/g, '').replace(/  +/g, ' ').trim();
+  // Retry up to 3 times on rate limit or server error
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const r = await axios.post(
+        `${API_BASE}/text-to-speech/${voiceId}/with-timestamps`,
+        {
+          text,
+          model_id: "eleven_multilingual_v2",
+          voice_settings: { stability: 0.40, similarity_boost: 0.75, style: 0.20, use_speaker_boost: true },
+        },
+        { headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY, "Content-Type": "application/json" } }
+      );
+      return r.data;
+    } catch (err) {
+      const status = err?.response?.status;
+      if (attempt < 3 && (status === 429 || status >= 500)) {
+        const wait = status === 429 ? 10000 : 3000;
+        console.log(`  ElevenLabs ${status}, retrying in ${wait/1000}s (attempt ${attempt}/3)...`);
+        await new Promise(res => setTimeout(res, wait));
+      } else {
+        throw err;
+      }
+    }
+  }
 }
 
 export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath) {
@@ -252,7 +268,11 @@ export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath)
     audioBuffers.push(buf);
     const words = parseWordsFromAlignment(data, timeOffset);
     allWords.push(...words);
-    const chunkDuration = words.length > 0 ? words[words.length - 1].end - timeOffset : 0;
+    // Use the last character end time for accurate offset (not word-based)
+    const lastCharEnd = data.alignment?.character_end_times_seconds;
+    const chunkDuration = lastCharEnd && lastCharEnd.length > 0
+      ? lastCharEnd[lastCharEnd.length - 1]
+      : (words.length > 0 ? words[words.length - 1].end - timeOffset : 0);
     timeOffset += chunkDuration + 0.05;
   }
 
@@ -304,7 +324,7 @@ export async function generateVoiceover(text, voiceId, outputPath) {
     {
       text,
       model_id: "eleven_multilingual_v2",
-      voice_settings: { stability: 0.35, similarity_boost: 0.8, style: 0.55, use_speaker_boost: true },
+      voice_settings: { stability: 0.40, similarity_boost: 0.75, style: 0.20, use_speaker_boost: true },
     },
     {
       headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY, "Content-Type": "application/json" },
