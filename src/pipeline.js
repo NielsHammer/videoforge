@@ -474,6 +474,19 @@ export async function generateVideo(scriptPath, options) {
   fs.writeFileSync(path.join(outputDir, "storyboard.json"), JSON.stringify({ clips, wordTimestamps, totalDuration, theme }, null, 2));
 
   // --- STEP 4: Render ---
+  // In thumbnail-only mode (--no-render), skip the full render and just regenerate thumbnail
+  if (options.noRender) {
+    console.log(chalk.yellow('\n⏭️  Skipping render (thumbnail-only mode)'));
+    const existingVideo = path.join(outputDir, 'final.mp4');
+    if (fs.existsSync(existingVideo)) {
+      const thumbTitle = projectName.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      await generateThumbnail(outputDir, thumbTitle, theme ? theme.replace(/_/g, ' ') : 'default');
+      console.log(chalk.green.bold('\n✅ Thumbnail regenerated!'));
+    } else {
+      console.log(chalk.red('No existing video found for thumbnail generation'));
+    }
+    return;
+  }
   console.log(chalk.blue("\n🎬 Rendering with Remotion...\n"));
   const silentPath = path.join(assetsDir, "remotion-output.mp4");
   await renderWithRemotion(clips, wordTimestamps, totalDuration, silentPath, assetsDir, theme);
