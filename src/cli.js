@@ -48,8 +48,6 @@ program
   .action(async (scriptPath, options) => {
     console.log(chalk.blue.bold('\n🎬 VideoForge v23\n'));
     try {
-      // Pass orderId so pipeline creates isolated folder per order
-      if (options.orderId) options.orderId = options.orderId;
       await generateVideo(scriptPath, options);
     } catch (err) {
       console.error(chalk.red(`\n❌ Error: ${err.message}`));
