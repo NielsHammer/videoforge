@@ -407,7 +407,7 @@ async function recoverStuckOrders() {
   try {
     const { data, error } = await supabase
       .from('orders')
-      .select('id, topic')
+      .select('id, topic, updated_at')
       .eq('status', 'processing');
 
     if (error) { log(`Recovery check failed: ${error.message}`); return; }
