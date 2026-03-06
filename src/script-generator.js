@@ -146,10 +146,10 @@ FORMAT:
 - Blank lines between paragraphs (natural pauses)
 - Numbered sections: "Number one. SECTION TITLE." on its own line
 - Target ${duration} minutes at ~150 words per minute
-- This means your script MUST be at least ${Math.round(parseInt(duration)*150*0.9)} words. Count carefully.
-- Aim for ${Math.round(parseInt(duration)*150)}-${Math.round(parseInt(duration)*150*1.1)} words to hit the ${duration}-minute mark.
+- This means your script MUST be at least ${Math.round(parseInt(duration)*130*0.9)} words. Count carefully.
+- Aim for ${Math.round(parseInt(duration)*130)}-${Math.round(parseInt(duration)*130*1.05)} words to hit the ${duration}-minute mark. Do NOT exceed ${Math.round(parseInt(duration)*130*1.1)} words.
 
-Write the complete script now. Remember: MINIMUM ${Math.round(parseInt(duration)*150*0.9)} words.`;
+Write the complete script now. Remember: TARGET ${Math.round(parseInt(duration)*130)} words.`;
 }
 
 // ═══════════════════════════════════════════════════
@@ -227,11 +227,52 @@ FORMAT:
 - Blank lines between paragraphs (natural pauses)
 - Numbered sections: "Number one. SECTION TITLE." on its own line
 - Target ${duration} minutes at ~150 words per minute
-- This means your script MUST be at least ${Math.round(parseInt(duration)*150*0.9)} words. Count carefully.
-- Aim for ${Math.round(parseInt(duration)*150)}-${Math.round(parseInt(duration)*150*1.1)} words to hit the ${duration}-minute mark.
+- This means your script MUST be at least ${Math.round(parseInt(duration)*130*0.9)} words. Count carefully.
+- Aim for ${Math.round(parseInt(duration)*130)}-${Math.round(parseInt(duration)*130*1.05)} words to hit the ${duration}-minute mark. Do NOT exceed ${Math.round(parseInt(duration)*130*1.1)} words.
 
-Write the complete script now. Remember: MINIMUM ${Math.round(parseInt(duration)*150*0.9)} words.`;
+Write the complete script now. Remember: TARGET ${Math.round(parseInt(duration)*130)} words.`;
 }
+
+// ═══════════════════════════════════════════════════
+// BLOCK-BASED GENERATION
+// For long videos, generate in 5-minute blocks and combine
+// This ensures consistent quality and accurate word counts
+// ═══════════════════════════════════════════════════
+const BLOCK_SIZE_MINUTES = 10;
+const WORDS_PER_MINUTE = 130;
+const BLOCK_WORDS = 1300; // 1300 words per block = ~10 min
+
+async function generateScriptBlock(topic, blockNum, totalBlocks, duration, style, mode, sectionHints) {
+  const isFirst = blockNum === 1;
+  const isLast = blockNum === totalBlocks;
+  const sectionNote = sectionHints && sectionHints[blockNum - 1] ? `Focus this section on: ${sectionHints[blockNum - 1]}` : '';
+  
+  const blockContext = totalBlocks > 1 ? `
+This is block ${blockNum} of ${totalBlocks} in a ${duration}-minute video.
+${isFirst ? 'This is the OPENING block — include the hook and introduction.' : ''}
+${isLast ? 'This is the CLOSING block — include the conclusion and call to action.' : ''}
+${!isFirst && !isLast ? 'This is a MIDDLE block — continue the topic naturally, no intro or outro needed.' : ''}
+${sectionNote}
+Write EXACTLY ${BLOCK_WORDS} words (±50 words). This is one section of a longer video.
+DO NOT include "Subscribe" or channel plugs except in the final block.
+` : '';
+
+  const prompt = mode === 'infographic'
+    ? buildInfographicPrompt(topic, BLOCK_SIZE_MINUTES.toString(), style) + blockContext
+    : buildVisualPrompt(topic, BLOCK_SIZE_MINUTES.toString(), style) + blockContext;
+
+  const response = await axios.post(
+    "https://api.anthropic.com/v1/messages",
+    {
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 2048,
+      messages: [{ role: "user", content: prompt }],
+    },
+    { headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" } }
+  );
+  return response.data.content[0].text.trim();
+}
+
 
 export async function generateScript(topic, options = {}) {
   const duration = options.duration || "10";
@@ -245,6 +286,27 @@ export async function generateScript(topic, options = {}) {
 
   const modeLabel = mode === "infographic" ? "📊 INFOGRAPHIC" : "🎬 VISUAL";
   console.log(chalk.blue(`${modeLabel} mode detected for: "${topic}"`));
+
+  const durationNum = parseInt(duration) || 10;
+  const totalBlocks = Math.max(1, Math.round(durationNum / BLOCK_SIZE_MINUTES));
+  
+  // Use block-based generation for accuracy
+  if (totalBlocks > 1) {
+    const spinner = ora(`Writing ${mode} script in ${totalBlocks} blocks (${durationNum} min)...`).start();
+    const blocks = [];
+    for (let i = 1; i <= totalBlocks; i++) {
+      spinner.text = `Writing block ${i}/${totalBlocks}...`;
+      const block = await generateScriptBlock(topic, i, totalBlocks, durationNum, style, mode, null);
+      blocks.push(block);
+    }
+    const fullScript = blocks.join('\n\n');
+    const wordCount = fullScript.split(/\s+/).length;
+    const scriptFileName = topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60) + '.txt';
+    const scriptPath = path.join(outputDir, scriptFileName);
+    fs.writeFileSync(scriptPath, fullScript);
+    spinner.succeed(`Script written: ${scriptPath} (${wordCount} words, ~${(wordCount/WORDS_PER_MINUTE).toFixed(1)} min)`);
+    return { scriptPath, wordCount, duration: wordCount / WORDS_PER_MINUTE };
+  }
 
   const spinner = ora(`Writing ${mode} script about "${topic}"...`).start();
 
