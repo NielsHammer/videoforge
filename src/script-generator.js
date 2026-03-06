@@ -265,7 +265,7 @@ DO NOT include "Subscribe" or channel plugs except in the final block.
     "https://api.anthropic.com/v1/messages",
     {
       model: "claude-sonnet-4-20250514",
-      max_tokens: 2048,
+      max_tokens: 6000, // 1300 words ≈ 5200 tokens — needs headroom
       messages: [{ role: "user", content: prompt }],
     },
     { headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" } }
