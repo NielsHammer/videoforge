@@ -19,6 +19,7 @@ export async function fetchPhoto(query, outputPath) {
     headers: {
       Authorization: process.env.PEXELS_API_KEY,
     },
+    timeout: 15000, // 15s
   });
 
   if (!response.data.photos || response.data.photos.length === 0) {
@@ -38,6 +39,7 @@ export async function fetchPhoto(query, outputPath) {
   const imageResponse = await axios.get(imageUrl, {
     responseType: "arraybuffer",
     maxContentLength: 50 * 1024 * 1024,
+    timeout: 30000, // 30s
   });
 
   fs.writeFileSync(outputPath, Buffer.from(imageResponse.data));

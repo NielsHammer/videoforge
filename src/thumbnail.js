@@ -126,8 +126,10 @@ async function generateClickbaitImage(title, topic) {
       for (let i=0;i<90;i++) {
         await new Promise(function(res){setTimeout(res,2000);});
         try {
-          const s = await axios.get("https://queue.fal.run/fal-ai/flux-pro/requests/"+rid+"/status",{headers:{Authorization:"Key "+FAL_KEY}});
-          if (s.data.status==="COMPLETED") { const r2=await axios.get("https://queue.fal.run/fal-ai/flux-pro/requests/"+rid,{headers:{Authorization:"Key "+FAL_KEY}}); const im=r2.data.images||r2.data.output?.images; if(im&&im.length>0){console.log("  [Image] Done attempt "+a);return im[0].url;} }
+          const s = await axios.get("https://queue.fal.run/fal-ai/flux-pro/requests/"+rid+"/status",{headers:{Authorization:"Key "+FAL_KEY},timeout:10000});
+          if (s.data.status==="COMPLETED") { const r2=await axios.get("https://queue.fal.run/fal-ai/flux-pro/requests/"+rid,{headers:{Authorization:"Key "+FAL_KEY},timeout:15000}); const im=r2.data.images||r2.data.output?.images; if(im&&im.length>0){console.log("  [Image] Done attempt "+a);return im[0].url;} }
+          if (s.data.status==="FAILED") { console.log("  [Image] Fal.ai generation failed"); return null; }
+          if (a >= 40) { console.log("  [Image] Fal.ai polling timeout after 40 attempts (~2 min)"); return null; }
           if (s.data.status==="FAILED") break;
         } catch(e){}
       }
