@@ -293,10 +293,19 @@ export async function generateVideo(scriptPath, options) {
         continue;
       }
 
-      // Route 2: Try Pexels first for stock clips
+      // Route 2: Try Pexels first for stock clips (check cache first)
       let pexelsOk = false;
       try {
-        await fetchPhoto(clip.search_query, photoPath);
+        const cachedPexels = getCachedAsset(clip.search_query + '-pexels');
+        if (cachedPexels) {
+          fs.copyFileSync(cachedPexels, photoPath);
+          console.log(`    💾 Cache hit (Pexels): ${clip.search_query}`);
+        } else {
+          await fetchPhoto(clip.search_query, photoPath);
+          if (fs.existsSync(photoPath) && fs.statSync(photoPath).size > 5000) {
+            saveCachedAsset(clip.search_query + '-pexels', photoPath);
+          }
+        }
         if (fs.existsSync(photoPath) && fs.statSync(photoPath).size > 5000) {
           fixImageRotation(photoPath);
           clip.imagePath = photoPath;
