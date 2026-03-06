@@ -285,9 +285,15 @@ async function processOrder(order) {
         `node src/cli.js script "${topicWithNotes.replace(/"/g, '\\"')}" --tone ${mappedTone} --duration ${duration}`,
         { cwd: VIDEOFORGE_DIR, timeout: 600000, encoding: 'utf8' }
       );
-      const match = out.match(/Saved:\s*(.+\.txt)/);
-      if (!match) throw new Error('Script generation failed');
-      scriptPath = path.join(VIDEOFORGE_DIR, match[1].trim());
+      // Match "Saved: /path/to/script.txt" from script-generator output
+      const match = out.match(/Saved:\s*([^\n\r]+\.txt)/);
+      if (!match) {
+        log(`  Script output: ${out.slice(-300)}`); // log last 300 chars for debugging
+        throw new Error('Script generation failed — could not find output path in CLI output');
+      }
+      const rawPath = match[1].trim();
+      // Use absolute path if returned, otherwise join with VIDEOFORGE_DIR
+      scriptPath = rawPath.startsWith('/') ? rawPath : path.join(VIDEOFORGE_DIR, rawPath);
     }
 
     log(`  Script: ${scriptPath}`);

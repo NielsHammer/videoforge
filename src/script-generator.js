@@ -305,6 +305,7 @@ export async function generateScript(topic, options = {}) {
     const scriptPath = path.join(outputDir, scriptFileName);
     fs.writeFileSync(scriptPath, fullScript);
     spinner.succeed(`Script written: ${scriptPath} (${wordCount} words, ~${(wordCount/WORDS_PER_MINUTE).toFixed(1)} min)`);
+    console.log(`📁 Saved: ${scriptPath}`); // worker regex matches "Saved:" to find path
     return { scriptPath, wordCount, duration: wordCount / WORDS_PER_MINUTE };
   }
 
