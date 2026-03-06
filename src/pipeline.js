@@ -158,6 +158,8 @@ export async function generateVideo(scriptPath, options) {
     wordTimestamps = result.words;
     totalDuration = result.duration;
     s.succeed(`Voiceover: ${totalDuration.toFixed(1)}s, ${wordTimestamps.length} words with timestamps`);
+    // Save timestamps so --skip-voice can reuse them on regeneration
+    fs.writeFileSync(tsPath, JSON.stringify({ words: wordTimestamps, duration: totalDuration }, null, 2));
     // Sanity check - make sure audio file exists and is not empty
     const audioStat = fs.existsSync(audioPath) ? fs.statSync(audioPath) : null;
     if (!audioStat || audioStat.size < 1000) {
