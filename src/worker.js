@@ -7,7 +7,7 @@ dotenv.config();
 
 const SUPABASE_URL = 'https://fhrznlqtnjgyzpvthyyl.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const POLL_INTERVAL = 30000;           // 15s poll for new orders
+const POLL_INTERVAL = 30000;           // 30s poll for new orders
 const STUCK_INTERVAL = 30 * 60 * 1000; // 30 min stuck order recovery
 const VIDEOFORGE_DIR = '/opt/videoforge';
 const OUTPUT_BASE = path.join(VIDEOFORGE_DIR, 'output');
@@ -26,29 +26,9 @@ function log(msg) {
 }
 
 // ─── Asset Cache ─────────────────────────────────────────────────────────────
-// Global image cache keyed by search query — reused across orders with
-// near-identical search terms. Voice is NEVER reused across different orders.
-
-export function getCacheKey(query) {
-  return query.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, '-').slice(0, 80);
-}
-
-export function getCachedAsset(query) {
-  const cachePath = path.join(ASSET_CACHE_DIR, `${getCacheKey(query)}.jpg`);
-  if (fs.existsSync(cachePath) && fs.statSync(cachePath).size > 5000) {
-    return cachePath;
-  }
-  return null;
-}
-
-export function saveCachedAsset(query, sourcePath) {
-  try {
-    const cachePath = path.join(ASSET_CACHE_DIR, `${getCacheKey(query)}.jpg`);
-    if (!fs.existsSync(cachePath)) { // only save if not already cached
-      fs.copyFileSync(sourcePath, cachePath);
-    }
-  } catch (e) { /* non-fatal */ }
-}
+// Imported from asset-cache.js so pipeline.js can import it independently
+// without booting the entire worker process
+import { getCachedAsset, saveCachedAsset } from './asset-cache.js';
 
 // ─── Folder Cleanup ───────────────────────────────────────────────────────────
 
@@ -303,7 +283,7 @@ async function processOrder(order) {
 
       const out = execSync(
         `node src/cli.js script "${topicWithNotes.replace(/"/g, '\\"')}" --tone ${mappedTone} --duration ${duration}`,
-        { cwd: VIDEOFORGE_DIR, timeout: 120000, encoding: 'utf8' }
+        { cwd: VIDEOFORGE_DIR, timeout: 600000, encoding: 'utf8' }
       );
       const match = out.match(/Saved:\s*(.+\.txt)/);
       if (!match) throw new Error('Script generation failed');
@@ -320,7 +300,7 @@ async function processOrder(order) {
 
     execSync(
       `node src/cli.js generate "${scriptPath}"${voice_id ? ` --voice ${voice_id}` : ''}${skipVoiceFlag} --order-id ${orderId}`,
-      { cwd: VIDEOFORGE_DIR, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 }
+      { cwd: VIDEOFORGE_DIR, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024, timeout: 2700000 } // 45 min max
     );
 
     const outputDirName = `order-${orderId}`;

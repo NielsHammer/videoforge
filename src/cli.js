@@ -40,6 +40,7 @@ program
   .option('-v, --voice <voice>', 'ElevenLabs voice ID or name')
   .option('-o, --output <dir>', 'Output directory', './output')
   .option('--order-id <id>', 'Order ID — used as output folder name for isolation')
+  .option('--no-render', 'Skip video render — only generate thumbnail (used for thumbnail regen)')
   .option('--no-ai-clips', 'Skip AI-generated clips, use only stock footage')
   .option('--no-music', 'Skip background music')
   .option('--skip-voice', 'Reuse existing voiceover files')

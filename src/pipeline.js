@@ -10,7 +10,7 @@ import { createStoryboard } from "./director.js";
 import { fetchPhoto } from "./pexels.js";
 import { removeBackground, generateAIImage } from "./fal.js";
 import { searchWebImage, isWebSearchAvailable } from "./web-images.js";
-import { getCachedAsset, saveCachedAsset } from "./worker.js";
+import { getCachedAsset, saveCachedAsset } from "./asset-cache.js";
 import { detectMood, selectMusicTrack } from "./music.js";
 import { renderWithRemotion } from "./remotion-renderer.js";
 import axios from "axios";
