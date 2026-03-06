@@ -216,7 +216,7 @@ function parseWordsFromAlignment(data, timeOffset = 0) {
 
 async function ttsChunk(rawText, voiceId) {
   // Strip SSML tags before sending - ElevenLabs multilingual v2 can glitch on them
-  const text = rawText.replace(/<break[^>]*/>/g, ' ').replace(/<[^>]+>/g, '').replace(/  +/g, ' ').trim();
+  const text = rawText.replace(/<break\s[^>]*\/>/g, ' ').replace(/<break\/>/g, ' ').replace(/<[^>]+>/g, '').replace(/  +/g, ' ').trim();
   // Retry up to 3 times on rate limit or server error
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
