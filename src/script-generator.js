@@ -268,7 +268,7 @@ DO NOT include "Subscribe" or channel plugs except in the final block.
       max_tokens: 6000, // 1300 words ≈ 5200 tokens — needs headroom
       messages: [{ role: "user", content: prompt }],
     },
-    { headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" } }
+    { headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" }, timeout: 120000 } // 2 min per block
   );
   return response.data.content[0].text.trim();
 }

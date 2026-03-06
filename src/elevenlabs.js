@@ -227,7 +227,7 @@ async function ttsChunk(rawText, voiceId) {
           model_id: "eleven_multilingual_v2",
     
         },
-        { headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY, "Content-Type": "application/json" } }
+        { headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY, "Content-Type": "application/json" }, timeout: 60000 } // 60s per chunk
       );
       return r.data;
     } catch (err) {
