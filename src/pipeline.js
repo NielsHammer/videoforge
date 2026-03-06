@@ -114,6 +114,21 @@ export async function generateVideo(scriptPath, options) {
   const assetsDir = path.join(outputDir, "assets");
   fs.mkdirSync(assetsDir, { recursive: true });
 
+  // --- THUMBNAIL-ONLY MODE: skip everything except thumbnail generation ---
+  // Must be checked BEFORE voice generation to avoid wasting ElevenLabs credits
+  if (options.noRender) {
+    console.log(chalk.yellow('\n⏭️  Thumbnail-only mode — skipping voice, storyboard, render'));
+    const existingVideo = path.join(outputDir, 'final.mp4');
+    if (fs.existsSync(existingVideo)) {
+      const thumbTitle = projectName.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      await generateThumbnail(outputDir, thumbTitle, 'default');
+      console.log(chalk.green.bold('\n✅ Thumbnail regenerated!'));
+    } else {
+      throw new Error('No existing final.mp4 found — cannot regenerate thumbnail without a video');
+    }
+    return;
+  }
+
   // voice selection below
   let voiceId;
   if (options.voice) {
@@ -474,19 +489,6 @@ export async function generateVideo(scriptPath, options) {
   fs.writeFileSync(path.join(outputDir, "storyboard.json"), JSON.stringify({ clips, wordTimestamps, totalDuration, theme }, null, 2));
 
   // --- STEP 4: Render ---
-  // In thumbnail-only mode (--no-render), skip the full render and just regenerate thumbnail
-  if (options.noRender) {
-    console.log(chalk.yellow('\n⏭️  Skipping render (thumbnail-only mode)'));
-    const existingVideo = path.join(outputDir, 'final.mp4');
-    if (fs.existsSync(existingVideo)) {
-      const thumbTitle = projectName.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-      await generateThumbnail(outputDir, thumbTitle, theme ? theme.replace(/_/g, ' ') : 'default');
-      console.log(chalk.green.bold('\n✅ Thumbnail regenerated!'));
-    } else {
-      console.log(chalk.red('No existing video found for thumbnail generation'));
-    }
-    return;
-  }
   console.log(chalk.blue("\n🎬 Rendering with Remotion...\n"));
   const silentPath = path.join(assetsDir, "remotion-output.mp4");
   await renderWithRemotion(clips, wordTimestamps, totalDuration, silentPath, assetsDir, theme);
