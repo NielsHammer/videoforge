@@ -105,7 +105,11 @@ export async function generateVideo(scriptPath, options) {
   // --- STEP 1: Generate voiceover (single file for entire script) ---
   const timestamp = new Date().toISOString().slice(0, 10);
   const projectName = path.basename(scriptPath, path.extname(scriptPath));
-  const outputDir = path.resolve(options.output, `${timestamp}-${projectName}`);
+  // Use orderId as folder name if provided — guarantees unique, isolated output per order
+  const folderName = options.orderId 
+    ? `order-${options.orderId}` 
+    : `${timestamp}-${projectName}`;
+  const outputDir = path.resolve(options.output, folderName);
   const assetsDir = path.join(outputDir, "assets");
   fs.mkdirSync(assetsDir, { recursive: true });
 
