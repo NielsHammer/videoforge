@@ -269,7 +269,30 @@ async function pollForOrders() {
   }
 }
 
+async function recoverStuckOrders() {
+  try {
+    // Any order stuck on 'processing' means the worker died mid-generation
+    // Reset them back to 'queued' so they get picked up again
+    const { data, error } = await supabase
+      .from('orders')
+      .update({ status: 'queued', video_url: null, thumbnail_url: null })
+      .eq('status', 'processing')
+      .select('id, topic');
+    if (error) { log(`Recovery check failed: ${error.message}`); return; }
+    if (data && data.length > 0) {
+      data.forEach(o => log(`  Recovered stuck order: "${o.topic}" → re-queued`));
+    } else {
+      log('  No stuck orders found.');
+    }
+  } catch (err) {
+    log(`Recovery error: ${err.message}`);
+  }
+}
+
 log('VideoForge Worker v5 started');
 log(`Polling every ${POLL_INTERVAL / 1000}s`);
-pollForOrders();
-setInterval(pollForOrders, POLL_INTERVAL);
+log('Checking for stuck orders...');
+recoverStuckOrders().then(() => {
+  pollForOrders();
+  setInterval(pollForOrders, POLL_INTERVAL);
+});
