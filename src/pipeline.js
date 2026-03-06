@@ -116,7 +116,7 @@ export async function generateVideo(scriptPath, options) {
 
   // --- THUMBNAIL-ONLY MODE: skip everything except thumbnail generation ---
   // Must be checked BEFORE voice generation to avoid wasting ElevenLabs credits
-  if (options.noRender) {
+  if (options.render === false || options.noRender) { // Commander: --no-render sets render=false
     console.log(chalk.yellow('\n⏭️  Thumbnail-only mode — skipping voice, storyboard, render'));
     const existingVideo = path.join(outputDir, 'final.mp4');
     if (fs.existsSync(existingVideo)) {

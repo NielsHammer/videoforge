@@ -11,14 +11,13 @@ const POLL_INTERVAL = 30000;           // 30s poll for new orders
 const STUCK_INTERVAL = 30 * 60 * 1000; // 30 min stuck order recovery
 const VIDEOFORGE_DIR = '/opt/videoforge';
 const OUTPUT_BASE = path.join(VIDEOFORGE_DIR, 'output');
-const ASSET_CACHE_DIR = path.join(VIDEOFORGE_DIR, 'asset-cache');
+// ASSET_CACHE_DIR lives in asset-cache.js — removed from here
 
 if (!SUPABASE_SERVICE_KEY) { console.error('SUPABASE_SERVICE_ROLE_KEY not set'); process.exit(1); }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-// Ensure asset cache dir exists
-fs.mkdirSync(ASSET_CACHE_DIR, { recursive: true });
+// asset-cache.js ensures its own directory exists on import
 
 function log(msg) {
   const ts = new Date().toISOString().replace('T', ' ').slice(0, 19);
