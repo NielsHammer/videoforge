@@ -138,6 +138,14 @@ export async function generateVideo(scriptPath, options) {
     wordTimestamps = result.words;
     totalDuration = result.duration;
     s.succeed(`Voiceover: ${totalDuration.toFixed(1)}s, ${wordTimestamps.length} words with timestamps`);
+    // Sanity check - make sure audio file exists and is not empty
+    const audioStat = fs.existsSync(audioPath) ? fs.statSync(audioPath) : null;
+    if (!audioStat || audioStat.size < 1000) {
+      throw new Error(`Voiceover file is empty or missing (${audioStat?.size || 0} bytes). ElevenLabs may have failed silently.`);
+    }
+    if (totalDuration < 10) {
+      throw new Error(`Voiceover is only ${totalDuration.toFixed(1)}s — script may be too short or ElevenLabs returned partial audio.`);
+    }
   }
 
   if (options.voiceOnly) {
@@ -400,13 +408,30 @@ export async function generateVideo(scriptPath, options) {
   // --- STEP 5: Merge audio + video ---
   console.log(chalk.blue("\n🔊 Merging audio" + (musicTrack ? " + music" : "") + "...\n"));
   const finalPath = path.join(outputDir, "final.mp4");
-  await mergeAudioVideoSimple(silentPath, audioPath, finalPath, musicTrack?.path || null, totalDuration);
+  // Use actual audio file duration for accurate music trim
+  let audioDuration = totalDuration;
+  try {
+    const probeOut = require('child_process').execSync(
+      `ffprobe -v quiet -print_format json -show_streams "${audioPath}"`,
+      { encoding: 'utf8' }
+    );
+    const probeData = JSON.parse(probeOut);
+    const audioStream = probeData.streams.find(s => s.codec_type === 'audio');
+    if (audioStream?.duration) {
+      audioDuration = parseFloat(audioStream.duration);
+      console.log(`  Audio duration (ffprobe): ${audioDuration.toFixed(1)}s vs timestamps: ${totalDuration.toFixed(1)}s`);
+    }
+  } catch (e) {
+    console.log(`  ffprobe failed, using timestamp duration: ${totalDuration.toFixed(1)}s`);
+  }
+  await mergeAudioVideoSimple(silentPath, audioPath, finalPath, musicTrack?.path || null, audioDuration);
 
   const elapsed = ((Date.now() - startTime) / 1000 / 60).toFixed(1);
   // --- STEP 6: Generate Thumbnail ---
   console.log(chalk.blue("\nGenerating thumbnail...\n"));
   try {
-    const thumbTitle = scriptText.split("\n")[0].replace(/^#\s*/, "").trim() || projectName;
+    // Use project name as title (cleaner than first script line)
+    const thumbTitle = projectName.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
     await generateThumbnail(outputDir, thumbTitle, projectName.replace(/-/g, " "));
     console.log(chalk.green("  Thumbnail saved!"));
   } catch (thumbErr) {
@@ -439,6 +464,8 @@ async function mergeAudioVideoSimple(videoPath, audioPath, outputPath, musicPath
       s.succeed("Merged with music");
       return;
     } catch (err) {
+      const ffmpegErr = err?.stderr?.toString() || err?.message || 'unknown error';
+      console.log(`\n  ⚠️  Music mix failed: ${ffmpegErr.slice(0, 200)}`);
       s.text = "Music mix failed, merging voice only...";
     }
   }
