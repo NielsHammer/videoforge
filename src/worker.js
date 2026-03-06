@@ -7,17 +7,83 @@ dotenv.config();
 
 const SUPABASE_URL = 'https://fhrznlqtnjgyzpvthyyl.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const POLL_INTERVAL = 30000;
+const POLL_INTERVAL = 30000;           // 15s poll for new orders
+const STUCK_INTERVAL = 30 * 60 * 1000; // 30 min stuck order recovery
 const VIDEOFORGE_DIR = '/opt/videoforge';
+const OUTPUT_BASE = path.join(VIDEOFORGE_DIR, 'output');
+const ASSET_CACHE_DIR = path.join(VIDEOFORGE_DIR, 'asset-cache');
 
 if (!SUPABASE_SERVICE_KEY) { console.error('SUPABASE_SERVICE_ROLE_KEY not set'); process.exit(1); }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
+// Ensure asset cache dir exists
+fs.mkdirSync(ASSET_CACHE_DIR, { recursive: true });
+
 function log(msg) {
   const ts = new Date().toISOString().replace('T', ' ').slice(0, 19);
   console.log(`[${ts}] ${msg}`);
 }
+
+// ─── Asset Cache ─────────────────────────────────────────────────────────────
+// Global image cache keyed by search query — reused across orders with
+// near-identical search terms. Voice is NEVER reused across different orders.
+
+export function getCacheKey(query) {
+  return query.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, '-').slice(0, 80);
+}
+
+export function getCachedAsset(query) {
+  const cachePath = path.join(ASSET_CACHE_DIR, `${getCacheKey(query)}.jpg`);
+  if (fs.existsSync(cachePath) && fs.statSync(cachePath).size > 5000) {
+    return cachePath;
+  }
+  return null;
+}
+
+export function saveCachedAsset(query, sourcePath) {
+  try {
+    const cachePath = path.join(ASSET_CACHE_DIR, `${getCacheKey(query)}.jpg`);
+    if (!fs.existsSync(cachePath)) { // only save if not already cached
+      fs.copyFileSync(sourcePath, cachePath);
+    }
+  } catch (e) { /* non-fatal */ }
+}
+
+// ─── Folder Cleanup ───────────────────────────────────────────────────────────
+
+function deleteOutputFolder(orderId, keepVoice = false) {
+  const folderPath = path.join(OUTPUT_BASE, `order-${orderId}`);
+  if (!fs.existsSync(folderPath)) return;
+
+  if (keepVoice) {
+    // Preserve voiceover files — delete everything else so visuals regenerate
+    const assetsDir = path.join(folderPath, 'assets');
+    const voicePath = path.join(assetsDir, 'voiceover.mp3');
+    const tsPath = path.join(assetsDir, 'voiceover-timestamps.json');
+
+    // Back up voice files temporarily
+    const tmpVoice = path.join(OUTPUT_BASE, `voice-backup-${orderId}.mp3`);
+    const tmpTs = path.join(OUTPUT_BASE, `voice-backup-${orderId}.json`);
+    if (fs.existsSync(voicePath)) fs.copyFileSync(voicePath, tmpVoice);
+    if (fs.existsSync(tsPath)) fs.copyFileSync(tsPath, tmpTs);
+
+    // Wipe the folder
+    fs.rmSync(folderPath, { recursive: true, force: true });
+
+    // Restore voice files into fresh assets dir
+    fs.mkdirSync(assetsDir, { recursive: true });
+    if (fs.existsSync(tmpVoice)) { fs.copyFileSync(tmpVoice, voicePath); fs.unlinkSync(tmpVoice); }
+    if (fs.existsSync(tmpTs)) { fs.copyFileSync(tmpTs, tsPath); fs.unlinkSync(tmpTs); }
+
+    log(`  🗑️  Cleared output folder for order ${orderId} (voiceover preserved)`);
+  } else {
+    fs.rmSync(folderPath, { recursive: true, force: true });
+    log(`  🗑️  Deleted output folder for order ${orderId} (full wipe)`);
+  }
+}
+
+// ─── Upload Guide ─────────────────────────────────────────────────────────────
 
 async function generateUploadGuide(topic, outputDir) {
   const guidePath = path.join(outputDir, 'upload-guide.html');
@@ -86,25 +152,21 @@ c.messages.create({
     <div class="header-icon">📹</div>
     <h1>YouTube Upload Guide</h1>
     <p class="subtitle">Your video is ready. Follow these steps to publish it.</p>
-
     <div class="card">
       <div class="card-label">Title</div>
       <div class="card-content" id="title-text">${title}</div>
       <button class="copy-btn" onclick="copyText('title-text', this)">Copy Title</button>
     </div>
-
     <div class="card">
       <div class="card-label">Description</div>
       <div class="card-content" id="desc-text">${description}</div>
       <button class="copy-btn" onclick="copyText('desc-text', this)">Copy Description</button>
     </div>
-
     <div class="card">
       <div class="card-label">Tags</div>
       <div class="tags">${tagsHtml}</div>
       <button class="copy-btn" onclick="copyRaw('${tagsPlain.replace(/'/g, "\\'")}', this)">Copy Tags</button>
     </div>
-
     <div class="card">
       <div class="card-label">Upload Steps</div>
       <ul class="steps">
@@ -119,7 +181,6 @@ c.messages.create({
       </ul>
     </div>
   </div>
-
   <script>
     function copyText(id, btn) {
       const text = document.getElementById(id).innerText;
@@ -144,9 +205,69 @@ c.messages.create({
   return guidePath;
 }
 
+// ─── Thumbnail-only regeneration ──────────────────────────────────────────────
+// Called when admin clicks "Regenerate Thumbnail" — reruns ONLY the thumbnail
+// step on existing output folder. Video and voice untouched.
+
+async function regenerateThumbnail(order) {
+  const { id: orderId, topic, thumbnail_action } = order;
+  log(`Regenerating thumbnail for order ${orderId}: "${topic}"`);
+  await supabase.from('orders').update({ status: 'processing' }).eq('id', orderId);
+
+  try {
+    const outputDirName = `order-${orderId}`;
+    const outputPath = path.join(OUTPUT_BASE, outputDirName);
+
+    if (!fs.existsSync(outputPath)) {
+      throw new Error(`Output folder not found: ${outputDirName}`);
+    }
+
+    // Delete old thumbnail so pipeline regenerates it fresh
+    const thumbFile = path.join(outputPath, 'thumbnail.png');
+    if (fs.existsSync(thumbFile)) fs.unlinkSync(thumbFile);
+
+    // Run thumbnail-only generation via CLI
+    const scriptFile = path.join(VIDEOFORGE_DIR, 'scripts', `order-${orderId}.txt`);
+    const scriptArg = fs.existsSync(scriptFile) ? `"${scriptFile}"` : `"${topic}"`;
+
+    execSync(
+      `node src/cli.js generate ${scriptArg} --order-id ${orderId} --skip-voice --no-render`,
+      { cwd: VIDEOFORGE_DIR, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 }
+    );
+
+    const baseUrl = `https://files.tubeautomate.com/output/${outputDirName}`;
+    const thumbUrl = fs.existsSync(thumbFile) ? `${baseUrl}/thumbnail.png?t=${Date.now()}` : null;
+
+    await supabase.from('orders').update({
+      status: 'review',
+      thumbnail_url: thumbUrl,
+      thumbnail_action: null,
+      admin_notes: null,
+    }).eq('id', orderId);
+
+    log(`  Thumbnail regenerated for order ${orderId}`);
+  } catch (err) {
+    log(`  Thumbnail regen FAILED for ${orderId}: ${err.message}`);
+    await supabase.from('orders').update({
+      status: 'review', // put back to review so admin can try again
+      thumbnail_action: null,
+      admin_notes: `Thumbnail regen failed: ${err.message}`
+    }).eq('id', orderId);
+  }
+}
+
+// ─── Main Order Processing ────────────────────────────────────────────────────
+
 async function processOrder(order) {
   const { id: orderId, topic, script_upload, tone, voice_id, admin_notes, video_length } = order;
   log(`Processing order ${orderId}: "${topic}"`);
+
+  // ── CRITICAL: Delete old output folder before reprocessing ──
+  // If feedback says keep voice, preserve voiceover.mp3 + timestamps
+  // so ElevenLabs is not called again (saves credits)
+  const keepVoice = !!(admin_notes && /keep voice|same voice|reuse voice|don.t redo voice|voice is fine|voice is good/i.test(admin_notes));
+  deleteOutputFolder(orderId, keepVoice);
+
   await supabase.from('orders').update({ status: 'processing' }).eq('id', orderId);
 
   try {
@@ -167,17 +288,21 @@ async function processOrder(order) {
       };
       const mappedTone = toneMap[(tone || '').toLowerCase()] || 'engaging';
 
-      // Include admin_notes (customer feedback + team notes) in script generation if present
+      // admin_notes carries customer feedback — passed into script prompt as context
+      // This ensures rejections with "make it more dramatic" actually affect the new script
       const topicWithNotes = admin_notes
-        ? `${topic} [Additional context: ${admin_notes}]`
+        ? `${topic} [Client feedback for this revision: ${admin_notes}]`
         : topic;
 
+      const durationMap = {
+        '10 minutes': '10', '20 minutes': '20', '30 minutes': '30',
+        '40 minutes': '40', '50 minutes': '50', '60 minutes': '60',
+        '3 minutes': '3', '5 minutes': '5', '7 minutes': '7', '15 minutes': '15'
+      };
+      const duration = durationMap[(video_length || '').toLowerCase()] || '10';
+
       const out = execSync(
-        (() => {
-          const durationMap = { '3 minutes': '3', '5 minutes': '5', '7 minutes': '7', '10 minutes': '10', '15 minutes': '15', '20 minutes': '20' };
-          const duration = durationMap[(video_length || '').toLowerCase()] || '10';
-          return `node src/cli.js script "${topicWithNotes.replace(/"/g, '\\"')}" --tone ${mappedTone} --duration ${duration}`;
-        })(),
+        `node src/cli.js script "${topicWithNotes.replace(/"/g, '\\"')}" --tone ${mappedTone} --duration ${duration}`,
         { cwd: VIDEOFORGE_DIR, timeout: 120000, encoding: 'utf8' }
       );
       const match = out.match(/Saved:\s*(.+\.txt)/);
@@ -188,25 +313,25 @@ async function processOrder(order) {
     log(`  Script: ${scriptPath}`);
     log('  Generating video (~10-15 min)...');
 
-    // Output folder is deterministic: order-{orderId}
-    const outputBase = path.join(VIDEOFORGE_DIR, 'output');
+    // keepVoice was determined above when we cleaned the folder
+    // If true, voiceover.mp3 was preserved — pass --skip-voice so ElevenLabs is skipped
+    const skipVoiceFlag = keepVoice ? ' --skip-voice' : '';
+    if (keepVoice) log('  Reusing existing voiceover (feedback says keep voice)');
 
     execSync(
-      `node src/cli.js generate "${scriptPath}"${voice_id ? ` --voice ${voice_id}` : ''} --order-id ${orderId}`,
+      `node src/cli.js generate "${scriptPath}"${voice_id ? ` --voice ${voice_id}` : ''}${skipVoiceFlag} --order-id ${orderId}`,
       { cwd: VIDEOFORGE_DIR, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 }
     );
 
-    // Find output folder directly by orderId — guaranteed unique, no race conditions
     const outputDirName = `order-${orderId}`;
-    if (!fs.existsSync(path.join(outputBase, outputDirName, 'final.mp4'))) {
+    if (!fs.existsSync(path.join(OUTPUT_BASE, outputDirName, 'final.mp4'))) {
       throw new Error(`Output folder not found: ${outputDirName} — pipeline may have failed`);
     }
 
-    const outputPath = path.join(outputBase, outputDirName);
+    const outputPath = path.join(OUTPUT_BASE, outputDirName);
     const thumbFile = path.join(outputPath, 'thumbnail.png');
     log(`  Video generated! Output: ${outputDirName}`);
 
-    // Generate upload guide
     await generateUploadGuide(topic, outputPath);
 
     const baseUrl = `https://files.tubeautomate.com/output/${outputDirName}`;
@@ -216,8 +341,8 @@ async function processOrder(order) {
       status: 'review',
       video_url: `${baseUrl}/final.mp4`,
       thumbnail_url: thumbUrl,
-      output_dir: outputDirName,           // stored cleanly in its own column
-      admin_notes: null,                   // clear notes after use so modal is clean
+      output_dir: outputDirName,
+      admin_notes: null, // clear after use so review modal is clean
     }).eq('id', orderId);
 
     log(`  Order ${orderId} complete! Ready for admin review.`);
@@ -230,16 +355,30 @@ async function processOrder(order) {
   }
 }
 
+// ─── Poll Loop ────────────────────────────────────────────────────────────────
+
 async function pollForOrders() {
   try {
-    // Only process queued orders — no other statuses need worker action
-    // Status flow: queued → processing → review → client_review → delivered
-    // Revision flow: revision_requested → queued (set by admin) → processing → review → client_review → delivered
+    // Check for thumbnail-only regeneration requests first
+    const { data: thumbJobs } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('thumbnail_action', 'regenerate')
+      .neq('status', 'processing')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (thumbJobs?.length > 0) {
+      await regenerateThumbnail(thumbJobs[0]);
+      return;
+    }
+
+    // Process queued orders (newest first so fresh orders feel fast)
     const { data: queued } = await supabase
       .from('orders')
       .select('*')
       .eq('status', 'queued')
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(1);
 
     if (queued?.length > 0) {
@@ -250,18 +389,28 @@ async function pollForOrders() {
   }
 }
 
+// ─── Stuck Order Recovery ─────────────────────────────────────────────────────
+
 async function recoverStuckOrders() {
   try {
-    // Any order stuck on 'processing' means the worker died mid-generation
-    // Reset them back to 'queued' so they get picked up again
     const { data, error } = await supabase
       .from('orders')
-      .update({ status: 'queued', video_url: null, thumbnail_url: null })
-      .eq('status', 'processing')
-      .select('id, topic');
+      .select('id, topic')
+      .eq('status', 'processing');
+
     if (error) { log(`Recovery check failed: ${error.message}`); return; }
+
     if (data && data.length > 0) {
-      data.forEach(o => log(`  Recovered stuck order: "${o.topic}" → re-queued`));
+      for (const o of data) {
+        // Delete the half-built output folder so reprocessing starts clean
+        deleteOutputFolder(o.id);
+
+        await supabase.from('orders')
+          .update({ status: 'queued', video_url: null, thumbnail_url: null, output_dir: null })
+          .eq('id', o.id);
+
+        log(`  Recovered stuck order: "${o.topic}" → re-queued (old folder deleted)`);
+      }
     } else {
       log('  No stuck orders found.');
     }
@@ -270,10 +419,18 @@ async function recoverStuckOrders() {
   }
 }
 
-log('VideoForge Worker v5 started');
-log(`Polling every ${POLL_INTERVAL / 1000}s`);
-log('Checking for stuck orders...');
+// ─── Startup ──────────────────────────────────────────────────────────────────
+
+log('VideoForge Worker v6 started');
+log(`Polling every ${POLL_INTERVAL / 1000}s | Stuck check every 30 min`);
+log('Checking for stuck orders on startup...');
+
 recoverStuckOrders().then(() => {
   pollForOrders();
   setInterval(pollForOrders, POLL_INTERVAL);
+  // Periodic stuck order recovery — catches crashes between restarts
+  setInterval(() => {
+    log('Running periodic stuck order check...');
+    recoverStuckOrders();
+  }, STUCK_INTERVAL);
 });

@@ -10,6 +10,7 @@ import { createStoryboard } from "./director.js";
 import { fetchPhoto } from "./pexels.js";
 import { removeBackground, generateAIImage } from "./fal.js";
 import { searchWebImage, isWebSearchAvailable } from "./web-images.js";
+import { getCachedAsset, saveCachedAsset } from "./worker.js";
 import { detectMood, selectMusicTrack } from "./music.js";
 import { renderWithRemotion } from "./remotion-renderer.js";
 import axios from "axios";
@@ -226,7 +227,17 @@ export async function generateVideo(scriptPath, options) {
       // Route 0.5: Director chose web_image ? Brave search for real photos, AI fallback
       if (clip.visual_type === "web_image" && clip.search_query && webImageAvailable) {
         try {
-          const result = await searchWebImage(clip.search_query, webPath, clip);
+          // Check asset cache first — saves Brave API calls and time
+          const cachedWeb = getCachedAsset(clip.search_query);
+          if (cachedWeb) {
+            fs.copyFileSync(cachedWeb, webPath);
+            console.log(`    💾 Cache hit: ${clip.search_query}`);
+          } else {
+            await searchWebImage(clip.search_query, webPath, clip);
+            if (fs.existsSync(webPath) && fs.statSync(webPath).size > 5000) {
+              saveCachedAsset(clip.search_query, webPath); // save for future orders
+            }
+          }
           if (fs.existsSync(webPath) && fs.statSync(webPath).size > 5000) {
             fixImageRotation(webPath);
             clip.imagePath = webPath;
@@ -243,7 +254,17 @@ export async function generateVideo(scriptPath, options) {
               clip,
               scriptText
             );
-            await generateAIImage(detailedPrompt, aiPath);
+            // Check cache before calling Fal.ai (most expensive — ~$0.05/image)
+            const cachedAI = getCachedAsset('ai-' + clip.search_query);
+            if (cachedAI) {
+              fs.copyFileSync(cachedAI, aiPath);
+              console.log(`    💾 Cache hit (AI): ${clip.search_query}`);
+            } else {
+              await generateAIImage(detailedPrompt, aiPath);
+              if (fs.existsSync(aiPath) && fs.statSync(aiPath).size > 5000) {
+                saveCachedAsset('ai-' + clip.search_query, aiPath);
+              }
+            }
             fixImageRotation(aiPath);
             clip.imagePath = aiPath;
             clip.isCutout = false;
