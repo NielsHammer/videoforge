@@ -306,7 +306,7 @@ async function processOrder(order) {
 
     execSync(
       `node src/cli.js generate "${scriptPath}"${voice_id ? ` --voice ${voice_id}` : ''}${skipVoiceFlag} --order-id ${orderId}`,
-      { cwd: VIDEOFORGE_DIR, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024, timeout: 2700000 } // 45 min max
+      { cwd: VIDEOFORGE_DIR, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024, timeout: 7200000 } // 2 hour max (60 min video can take 90+ min)
     );
 
     const outputDirName = `order-${orderId}`;
