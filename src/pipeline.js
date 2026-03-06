@@ -498,7 +498,7 @@ export async function generateVideo(scriptPath, options) {
   try {
     const probeOut = execSync(
       `ffprobe -v quiet -print_format json -show_streams "${audioPath}"`,
-      { encoding: 'utf8' }
+      { encoding: 'utf8', timeout: 30000 } // 30s
     );
     const probeData = JSON.parse(probeOut);
     const audioStream = probeData.streams.find(s => s.codec_type === 'audio');
@@ -544,7 +544,7 @@ async function mergeAudioVideoSimple(videoPath, audioPath, outputPath, musicPath
         `[2:a]atrim=0:${duration},asetpts=PTS-STARTPTS,aformat=channel_layouts=stereo,afade=t=in:st=0:d=2,afade=t=out:st=${fadeOut}:d=3,volume=0.50[music];` +
         `[voice][music]amix=inputs=2:duration=first:dropout_transition=2[aout]` +
         `" -map 0:v -map "[aout]" -c:v copy -c:a aac -b:a 192k -ac 2 "${outputPath}"`,
-        { stdio: "pipe" }
+        { stdio: "pipe", timeout: 1800000 } // 30 min max
       );
       s.succeed("Merged with music");
       return;
@@ -558,13 +558,13 @@ async function mergeAudioVideoSimple(videoPath, audioPath, outputPath, musicPath
   try {
     execSync(
       `ffmpeg -y -i "${videoPath}" -i "${audioPath}" -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k "${outputPath}"`,
-      { stdio: "pipe" }
+      { stdio: "pipe", timeout: 1800000 } // 30 min max
     );
     s.succeed("Merged");
   } catch {
     execSync(
       `ffmpeg -y -i "${videoPath}" -i "${audioPath}" -c:v libx264 -preset fast -crf 20 -c:a aac -b:a 192k "${outputPath}"`,
-      { stdio: "pipe" }
+      { stdio: "pipe", timeout: 1800000 } // 30 min max
     );
     s.succeed("Merged (re-encoded)");
   }
