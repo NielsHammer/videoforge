@@ -398,7 +398,7 @@ export async function generateVideo(scriptPath, options) {
 
   // Select music
   let musicTrack = null;
-  if (!options.noMusic) {
+  if (options.music !== false && !options.noMusic) { // Commander: --no-music sets music=false
     const ms = ora("Selecting background music...").start();
     musicTrack = selectMusicTrack(mood, projectRoot);
     if (musicTrack) {
