@@ -358,35 +358,46 @@ export async function generateVideo(scriptPath, options) {
   let theme = pick(themePools.default);
 
   // Niche detection — order matters, more specific matches first
-  if (/\b(horror|scary|creepy|murder|serial killer|ghost|haunted|demon|paranormal)\b/.test(scriptLower)) theme = "dark_horror";
-  if (/\b(true crime|crime|criminal|prison|detective|forensic|investigation|cold case)\b/.test(scriptLower)) theme = "midnight_blue";
-  if (/\b(ai|artificial intelligence|machine learning|neural|chatgpt|gpt|llm|automation)\b/.test(scriptLower)) theme = "electric_cyan";
-  if (/\b(tech|software|programming|code|app|gadget|smartphone|computer|review)\b/.test(scriptLower)) theme = "ice_blue";
-  if (/\b(crypto|bitcoin|blockchain|nft|web3|ethereum|defi)\b/.test(scriptLower)) theme = "neon_green";
-  if (/\b(space|universe|cosmos|galaxy|astronomy|planet|astronaut|nasa|star|black hole)\b/.test(scriptLower)) theme = "purple_cosmic";
-  if (/\b(meditation|mindful|zen|spiritual|consciousness|chakra|yoga)\b/.test(scriptLower)) theme = "royal_purple";
-  if (/\b(philosophy|stoic|stoicism|wisdom|ancient|thinker|meaning of life)\b/.test(scriptLower)) theme = "royal_purple";
-  if (/\b(psychology|mental|brain|cognitive|bias|behavior|personality|therapy)\b/.test(scriptLower)) theme = "royal_purple";
-  if (/\b(health|medical|body|nutrition|diet|exercise|fitness|wellness|vitamin)\b/.test(scriptLower)) theme = "teal_ocean";
-  if (/\b(sleep|insomnia|dream|melatonin|circadian|rest|nap)\b/.test(scriptLower)) theme = "purple_cosmic";
-  if (/\b(history|ancient|medieval|empire|war|century|dynasty|civilization|mythology|folklore)\b/.test(scriptLower)) theme = "earth_brown";
-  if (/\b(travel|destination|country|tourism|flight|passport|backpack|adventure|explore)\b/.test(scriptLower)) theme = "forest_green";
-  if (/\b(nature|animal|pet|dog|cat|wildlife|ocean|marine|bird)\b/.test(scriptLower)) theme = "forest_green";
-  if (/\b(luxury|premium|wealthy|millionaire|billionaire|rich|gold|rolex|ferrari|mansion)\b/.test(scriptLower)) theme = "gold_luxury";
-  if (/\b(celebrity|net worth|famous|actor|singer|rapper|influencer|biography)\b/.test(scriptLower)) theme = "gold_luxury";
-  if (/\b(movie|film|tv show|netflix|series|recap|review|box office|streaming)\b/.test(scriptLower)) theme = "pink_neon";
-  if (/\b(social media|instagram|tiktok|youtube|viral|followers|subscribers)\b/.test(scriptLower)) theme = "pink_neon";
-  if (/\b(cooking|recipe|food|meal|kitchen|chef|baking|ingredient|calorie)\b/.test(scriptLower)) theme = "rose_gold";
-  if (/\b(car|automobile|vehicle|engine|horsepower|mph|speed|racing|tesla|bmw)\b/.test(scriptLower)) theme = "steel_grey";
-  if (/\b(real estate|house|property|mortgage|rent|apartment|housing)\b/.test(scriptLower)) theme = "gold_luxury";
-  if (/\b(side hustle|passive income|make money|freelance|gig|entrepreneur|startup|business)\b/.test(scriptLower)) theme = "orange_fire";
-  if (/\b(motivat|hustle|grind|success|winner|champion|goal|discipline|habit)\b/.test(scriptLower)) theme = "sunset_warm";
-  if (/\b(sport|nba|nfl|soccer|football|basketball|athlete|championship|olympic)\b/.test(scriptLower)) theme = "red_energy";
-  if (/\b(science|physics|chemistry|biology|experiment|research|study|data)\b/.test(scriptLower)) theme = "ice_blue";
-  if (/\b(invest|stock|dividend|portfolio|compound|index fund|etf|bond|market|finance|money|broke|salary|budget|saving|debt)\b/.test(scriptLower)) theme = "blue_grid";
-  if (/\b(reddit|askreddit|aita|tifu|story time)\b/.test(scriptLower)) theme = "neon_green";
-  // Only apply list/ranking theme if no specific niche was already detected
-  if (/\b(top \d|ranking|ranked|list|best|worst|most|biggest|smallest)\b/.test(scriptLower) && theme === pick(themePools.default)) theme = "aurora";
+  // Topic → pool of valid themes (picked randomly for variety)
+  const topicThemePools = {
+    horror:       [/\b(horror|scary|creepy|ghost|haunted|demon|paranormal)\b/, ["dark_horror", "blood_red", "midnight_blue"]],
+    crime:        [/\b(true crime|crime|criminal|prison|detective|forensic|cold case)\b/, ["midnight_blue", "steel_grey", "dark_horror"]],
+    ai:           [/\b(ai|artificial intelligence|machine learning|neural|chatgpt|gpt|llm|automation)\b/, ["electric_cyan", "ice_blue", "purple_cosmic"]],
+    tech:         [/\b(tech|software|programming|code|app|gadget|smartphone|computer)\b/, ["ice_blue", "electric_cyan", "steel_grey"]],
+    crypto:       [/\b(crypto|bitcoin|blockchain|nft|web3|ethereum|defi)\b/, ["neon_green", "electric_cyan", "gold_luxury"]],
+    space:        [/\b(space|universe|cosmos|galaxy|astronomy|planet|astronaut|nasa|black hole)\b/, ["purple_cosmic", "midnight_blue", "electric_cyan"]],
+    spiritual:    [/\b(meditation|mindful|zen|spiritual|consciousness|chakra|yoga|philosophy|stoic)\b/, ["royal_purple", "purple_cosmic", "teal_ocean"]],
+    psychology:   [/\b(psychology|mental|brain|cognitive|bias|behavior|personality|therapy)\b/, ["royal_purple", "ice_blue", "midnight_blue"]],
+    health:       [/\b(health|medical|body|nutrition|diet|exercise|fitness|wellness|vitamin)\b/, ["teal_ocean", "forest_green", "ice_blue"]],
+    sleep:        [/\b(sleep|insomnia|dream|melatonin|circadian|rest|nap)\b/, ["purple_cosmic", "royal_purple", "midnight_blue"]],
+    history:      [/\b(history|ancient|medieval|empire|war|century|dynasty|civilization|mythology)\b/, ["earth_brown", "gold_luxury", "steel_grey"]],
+    travel:       [/\b(travel|destination|country|tourism|flight|passport|adventure|explore)\b/, ["forest_green", "teal_ocean", "sunset_warm"]],
+    nature:       [/\b(nature|animal|pet|dog|cat|wildlife|ocean|marine|bird)\b/, ["forest_green", "teal_ocean", "earth_brown"]],
+    luxury:       [/\b(luxury|wealthy|millionaire|billionaire|rich|gold|rolex|ferrari|mansion)\b/, ["gold_luxury", "rose_gold", "royal_purple"]],
+    celebrity:    [/\b(celebrity|net worth|famous|actor|singer|rapper|influencer|biography)\b/, ["gold_luxury", "pink_neon", "rose_gold"]],
+    entertainment:[/\b(movie|film|netflix|series|recap|box office|streaming)\b/, ["pink_neon", "purple_cosmic", "neon_green"]],
+    social:       [/\b(social media|instagram|tiktok|youtube|viral|followers|subscribers)\b/, ["pink_neon", "neon_green", "electric_cyan"]],
+    food:         [/\b(cooking|recipe|food|meal|kitchen|chef|baking|ingredient|calorie)\b/, ["rose_gold", "sunset_warm", "orange_fire"]],
+    cars:         [/\b(car|automobile|vehicle|engine|horsepower|speed|racing|tesla|bmw)\b/, ["steel_grey", "red_energy", "midnight_blue"]],
+    realestate:   [/\b(real estate|house|property|mortgage|rent|apartment|housing)\b/, ["gold_luxury", "steel_grey", "earth_brown"]],
+    business:     [/\b(side hustle|passive income|make money|freelance|entrepreneur|startup|business)\b/, ["orange_fire", "gold_luxury", "electric_cyan"]],
+    motivation:   [/\b(motivat|hustle|grind|success|winner|champion|goal|discipline|habit)\b/, ["sunset_warm", "orange_fire", "red_energy"]],
+    sports:       [/\b(sport|nba|nfl|soccer|football|basketball|athlete|championship|olympic)\b/, ["red_energy", "steel_grey", "midnight_blue"]],
+    science:      [/\b(science|physics|chemistry|biology|experiment|research|study|data)\b/, ["ice_blue", "electric_cyan", "teal_ocean"]],
+    finance:      [/\b(invest|stock|dividend|portfolio|compound|index fund|etf|bond|market|finance|money|broke|salary|budget|saving|debt)\b/, ["blue_grid", "gold_luxury", "steel_grey"]],
+    reddit:       [/\b(reddit|askreddit|aita|tifu|story time)\b/, ["neon_green", "orange_fire", "pink_neon"]],
+    list:         [/\b(top \d|ranking|ranked|best|worst|most|biggest|smallest)\b/, ["aurora", "electric_cyan", "gold_luxury", "purple_cosmic", "ice_blue"]],
+  };
+
+  let matched = false;
+  for (const [, [pattern, pool]] of Object.entries(topicThemePools)) {
+    if (pattern.test(scriptLower)) {
+      theme = pick(pool);
+      matched = true;
+      break;
+    }
+  }
+  if (!matched) theme = pick(themePools.default);
 
   console.log(chalk.blue(`🎨 Theme: ${theme}`));
   // CLI override

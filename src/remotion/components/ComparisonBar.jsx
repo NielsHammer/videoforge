@@ -14,7 +14,7 @@ export const ComparisonBar = ({ data, clipFrame = 0, theme = "grid" }) => {
     <div style={{
       position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
       display: "flex", flexDirection: "column", justifyContent: "center",
-      padding: "0 8%", gap: 40, zIndex: 10,
+      padding: "0 12% 0 8%", gap: 40, zIndex: 10,
     }}>
       {items.map((item, idx) => {
         const delay = idx * fps * 0.3;
@@ -75,18 +75,20 @@ export const ComparisonBar = ({ data, clipFrame = 0, theme = "grid" }) => {
                 transition: "none",
               }} />
 
-              {/* Value — inside bar if wide enough, else outside */}
+              {/* Value — always outside bar on the right, never overlapping */}
               <div style={{
                 position: "absolute",
-                right: barWidthPct > 30 ? undefined : 16,
-                left: barWidthPct > 30 ? `${Math.max(barWidthPct - 1, 0)}%` : undefined,
+                right: -180,
                 top: "50%",
-                transform: `translateY(-50%) ${barWidthPct > 30 ? "translateX(-100%)" : ""}`,
-                paddingRight: barWidthPct > 30 ? 16 : 0,
-                fontSize: 30, fontWeight: 900, color: "white",
+                transform: "translateY(-50%)",
+                width: 170,
+                fontSize: 26, fontWeight: 900, color: "white",
                 fontFamily: "Arial Black, Arial, sans-serif",
                 opacity: valueOp,
                 textShadow: "0 2px 8px rgba(0,0,0,0.6)",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
               }}>
                 {item.display}
               </div>
