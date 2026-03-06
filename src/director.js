@@ -406,6 +406,7 @@ Return ONLY a JSON array, no markdown, no backticks:
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
       },
+      timeout: 120000, // 2 min — storyboard generation should never hang
     }
   );
 
