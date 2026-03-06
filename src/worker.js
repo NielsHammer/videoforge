@@ -188,37 +188,18 @@ async function processOrder(order) {
     log(`  Script: ${scriptPath}`);
     log('  Generating video (~10-15 min)...');
 
-    // Record folders BEFORE generation so we can find the new one
+    // Output folder is deterministic: order-{orderId}
     const outputBase = path.join(VIDEOFORGE_DIR, 'output');
-    const beforeDirs = new Set(fs.readdirSync(outputBase));
 
     execSync(
       `node src/cli.js generate "${scriptPath}"${voice_id ? ` --voice ${voice_id}` : ''}`,
       { cwd: VIDEOFORGE_DIR, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 }
     );
 
-    // Find the new output folder
-    const afterDirs = fs.readdirSync(outputBase);
-    const newDirs = afterDirs.filter(d =>
-      !beforeDirs.has(d) && fs.existsSync(path.join(outputBase, d, 'final.mp4'))
-    );
-
-    let outputDirName;
-    if (newDirs.length > 0) {
-      outputDirName = newDirs[0];
-    } else {
-      // Fallback: most recently modified folder with final.mp4
-      const allDirs = afterDirs
-        .filter(d =>
-          fs.statSync(path.join(outputBase, d)).isDirectory() &&
-          fs.existsSync(path.join(outputBase, d, 'final.mp4'))
-        )
-        .sort((a, b) =>
-          fs.statSync(path.join(outputBase, b)).mtimeMs -
-          fs.statSync(path.join(outputBase, a)).mtimeMs
-        );
-      if (allDirs.length === 0) throw new Error('No output directory with final.mp4 found');
-      outputDirName = allDirs[0];
+    // Find output folder directly by orderId — guaranteed unique, no race conditions
+    const outputDirName = `order-${orderId}`;
+    if (!fs.existsSync(path.join(outputBase, outputDirName, 'final.mp4'))) {
+      throw new Error(`Output folder not found: ${outputDirName} — pipeline may have failed`);
     }
 
     const outputPath = path.join(outputBase, outputDirName);

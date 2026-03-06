@@ -39,6 +39,7 @@ program
   .argument('<script>', 'Path to the script text file')
   .option('-v, --voice <voice>', 'ElevenLabs voice ID or name')
   .option('-o, --output <dir>', 'Output directory', './output')
+  .option('--order-id <id>', 'Order ID — used as output folder name for isolation')
   .option('--no-ai-clips', 'Skip AI-generated clips, use only stock footage')
   .option('--no-music', 'Skip background music')
   .option('--skip-voice', 'Reuse existing voiceover files')
@@ -47,6 +48,8 @@ program
   .action(async (scriptPath, options) => {
     console.log(chalk.blue.bold('\n🎬 VideoForge v23\n'));
     try {
+      // Pass orderId so pipeline creates isolated folder per order
+      if (options.orderId) options.orderId = options.orderId;
       await generateVideo(scriptPath, options);
     } catch (err) {
       console.error(chalk.red(`\n❌ Error: ${err.message}`));
