@@ -333,6 +333,7 @@ export async function generateScript(topic, options = {}) {
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
       },
+      timeout: 120000, // 2 min
     }
   );
 
