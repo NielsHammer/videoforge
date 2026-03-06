@@ -138,6 +138,7 @@ export async function getVoiceId(voiceNameOrId) {
   try {
     const r = await axios.get(`${API_BASE}/voices`, {
       headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY },
+      timeout: 10000, // 10s
     });
     const m = r.data.voices.find((v) =>
       v.name.toLowerCase().includes((voiceNameOrId || "").toLowerCase())
@@ -288,9 +289,9 @@ export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath)
   const listPath = path.join(tmpDir, '_concat_list.txt');
   fs.writeFileSync(listPath, chunkPaths.map(p => `file '${p}'`).join('\n'));
   try {
-    execSync(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -acodec libmp3lame -b:a 192k "${outputPath}"`, { stdio: 'pipe' });
+    execSync(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -acodec libmp3lame -b:a 192k "${outputPath}"`, { stdio: 'pipe', timeout: 120000 }); // 2 min
   } catch (e) {
-    execSync(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -c copy "${outputPath}"`, { stdio: 'pipe' });
+    execSync(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -c copy "${outputPath}"`, { stdio: 'pipe', timeout: 120000 });
   }
   // Clean up temp files
   chunkPaths.forEach(p => { try { fs.unlinkSync(p); } catch(e) {} });
@@ -329,6 +330,7 @@ export async function generateVoiceover(text, voiceId, outputPath) {
     {
       headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY, "Content-Type": "application/json" },
       responseType: "arraybuffer",
+      timeout: 60000, // 60s
     }
   );
   fs.writeFileSync(outputPath, r.data);
@@ -339,6 +341,7 @@ export async function listVoices() {
   try {
     const r = await axios.get(`${API_BASE}/voices`, {
       headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY },
+      timeout: 10000,
     });
     console.log(chalk.blue.bold("\nAvailable ElevenLabs Voices:\n"));
     r.data.voices.forEach((v) => {
