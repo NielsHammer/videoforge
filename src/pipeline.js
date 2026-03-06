@@ -133,11 +133,11 @@ export async function generateVideo(scriptPath, options) {
   let voiceId;
   if (options.voice) {
     voiceId = await getVoiceId(options.voice);
-    console.log(chalk.blue(`???  Voice override: ${options.voice}`));
+    console.log(chalk.blue(`🎤  Voice override: ${options.voice}`));
   } else {
     const autoVoice = getAutoVoice(scriptText);
     voiceId = autoVoice.primary.voiceId;
-    console.log(chalk.blue(`???  Auto-voice: ${autoVoice.primary.id} (${autoVoice.style} style)`));
+    console.log(chalk.blue(`🎤  Auto-voice: ${autoVoice.primary.id} (${autoVoice.style} style)`));
   }
   const audioPath = path.join(assetsDir, "voiceover.mp3");
   const tsPath = path.join(assetsDir, "voiceover-timestamps.json");
@@ -292,11 +292,6 @@ export async function generateVideo(scriptPath, options) {
             clip.visual_type = "stock";
           }
         }
-      }
-
-      // web_image fallback handled by Brave above
-      if (false) {
-        clip.visual_type = "stock";
       }
 
       // Route 1: Director chose ai_image → Claude refines prompt → generate with Fal
