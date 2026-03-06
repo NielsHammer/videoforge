@@ -285,7 +285,16 @@ export async function generateVideo(scriptPath, options) {
       // Route 1: Director chose ai_image → Claude refines prompt → generate with Fal
       if (clip.visual_type === "ai_image" && clip.ai_prompt) {
         const detailedPrompt = await craftAIPrompt(clip.ai_prompt, clip, scriptText);
-        await generateAIImage(detailedPrompt, aiPath);
+        const cachedR1 = getCachedAsset('ai-' + (clip.search_query || clip.ai_prompt));
+        if (cachedR1) {
+          fs.copyFileSync(cachedR1, aiPath);
+          console.log(`    💾 Cache hit (AI route1): ${clip.search_query || clip.ai_prompt}`);
+        } else {
+          await generateAIImage(detailedPrompt, aiPath);
+          if (fs.existsSync(aiPath) && fs.statSync(aiPath).size > 5000) {
+            saveCachedAsset('ai-' + (clip.search_query || clip.ai_prompt), aiPath);
+          }
+        }
         fixImageRotation(aiPath);
         clip.imagePath = aiPath;
         clip.isCutout = false;
@@ -323,7 +332,16 @@ export async function generateVideo(scriptPath, options) {
           clip,
           scriptText
         );
-        await generateAIImage(detailedPrompt, aiPath);
+        const cachedR3 = getCachedAsset('ai-' + (clip.search_query || 'scene'));
+        if (cachedR3) {
+          fs.copyFileSync(cachedR3, aiPath);
+          console.log(`    💾 Cache hit (AI route3): ${clip.search_query}`);
+        } else {
+          await generateAIImage(detailedPrompt, aiPath);
+          if (fs.existsSync(aiPath) && fs.statSync(aiPath).size > 5000) {
+            saveCachedAsset('ai-' + (clip.search_query || 'scene'), aiPath);
+          }
+        }
         fixImageRotation(aiPath);
         clip.imagePath = aiPath;
         clip.isCutout = false;
@@ -334,7 +352,16 @@ export async function generateVideo(scriptPath, options) {
       // Emergency fallback: generic AI image
       try {
         const emergency = `Professional cinematic photograph related to ${clip.search_query || "business"}, clean modern aesthetic, dramatic lighting, dark background, 16:9, high quality`;
-        await generateAIImage(emergency, aiPath);
+        const cachedEmergency = getCachedAsset('ai-emergency-' + (clip.search_query || 'business'));
+        if (cachedEmergency) {
+          fs.copyFileSync(cachedEmergency, aiPath);
+          console.log(`    💾 Cache hit (AI emergency): ${clip.search_query}`);
+        } else {
+          await generateAIImage(emergency, aiPath);
+          if (fs.existsSync(aiPath) && fs.statSync(aiPath).size > 5000) {
+            saveCachedAsset('ai-emergency-' + (clip.search_query || 'business'), aiPath);
+          }
+        }
         fixImageRotation(aiPath);
         clip.imagePath = aiPath;
         clip.isCutout = false;
