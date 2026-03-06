@@ -225,7 +225,7 @@ async function ttsChunk(rawText, voiceId) {
         {
           text,
           model_id: "eleven_multilingual_v2",
-          voice_settings: { stability: 0.40, similarity_boost: 0.75, style: 0.20, use_speaker_boost: true },
+    
         },
         { headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY, "Content-Type": "application/json" } }
       );
@@ -324,7 +324,7 @@ export async function generateVoiceover(text, voiceId, outputPath) {
     {
       text,
       model_id: "eleven_multilingual_v2",
-      voice_settings: { stability: 0.40, similarity_boost: 0.75, style: 0.20, use_speaker_boost: true },
+
     },
     {
       headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY, "Content-Type": "application/json" },
