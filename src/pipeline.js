@@ -499,7 +499,7 @@ export async function generateVideo(scriptPath, options) {
   // Use actual audio file duration for accurate music trim
   let audioDuration = totalDuration;
   try {
-    const probeOut = require('child_process').execSync(
+    const probeOut = execSync(
       `ffprobe -v quiet -print_format json -show_streams "${audioPath}"`,
       { encoding: 'utf8' }
     );
