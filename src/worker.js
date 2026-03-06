@@ -3,7 +3,10 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
+import Anthropic from '@anthropic-ai/sdk';
 dotenv.config();
+
+const anthropic = new Anthropic();
 
 const SUPABASE_URL = 'https://fhrznlqtnjgyzpvthyyl.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -73,18 +76,12 @@ async function generateUploadGuide(topic, outputDir) {
   let tags = topic.split(' ').slice(0, 10).join(', ');
 
   try {
-    const out = execSync(
-      `node -e "
-const Anthropic = require('@anthropic-ai/sdk');
-const c = new Anthropic();
-c.messages.create({
-  model: 'claude-sonnet-4-20250514',
-  max_tokens: 800,
-  messages: [{role:'user',content:'Generate YouTube metadata for a video about: ${topicClean}. Return ONLY valid JSON, no other text, no markdown: {\"title\":\"catchy title max 60 chars\",\"description\":\"150-200 word YouTube description with keywords and call to action\",\"tags\":\"tag1, tag2, tag3, up to 20 tags\"}'}]
-}).then(r => process.stdout.write(r.content[0].text));
-"`,
-      { cwd: VIDEOFORGE_DIR, timeout: 30000, encoding: 'utf8' }
-    );
+    const msg = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 800,
+      messages: [{ role: 'user', content: 'Generate YouTube metadata for a video about: ' + topic + '. Return ONLY valid JSON, no other text, no markdown: {"title":"catchy title max 60 chars","description":"150-200 word YouTube description with keywords and call to action","tags":"tag1, tag2, tag3, up to 20 tags"}' }]
+    });
+    const out = msg.content[0].text;;
     const parsed = JSON.parse(out.trim());
     if (parsed.title) title = parsed.title;
     if (parsed.description) description = parsed.description;
