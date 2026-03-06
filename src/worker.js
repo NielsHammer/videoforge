@@ -414,6 +414,8 @@ async function recoverStuckOrders() {
 
     if (data && data.length > 0) {
       for (const o of data) {
+        const stuckMs = Date.now() - new Date(o.updated_at).getTime();
+        if (stuckMs < 3 * 60 * 60 * 1000) { log(`  Order still active (${Math.round(stuckMs/60000)} min) — skipping`); continue; }
         // Delete the half-built output folder so reprocessing starts clean
         deleteOutputFolder(o.id);
 
