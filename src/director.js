@@ -2,29 +2,27 @@ import axios from "axios";
 import chalk from "chalk";
 
 /**
- * Director v23: Rewritten prompt for visual storytelling.
- * - Claude now plans the FULL visual arc, not clip-by-clip
- * - Variety enforcement: never repeat search queries
- * - Must use a MIX of all visual types
- * - Better context about what each visual type looks like
+ * Director v24: Topic-aware search queries.
+ * - Claude now knows the video topic and must include it in every search query
+ * - Theme pool expanded with descriptions so Claude picks best fit
  */
-export async function createStoryboard(scriptText, wordTimestamps, totalDuration, contentMode = "visual") {
+export async function createStoryboard(scriptText, wordTimestamps, totalDuration, contentMode = "visual", topic = "") {
   const CHUNK_SECONDS = 120;
 
   let allClips;
 
   if (totalDuration <= 180) {
-    allClips = await processChunk(scriptText, wordTimestamps, 0, totalDuration, 0, 1, contentMode);
+    allClips = await processChunk(scriptText, wordTimestamps, 0, totalDuration, 0, 1, contentMode, topic);
   } else {
     const chunks = [];
     let chunkStart = 0;
-    
+
     while (chunkStart < totalDuration) {
       const chunkEnd = Math.min(chunkStart + CHUNK_SECONDS, totalDuration);
       const chunkWords = wordTimestamps
         .map((w, i) => ({ ...w, originalIndex: i }))
         .filter(w => w.start >= chunkStart - 0.1 && w.start < chunkEnd);
-      
+
       if (chunkWords.length > 0) {
         chunks.push({ words: chunkWords, startTime: chunkStart, endTime: chunkEnd });
       }
@@ -37,7 +35,7 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
       console.log(chalk.gray(`  Directing chunk ${i + 1}/${chunks.length} (${chunk.startTime.toFixed(0)}s-${chunk.endTime.toFixed(0)}s)...`));
-      const chunkClips = await processChunk(scriptText, chunk.words, chunk.startTime, chunk.endTime, i, chunks.length, contentMode);
+      const chunkClips = await processChunk(scriptText, chunk.words, chunk.startTime, chunk.endTime, i, chunks.length, contentMode, topic);
       allClips.push(...chunkClips);
     }
   }
@@ -87,7 +85,7 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
     console.log(chalk.gray(`  ✔ Fixed subtitle timing on ${fixCount} clips`));
   }
 
-  // v23: Eliminate time overlaps — each clip starts EXACTLY when the previous one ends
+  // Eliminate time overlaps
   for (let i = 1; i < allClips.length; i++) {
     if (allClips[i].start_time < allClips[i - 1].end_time) {
       allClips[i].start_time = allClips[i - 1].end_time;
@@ -97,17 +95,14 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
     }
   }
 
-  // v25: SUBTITLE BACKFILL — After overlap fixes, re-assign ALL words to clips
-  // This fixes the persistent bug where many clips have empty subtitle_words
+  // SUBTITLE BACKFILL
   if (wordTimestamps && wordTimestamps.length > 0) {
-    // Clear all existing subtitle assignments and rebuild from scratch
     allClips.forEach(clip => { clip.subtitle_words = []; });
 
     for (let wi = 0; wi < wordTimestamps.length; wi++) {
       const word = wordTimestamps[wi];
       if (!word || word.start === undefined) continue;
 
-      // Find which clip this word belongs to (word starts during clip's time range)
       for (let ci = 0; ci < allClips.length; ci++) {
         const clip = allClips[ci];
         if (word.start >= clip.start_time && word.start < clip.end_time) {
@@ -166,7 +161,7 @@ function validateSubtitleTiming(clips, wordTimestamps) {
   return fixCount;
 }
 
-async function processChunk(scriptText, chunkWords, startTime, endTime, chunkIndex, totalChunks, contentMode = "visual") {
+async function processChunk(scriptText, chunkWords, startTime, endTime, chunkIndex, totalChunks, contentMode = "visual", topic = "") {
   const wordRef = chunkWords.map((w) => {
     const idx = w.originalIndex !== undefined ? w.originalIndex : chunkWords.indexOf(w);
     return `[${idx}] "${w.word}" ${w.start.toFixed(2)}s`;
@@ -176,6 +171,11 @@ async function processChunk(scriptText, chunkWords, startTime, endTime, chunkInd
   const textFlashAllowance = chunkIndex === 0 ? 2 : 1;
   const isFirstChunk = chunkIndex === 0;
   const isLastChunk = chunkIndex === totalChunks - 1;
+
+  // Build topic context line for the prompt
+  const topicContext = topic
+    ? `\nVIDEO TOPIC: "${topic}"\nThis is CRITICAL — every image search_query MUST be contextually tied to this topic. If the narrator says "wealth", the query must be "${topic} wealth" or "ancient Roman gold treasure" — NEVER just "wealth". If the narrator says "weapons", the query must reflect the era/setting of this video. ALWAYS prefix or contextualize queries with the video's subject matter.\n`
+    : "";
 
   const response = await axios.post(
     "https://api.anthropic.com/v1/messages",
@@ -189,7 +189,7 @@ async function processChunk(scriptText, chunkWords, startTime, endTime, chunkInd
 
 CONTENT MODE: ${contentMode.toUpperCase()}
 ${contentMode === "visual" ? "THIS IS A VISUAL VIDEO. Use 85-95% real photos and images. Infographics should be MAX 5-10% of clips — ONLY when a specific hard number or statistic is mentioned in the narration. NEVER use infographics in the first 5 seconds (the hook). The hook MUST be a striking photo or cinematic image. Default to stock photos and AI images for everything." : "THIS IS A DATA-DRIVEN VIDEO. Use 40-60% infographics when numbers and data are mentioned. Use real photos for scene-setting and transitions. Still avoid infographics in the first 3 seconds — start with a compelling image."}
-
+${topicContext}
 Create a visually compelling storyboard for this ${duration.toFixed(0)}s segment (${startTime.toFixed(1)}s to ${endTime.toFixed(1)}s).
 
 WORD TIMING:
@@ -281,10 +281,12 @@ IMAGE TYPES (30-40% of clips):
 25. "stock" — Real photo from Pexels. ALWAYS in rounded-corner frame.
     display_style: fullscreen, framed, fullscreen_zoom, split_left, split_right
     split_left: DEFAULT — Image LEFT (~46%), subtitles RIGHT.
-    search_query: 3-5 specific words matching EXACTLY what narrator says.
+    search_query: 3-5 specific words that INCLUDE THE VIDEO TOPIC/ERA/SETTING.
+    ⚠️ NEVER use generic queries like "wealth" or "weapons" alone.
+    ✅ ALWAYS tie to the video topic: "Roman Empire gold coins", "ancient Rome legions battle", "medieval castle siege"
 
 26. "ai_image" — AI-generated image. ALWAYS in rounded-corner frame.
-    ai_prompt: 15-30 ultra-specific cinematic words.
+    ai_prompt: 15-30 ultra-specific cinematic words including the video topic/era.
     display_style: same as stock.
 
 27. "web_image" — Real photo from Google Images for SPECIFIC real people, places, brands, events.
@@ -296,27 +298,29 @@ IMAGE TYPES (30-40% of clips):
 28. "web_screenshot" — Screenshot of a real website, YouTube channel, tweet, or article.
     screenshot_query: Description of what to screenshot (e.g. "MrBeast YouTube channel page", "Tesla stock chart Google Finance")
     display_style: same as stock.
-    USE WHEN: The narrator talks about a specific online presence, channel, post, or website.
-    Great for: YouTube channels, social media profiles, news headlines, company websites.
 
 CHOOSING BETWEEN IMAGE TYPES:
-- Generic concept (person working, city skyline) → stock
-- Abstract/impossible scene (brain exploding with data) → ai_image
+- Generic concept in the video's era/setting → stock (with topic-aware query)
+- Abstract/impossible scene → ai_image (with topic-aware prompt)
 - SPECIFIC real person/place/brand → web_image
 - Website/channel/social media reference → web_screenshot
 - When in doubt → stock
 
+CRITICAL — SEARCH QUERY RULES:
+1. Every stock search_query MUST be contextually tied to the video topic
+2. If the video is about Roman Empire: "wealth" → "Roman Empire gold treasure coins", "army" → "ancient Roman legion soldiers"
+3. If the video is about fitness: "eating" → "bodybuilder meal prep protein", "tired" → "gym exhausted athlete training"
+4. If the video is about true crime: "missing" → "cold case missing person investigation", "evidence" → "crime scene forensic evidence"
+5. NEVER use single generic words as search queries
+6. ALWAYS ask: "Does this query make sense for THIS specific video?" If not, add topic context
+
 CRITICAL — WEB_IMAGE RULE:
-When the script mentions ANY of the following BY NAME, you MUST use "web_image" (not stock or ai_image):
+When the script mentions ANY of the following BY NAME, you MUST use "web_image":
 - A specific PERSON (MrBeast, Elon Musk, Warren Buffett, any named individual)
 - A specific BRAND or COMPANY (Tesla, Feastables, Amazon, any named brand)
 - A specific PLACE or LANDMARK (Times Square, Eiffel Tower, any named location)
 - A specific PRODUCT (iPhone, Model Y, any named product)
 - A specific YouTube CHANNEL or social media account
-
-For web_image, set search_query to: "[person/brand name] [context]"
-Example: "MrBeast YouTube creator", "Feastables chocolate brand", "Tesla Gigafactory"
-Use web_image at LEAST 3-5 times per video when the script discusses real people/brands.
 
 CHOOSE THE RIGHT INFOGRAPHIC for the content:
 - Comparing multiple items → horizontal_bar, vertical_bar, leaderboard
@@ -332,23 +336,6 @@ CHOOSE THE RIGHT INFOGRAPHIC for the content:
 - Key numbers → number_reveal, stat_card
 - Quotes → quote_card
 - Lists → checklist, icon_grid
-
-Read the script and DECIDE which ratio fits best. Don't force infographics where beautiful imagery would work better.
-
-PATTERN depends on content: DATA topics: stock → infographic → infographic → stock → infographic → stock → infographic
-
-When the narrator mentions ANY of these, use an infographic:
-- A number, stat, or percentage → number_reveal or stat_card
-- Growth or trends → line_chart
-- A breakdown or allocation → donut_chart
-- Comparing things → progress_bar or comparison
-- A ranked list → leaderboard
-- Steps or process → process_flow or checklist
-- A quote or key insight → quote_card
-- Historical events or milestones → timeline
-- A section intro → section_break
-
-For VISUAL topics: DEFAULT to stock/web_image/ai_image. Only use infographics when a specific number, statistic, or comparison is explicitly stated. For DATA topics: use infographics whenever possible, images for visual breaks.
 
 ═══ VARIETY RULES ═══
 - NEVER use the same infographic type twice in a row
@@ -406,7 +393,7 @@ Return ONLY a JSON array, no markdown, no backticks:
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
       },
-      timeout: 120000, // 2 min — storyboard generation should never hang
+      timeout: 120000,
     }
   );
 
@@ -449,24 +436,22 @@ function validateClips(clips, startTime, endTime) {
     if (!validTypes.includes(clip.visual_type)) clip.visual_type = "stock";
     if (!clip.display_style || !validStyles.includes(clip.display_style)) clip.display_style = "framed";
     if (!clip.search_query) clip.search_query = "cinematic landscape";
-    
+
     let q = clip.search_query;
     banned.forEach(b => { q = q.replace(new RegExp(`\\b${b}\\b`, "gi"), "").trim(); });
     if (q.length < 3) q = "cinematic landscape";
 
-    // v23: Smart image variety — limit any primary keyword to max 2 uses
+    // Smart image variety — limit any primary keyword to max 2 uses
     if (clip.visual_type === "stock" || clip.visual_type === "ai_image" || clip.visual_type === "web_image") {
       const qLower = q.toLowerCase();
       const primaryWord = qLower.split(/\s+/).find(w => w.length > 3) || qLower.split(/\s+/)[0];
       const keyCount = usedQueries.get(primaryWord) || 0;
-      
+
       if (keyCount >= 2) {
-        // This keyword has been used twice — force a different angle
         const alternatives = ["person thinking", "professional workspace", "nature landscape", "city skyline", "technology abstract", "hands working", "bright modern office", "calm ocean waves", "mountain sunrise", "walking outdoors"];
         q = alternatives[usedQueries.size % alternatives.length];
       }
-      
-      // Track keyword frequency
+
       for (const word of qLower.split(/\s+/)) {
         if (word.length > 3) {
           usedQueries.set(word, (usedQueries.get(word) || 0) + 1);
@@ -476,7 +461,6 @@ function validateClips(clips, startTime, endTime) {
 
     clip.search_query = q;
 
-    // web_screenshot gets its query from screenshot_query field
     if (clip.visual_type === "web_screenshot" && !clip.screenshot_query) {
       clip.screenshot_query = clip.search_query;
     }
@@ -492,13 +476,11 @@ function validateClips(clips, startTime, endTime) {
       clip.end_time = clip.start_time + 2;
     }
 
-    // Force graphic-only types to have no image data
     if (graphicTypes.includes(clip.visual_type)) {
       clip.imagePath = null;
       clip.isCutout = false;
     }
 
-    // Ensure number reveal styles don't repeat
     if (clip.visual_type === "number_reveal" && clip.number_data) {
       const numStyles = ["counter", "gauge", "bars", "spotlight", "ticker", "impact"];
       if (!clip.number_data.style || !numStyles.includes(clip.number_data.style)) {
