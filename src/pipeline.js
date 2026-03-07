@@ -14,6 +14,7 @@ import { detectMood, selectMusicTrack } from "./music.js";
 import { renderWithRemotion } from "./remotion-renderer.js";
 import axios from "axios";
 import { generateThumbnail } from "./thumbnail.js";
+import { pickThemeForTopic } from "./theme-picker.js";
 
 const CUTOUT_STYLES = [];
 
@@ -346,54 +347,13 @@ export async function generateVideo(scriptPath, options) {
     }
   }
 
-  // --- Theme detection: use BOTH topic (from options) and script for best match ---
-  // Topic from order form is the most reliable signal — match it first
-  const topicLower = (options.topic || "").toLowerCase();
-  const scriptLower = scriptText.toLowerCase();
-  const combinedLower = topicLower + " " + scriptLower.slice(0, 1000);
-
-  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-
-  const topicThemePools = [
-    [/\b(horror|scary|creepy|ghost|haunted|demon|paranormal|curse)\b/,         ["dark_horror", "blood_red", "midnight_blue"]],
-    [/\b(true crime|serial killer|murder|kidnap|missing|cold case|forensic)\b/, ["midnight_blue", "dark_horror", "blood_red"]],
-    [/\b(conspiracy|illuminati|secret society|cover.?up|hidden truth)\b/,       ["dark_horror", "midnight_blue", "steel_grey"]],
-    [/\b(ai|artificial intelligence|machine learning|neural|chatgpt|llm)\b/,    ["electric_cyan", "ice_blue", "ai_neural"]],
-    [/\b(tech|software|programming|code|gadget|computer|startup)\b/,            ["ice_blue", "electric_cyan", "steel_grey"]],
-    [/\b(crypto|bitcoin|blockchain|nft|ethereum|defi|web3)\b/,                  ["neon_green", "electric_cyan", "gold_luxury"]],
-    [/\b(space|universe|cosmos|galaxy|astronomy|nasa|black hole|planet)\b/,     ["purple_cosmic", "midnight_blue", "celestial"]],
-    [/\b(ancient|rome|roman|egypt|greek|medieval|empire|dynasty|civilization)\b/,["ancient_rome", "egypt", "gold_luxury", "medieval"]],
-    [/\b(war|military|battle|weapon|soldier|conflict|ww2|wwii|vietnam)\b/,      ["war_military", "steel_grey", "dark_horror"]],
-    [/\b(meditation|mindful|spiritual|consciousness|yoga|stoic|philosophy)\b/,  ["royal_purple", "celestial", "mindfulness"]],
-    [/\b(psychology|mental health|brain|cognitive|behavior|therapy)\b/,         ["royal_purple", "ice_blue", "midnight_blue"]],
-    [/\b(fitness|gym|workout|muscle|bodybuilding|exercise|training|lift)\b/,    ["gym_fitness", "red_energy", "orange_fire"]],
-    [/\b(health|medical|body|nutrition|diet|wellness|vitamin|sleep)\b/,         ["teal_ocean", "forest_green", "ice_blue"]],
-    [/\b(travel|destination|tourism|adventure|explore|country|passport)\b/,     ["tropical", "forest_green", "mountains"]],
-    [/\b(nature|wildlife|ocean|marine|animal|forest|mountain|desert)\b/,        ["forest_green", "teal_ocean", "earth_brown"]],
-    [/\b(luxury|wealthy|millionaire|billionaire|gold|rolex|ferrari|mansion)\b/, ["gold_luxury", "rose_gold", "royal_purple"]],
-    [/\b(invest|stock|dividend|portfolio|index fund|etf|finance|market)\b/,     ["gold_luxury", "wall_street", "steel_grey"]],
-    [/\b(money|broke|salary|budget|saving|debt|passive income|rich)\b/,         ["gold_luxury", "wall_street", "blue_grid"]],
-    [/\b(motivat|hustle|grind|success|discipline|habit|mindset|winner)\b/,      ["orange_fire", "red_energy", "sunset_warm"]],
-    [/\b(gaming|game|esports|twitch|streamer|minecraft|fortnite|playstation)\b/,["gaming", "neon_green", "purple_cosmic"]],
-    [/\b(music|song|album|artist|rapper|singer|concert|spotify)\b/,             ["music_waves", "pink_neon", "purple_cosmic"]],
-    [/\b(movie|film|netflix|series|cinema|actor|hollywood|streaming)\b/,        ["cinema", "dark_horror", "purple_cosmic"]],
-    [/\b(celebrity|famous|influencer|biography|net worth|paparazzi)\b/,         ["gold_luxury", "pink_neon", "rose_gold"]],
-    [/\b(food|cooking|recipe|meal|kitchen|chef|baking|restaurant)\b/,           ["cooking", "cozy_library", "rose_gold"]],
-    [/\b(business|entrepreneur|startup|side hustle|freelance|ecommerce)\b/,     ["wall_street", "gold_luxury", "electric_cyan"]],
-    [/\b(science|physics|chemistry|biology|experiment|research)\b/,             ["lab", "ice_blue", "electric_cyan"]],
-    [/\b(social media|instagram|tiktok|youtube|viral|followers)\b/,             ["pink_neon", "neon_green", "electric_cyan"]],
-  ];
-
-  let theme = pick(["blue_grid", "steel_grey", "ice_blue", "midnight_blue", "electric_cyan"]);
-  for (const [pattern, pool] of topicThemePools) {
-    if (pattern.test(combinedLower)) {
-      theme = pick(pool);
-      break;
-    }
-  }
-
-  console.log(chalk.blue(`🎨 Theme: ${theme}`));
-  if (options.theme) {
+  // --- Theme detection: Claude picks the best theme for the topic ---
+  let theme = "blue_grid"; // safe default
+  if (!options.theme) {
+    const themeTopic = options.topic || projectName.replace(/-/g, " ");
+    theme = await pickThemeForTopic(themeTopic, scriptText);
+    if (!theme) theme = "blue_grid"; // fallback if Claude fails
+  } else {
     theme = options.theme;
     console.log(chalk.blue(`🎨 Theme override: ${theme}`));
   }
