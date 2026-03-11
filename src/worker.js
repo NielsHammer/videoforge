@@ -11,6 +11,8 @@ const anthropic = new Anthropic();
 const SUPABASE_URL = 'https://fhrznlqtnjgyzpvthyyl.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const POLL_INTERVAL = 30000;
+const MAX_CONCURRENT_JOBS = 2; // max simultaneous video renders to protect VPS memory
+let activeJobs = 0;
 const STUCK_INTERVAL = 30 * 60 * 1000;
 const VIDEOFORGE_DIR = '/opt/videoforge';
 const OUTPUT_DIR = path.join(VIDEOFORGE_DIR, 'output');
@@ -71,8 +73,9 @@ async function generateUploadGuide(topic, outputDir) {
     log('  Upload guide using fallback (Claude error)');
   }
 
+  const escapeHtml = (s) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   const tagsArray = tags.split(',').map(t => t.trim()).filter(Boolean);
-  const tagsHtml = tagsArray.map(t => `<span class="tag">${t}</span>`).join('');
+  const tagsHtml = tagsArray.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
   const tagsPlain = tagsArray.join(', ');
 
   const html = `<!DOCTYPE html>
@@ -391,7 +394,16 @@ async function pollForOrders() {
       .limit(1);
 
     if (queued?.length > 0) {
-      await processOrder(queued[0]);
+      if (activeJobs >= MAX_CONCURRENT_JOBS) {
+        log(`  Concurrency limit reached (${activeJobs}/${MAX_CONCURRENT_JOBS}) — waiting for slot`);
+        return;
+      }
+      activeJobs++;
+      log(`  Starting job (active: ${activeJobs}/${MAX_CONCURRENT_JOBS})`);
+      processOrder(queued[0]).finally(() => {
+        activeJobs--;
+        log(`  Job complete (active: ${activeJobs}/${MAX_CONCURRENT_JOBS})`);
+      });
     }
   } catch (err) {
     log(`Poll error: ${err.message}`);
