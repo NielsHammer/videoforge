@@ -5,21 +5,19 @@ import ora from "ora";
 import chalk from "chalk";
 
 /**
- * Script Generator v30 — TWO MODES
- * 
+ * Script Generator v31 — TWO MODES + KEY POINTS + CTA SUPPORT
+ *
  * Mode A: "infographic" — Data-heavy scripts for finance, health, science, business.
- *   Every paragraph packed with numbers, stats, percentages, comparisons.
- *   The director will naturally use 40-60% infographics because the data is there.
- * 
- * Mode B: "visual" — Scene-driven scripts for horror, travel, entertainment, celebrity, food, etc.
- *   Paints vivid scenes, describes visuals, tells stories with imagery.
- *   The director will naturally use 70-80% images because there's no data to chart.
- * 
- * Auto-detection picks the right mode based on topic keywords.
- * CLI override: --mode infographic  or  --mode visual
+ * Mode B: "visual"      — Scene-driven scripts for horror, travel, entertainment, etc.
+ *
+ * Feature 3 — keyPoints: Customer's specific talking points, injected as required
+ *   backbone content so Claude can't ignore them. Passed via options.keyPoints,
+ *   which cli.js loads from the extras JSON sidecar written by worker.js.
+ *
+ * Feature 4 — ctaText: Customer's exact CTA placed at ~30s hook and at the end.
+ *   Passed via options.ctaText, same path as keyPoints.
  */
 
-// Keywords that trigger each mode
 const INFOGRAPHIC_KEYWORDS = [
   "invest", "stock", "dividend", "portfolio", "compound", "index fund", "etf", "bond", "market",
   "finance", "money", "broke", "salary", "budget", "saving", "debt", "wealth", "net worth",
@@ -54,26 +52,39 @@ const VISUAL_KEYWORDS = [
 
 function detectMode(topic) {
   const lower = topic.toLowerCase();
-  
   let infraScore = 0;
   let visualScore = 0;
-  
-  for (const kw of INFOGRAPHIC_KEYWORDS) {
-    if (lower.includes(kw)) infraScore++;
-  }
-  for (const kw of VISUAL_KEYWORDS) {
-    if (lower.includes(kw)) visualScore++;
-  }
-  
-  // Visual wins ties — images are safer default than forcing bad infographics
+  for (const kw of INFOGRAPHIC_KEYWORDS) { if (lower.includes(kw)) infraScore++; }
+  for (const kw of VISUAL_KEYWORDS) { if (lower.includes(kw)) visualScore++; }
   if (visualScore >= infraScore) return "visual";
   return "infographic";
 }
 
 // ═══════════════════════════════════════════════════
-// INFOGRAPHIC MODE PROMPT — data-heavy, number-rich
+// INFOGRAPHIC MODE PROMPT
 // ═══════════════════════════════════════════════════
-function buildInfographicPrompt(topic, duration, style) {
+function buildInfographicPrompt(topic, duration, style, keyPoints, ctaText) {
+  const keyPointsSection = keyPoints ? `
+═══ KEY POINTS TO COVER (REQUIRED — customer-specified) ═══
+The following talking points MUST be included as the backbone of this script. Build the narrative around them. Do not skip any of them.
+
+${keyPoints}
+
+` : '';
+
+  const ctaSection = ctaText ? `
+═══ CALL TO ACTION (REQUIRED — customer-specified) ═══
+The customer has provided this exact CTA: "${ctaText}"
+
+You MUST include it TWICE:
+1. At approximately the 30-second mark, woven in naturally after the hook.
+   Example: "And if you want more content like this, ${ctaText}."
+2. As the very last sentence of the script.
+
+Use their exact wording. Do not substitute or invent a different CTA.
+
+` : '';
+
   return `You are a top YouTube scriptwriter for faceless channels that get millions of views. The current year is 2026. Write a ${duration} minute narration script about:
 
 "${topic}"
@@ -83,8 +94,7 @@ ${style === "humor" ? "Use witty observations, unexpected comparisons, and comed
 ${style === "serious" ? "Be authoritative and data-driven. Use precise language and expert tone." : ""}
 ${style === "dramatic" ? "Build tension and suspense. Use cliffhangers and dramatic reveals." : ""}
 ${style === "engaging" ? "Be conversational and energetic. Mix facts with relatable examples." : ""}
-
-THIS IS AN INFOGRAPHIC-STYLE VIDEO. Your script will be paired with animated data visualizations, charts, and number animations. You MUST write to CREATE opportunities for these visuals.
+${keyPointsSection}${ctaSection}THIS IS AN INFOGRAPHIC-STYLE VIDEO. Your script will be paired with animated data visualizations, charts, and number animations. You MUST write to CREATE opportunities for these visuals.
 
 STRUCTURE (critical for retention):
 1. HOOK (first 5-8 seconds):
@@ -139,7 +149,7 @@ VOICE & TONE:
 - No AI clichés: never say "dive into", "landscape", "game-changer", "let's unpack"
 - Spell out ALL numbers as words (write "thirty-eight percent" not "38%")
 - This will be read by text-to-speech, so write phonetically
-- For foreign place names, use the ENGLISH pronunciation. Write "Barcelona" not "Barthelona", "Paris" not "Paree", "Rome" not "Roma". Always use the common English name and spelling. Avoid native-language pronunciations that sound awkward in English TTS.
+- For foreign place names, use the ENGLISH pronunciation. Write "Barcelona" not "Barthelona", "Paris" not "Paree", "Rome" not "Roma". Always use the common English name and spelling.
 
 FORMAT:
 - Write ONLY narration text, no stage directions or [brackets]
@@ -153,9 +163,30 @@ Write the complete script now. Remember: TARGET ${Math.round(parseInt(duration)*
 }
 
 // ═══════════════════════════════════════════════════
-// VISUAL MODE PROMPT — scene-driven, imagery-focused
+// VISUAL MODE PROMPT
 // ═══════════════════════════════════════════════════
-function buildVisualPrompt(topic, duration, style) {
+function buildVisualPrompt(topic, duration, style, keyPoints, ctaText) {
+  const keyPointsSection = keyPoints ? `
+═══ KEY POINTS TO COVER (REQUIRED — customer-specified) ═══
+The following talking points MUST be included as the backbone of this script. Build the narrative around them. Do not skip any of them.
+
+${keyPoints}
+
+` : '';
+
+  const ctaSection = ctaText ? `
+═══ CALL TO ACTION (REQUIRED — customer-specified) ═══
+The customer has provided this exact CTA: "${ctaText}"
+
+You MUST include it TWICE:
+1. At approximately the 30-second mark, woven in naturally after the hook.
+   Example: "And if you want more content like this, ${ctaText}."
+2. As the very last sentence of the script.
+
+Use their exact wording. Do not substitute or invent a different CTA.
+
+` : '';
+
   return `You are a top YouTube scriptwriter for faceless channels that get millions of views. The current year is 2026. Write a ${duration} minute narration script about:
 
 "${topic}"
@@ -165,8 +196,7 @@ ${style === "humor" ? "Use witty observations, unexpected comparisons, and comed
 ${style === "serious" ? "Be authoritative and cinematic. Use vivid language and atmospheric tone." : ""}
 ${style === "dramatic" ? "Build tension and suspense. Use cliffhangers, pacing, and dramatic reveals." : ""}
 ${style === "engaging" ? "Be conversational and energetic. Paint pictures with words." : ""}
-
-THIS IS A VISUAL-STYLE VIDEO. Your script will be paired with real photographs, web images, and AI-generated imagery. Write to CREATE opportunities for stunning visuals — NOT charts or data.
+${keyPointsSection}${ctaSection}THIS IS A VISUAL-STYLE VIDEO. Your script will be paired with real photographs, web images, and AI-generated imagery. Write to CREATE opportunities for stunning visuals — NOT charts or data.
 
 STRUCTURE (critical for retention):
 1. HOOK (first 5-8 seconds):
@@ -220,7 +250,7 @@ VOICE & TONE:
 - No AI clichés: never say "dive into", "landscape", "game-changer", "let's unpack"
 - Spell out ALL numbers as words (write "three hundred" not "300")
 - This will be read by text-to-speech, so write phonetically
-- For foreign place names, use the ENGLISH pronunciation. Write "Barcelona" not "Barthelona", "Paris" not "Paree", "Rome" not "Roma". Always use the common English name and spelling. Avoid native-language pronunciations that sound awkward in English TTS.
+- For foreign place names, use the ENGLISH pronunciation. Write "Barcelona" not "Barthelona", "Paris" not "Paree", "Rome" not "Roma". Always use the common English name and spelling.
 
 FORMAT:
 - Write ONLY narration text, no stage directions or [brackets]
@@ -235,18 +265,17 @@ Write the complete script now. Remember: TARGET ${Math.round(parseInt(duration)*
 
 // ═══════════════════════════════════════════════════
 // BLOCK-BASED GENERATION
-// For long videos, generate in 5-minute blocks and combine
-// This ensures consistent quality and accurate word counts
+// For videos longer than 10 minutes, generate in blocks and combine
 // ═══════════════════════════════════════════════════
 const BLOCK_SIZE_MINUTES = 10;
 const WORDS_PER_MINUTE = 130;
-const BLOCK_WORDS = 1300; // 1300 words per block = ~10 min
+const BLOCK_WORDS = 1300;
 
-async function generateScriptBlock(topic, blockNum, totalBlocks, duration, style, mode, sectionHints) {
+async function generateScriptBlock(topic, blockNum, totalBlocks, duration, style, mode, sectionHints, keyPoints, ctaText) {
   const isFirst = blockNum === 1;
   const isLast = blockNum === totalBlocks;
   const sectionNote = sectionHints && sectionHints[blockNum - 1] ? `Focus this section on: ${sectionHints[blockNum - 1]}` : '';
-  
+
   const blockContext = totalBlocks > 1 ? `
 This is block ${blockNum} of ${totalBlocks} in a ${duration}-minute video.
 ${isFirst ? 'This is the OPENING block — include the hook and introduction.' : ''}
@@ -257,46 +286,62 @@ Write EXACTLY ${BLOCK_WORDS} words (±50 words). This is one section of a longer
 DO NOT include "Subscribe" or channel plugs except in the final block.
 ` : '';
 
+  // keyPoints go in the first block where the script backbone is established.
+  // ctaText goes in the last block where it naturally belongs.
+  // Middle blocks get neither to avoid awkward repetition.
+  const kp  = isFirst ? keyPoints : null;
+  const cta = isLast  ? ctaText   : null;
+
   const prompt = mode === 'infographic'
-    ? buildInfographicPrompt(topic, BLOCK_SIZE_MINUTES.toString(), style) + blockContext
-    : buildVisualPrompt(topic, BLOCK_SIZE_MINUTES.toString(), style) + blockContext;
+    ? buildInfographicPrompt(topic, BLOCK_SIZE_MINUTES.toString(), style, kp, cta) + blockContext
+    : buildVisualPrompt(topic, BLOCK_SIZE_MINUTES.toString(), style, kp, cta) + blockContext;
 
   const response = await axios.post(
     "https://api.anthropic.com/v1/messages",
     {
       model: "claude-sonnet-4-20250514",
-      max_tokens: 6000, // 1300 words ≈ 5200 tokens — needs headroom
+      max_tokens: 6000,
       messages: [{ role: "user", content: prompt }],
     },
-    { headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" }, timeout: 120000 } // 2 min per block
+    {
+      headers: {
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      timeout: 120000,
+    }
   );
   return response.data.content[0].text.trim();
 }
 
 
 export async function generateScript(topic, options = {}) {
-  const duration = options.duration || "10";
-  const style = options.tone || options.style || "engaging";
-  const outputDir = options.output || "./scripts";
-  
-  // Auto-detect or use CLI override
+  const duration  = options.duration || "10";
+  const style     = options.tone || options.style || "engaging";
+  const outputDir = options.output   || "./scripts";
+  const keyPoints = options.keyPoints || null;  // Feature 3 — set by cli.js from extras file
+  const ctaText   = options.ctaText   || null;  // Feature 4 — set by cli.js from extras file
+
   let mode = options.mode || detectMode(topic);
-  
+
   fs.mkdirSync(outputDir, { recursive: true });
 
   const modeLabel = mode === "infographic" ? "📊 INFOGRAPHIC" : "🎬 VISUAL";
   console.log(chalk.blue(`${modeLabel} mode detected for: "${topic}"`));
+  if (keyPoints) console.log(chalk.cyan(`📌 Key points provided (${keyPoints.length} chars)`));
+  if (ctaText)   console.log(chalk.cyan(`📣 CTA: "${ctaText}"`));
 
   const durationNum = parseInt(duration) || 10;
   const totalBlocks = Math.max(1, Math.round(durationNum / BLOCK_SIZE_MINUTES));
-  
-  // Use block-based generation for accuracy
+
+  // Block-based generation for videos longer than 10 minutes
   if (totalBlocks > 1) {
     const spinner = ora(`Writing ${mode} script in ${totalBlocks} blocks (${durationNum} min)...`).start();
     const blocks = [];
     for (let i = 1; i <= totalBlocks; i++) {
       spinner.text = `Writing block ${i}/${totalBlocks}...`;
-      const block = await generateScriptBlock(topic, i, totalBlocks, durationNum, style, mode, null);
+      const block = await generateScriptBlock(topic, i, totalBlocks, durationNum, style, mode, null, keyPoints, ctaText);
       blocks.push(block);
     }
     const fullScript = blocks.join('\n\n');
@@ -305,27 +350,22 @@ export async function generateScript(topic, options = {}) {
     const scriptPath = path.join(outputDir, scriptFileName);
     fs.writeFileSync(scriptPath, fullScript);
     spinner.succeed(`Script written: ${scriptPath} (${wordCount} words, ~${(wordCount/WORDS_PER_MINUTE).toFixed(1)} min)`);
-    console.log(`📁 Saved: ${scriptPath}`); // worker regex matches "Saved:" to find path
+    console.log(`📁 Saved: ${scriptPath}`); // worker.js regex matches "Saved:" to find the path
     return { scriptPath, wordCount, duration: wordCount / WORDS_PER_MINUTE };
   }
 
   const spinner = ora(`Writing ${mode} script about "${topic}"...`).start();
 
-  const prompt = mode === "infographic" 
-    ? buildInfographicPrompt(topic, duration, style)
-    : buildVisualPrompt(topic, duration, style);
+  const prompt = mode === "infographic"
+    ? buildInfographicPrompt(topic, duration, style, keyPoints, ctaText)
+    : buildVisualPrompt(topic, duration, style, keyPoints, ctaText);
 
   const response = await axios.post(
     "https://api.anthropic.com/v1/messages",
     {
       model: "claude-sonnet-4-20250514",
       max_tokens: 8192,
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
+      messages: [{ role: "user", content: prompt }],
     },
     {
       headers: {
@@ -333,7 +373,7 @@ export async function generateScript(topic, options = {}) {
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
       },
-      timeout: 120000, // 2 min
+      timeout: 120000,
     }
   );
 
@@ -341,22 +381,20 @@ export async function generateScript(topic, options = {}) {
   const wordCount = script.split(/\s+/).length;
   const estMinutes = (wordCount / 150).toFixed(1);
 
-  // Generate filename from topic
   const slug = topic.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 50);
   const outputPath = path.join(outputDir, `${slug}.txt`);
-  
+
   fs.writeFileSync(outputPath, script);
   spinner.succeed(`Script written: ${outputPath}`);
-  
+
   console.log(chalk.white(`📝 Words: ${wordCount}`));
   console.log(chalk.white(`⏱️  Est. duration: ${estMinutes} minutes`));
   console.log(chalk.white(`🎯 Mode: ${mode}`));
-  console.log(chalk.white(`📁 Saved: ${outputPath}`));
-  
-  // Show first 3 lines as preview
+  console.log(chalk.white(`📁 Saved: ${outputPath}`)); // worker.js regex matches this line
+
   const preview = script.split("\n").filter(l => l.trim()).slice(0, 3);
   console.log(chalk.gray(`\n  "${preview[0]}"`));
   if (preview[1]) console.log(chalk.gray(`  "${preview[1]}"`));
-  
+
   return { path: outputPath, wordCount, estMinutes, mode };
 }

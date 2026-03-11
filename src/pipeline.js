@@ -214,6 +214,17 @@ export async function generateVideo(scriptPath, options) {
       continue;
     }
 
+    // Feature 6: CTA image matching — override search query with CTA text for CTA clips
+    if (
+      clip.cta_text ||
+      (clip.subtitle && /subscribe|follow|visit|check out|link|comment|like|turn on|notification|channel|website|click/i.test(clip.subtitle)) ||
+      (clip.search_query && /subscribe|follow|visit|check out|link|comment|like|turn on|notification|channel|website|click/i.test(clip.search_query))
+    ) {
+      const ctaOverride = clip.cta_text || clip.search_query;
+      clip.search_query = ctaOverride;
+      clip.visual_type = clip.visual_type === 'ai_image' ? 'ai_image' : 'stock';
+    }
+
     const s = ora(`Clip ${i + 1}: "${clip.search_query || clip.ai_prompt || ''}"...`).start();
     const baseName = `clip-${i + 1}`;
     const photoPath = path.join(assetsDir, `${baseName}.jpg`);
@@ -416,7 +427,7 @@ async function mergeAudioVideoSimple(videoPath, audioPath, outputPath, musicPath
         `ffmpeg -y -i "${videoPath}" -i "${audioPath}" -stream_loop -1 -i "${musicPath}" ` +
         `-filter_complex "` +
         `[1:a]asetpts=PTS-STARTPTS,aformat=channel_layouts=stereo[voice];` +
-        `[2:a]atrim=0:${duration},asetpts=PTS-STARTPTS,aformat=channel_layouts=stereo,afade=t=in:st=0:d=2,afade=t=out:st=${fadeOut}:d=3,volume=0.50[music];` +
+        `[2:a]atrim=0:${duration},asetpts=PTS-STARTPTS,aformat=channel_layouts=stereo,afade=t=in:st=0:d=2,afade=t=out:st=${fadeOut}:d=3,volume=0.65[music];` +
         `[voice][music]amix=inputs=2:duration=first:dropout_transition=2[aout]` +
         `" -map 0:v -map "[aout]" -c:v copy -c:a aac -b:a 192k -ac 2 "${outputPath}"`,
         { stdio: "pipe", timeout: 1800000 }

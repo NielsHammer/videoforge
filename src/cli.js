@@ -2,6 +2,7 @@
 import 'dotenv/config';
 import { Command } from 'commander';
 import chalk from 'chalk';
+import fs from 'fs';
 import { generateVideo } from './pipeline.js';
 import { generateScript } from './script-generator.js';
 
@@ -21,9 +22,23 @@ program
   .option('-t, --tone <tone>', 'Script tone: engaging, humor, serious, dramatic', 'engaging')
   .option('-m, --mode <mode>', 'Script mode: infographic or visual (auto-detected if not set)')
   .option('-o, --output <dir>', 'Output directory', './scripts')
+  .option('--extras-file <path>', 'Path to JSON file with keyPoints and/or ctaText')
   .action(async (topic, options) => {
     console.log(chalk.blue.bold('\n✍️  VideoForge Script Generator v30\n'));
     try {
+      // Load key_points and cta_text from sidecar JSON if worker provided one.
+      // We use a file instead of CLI args to avoid shell-escaping issues with
+      // multi-line text or special characters from customer order forms.
+      if (options.extrasFile) {
+        try {
+          const extras = JSON.parse(fs.readFileSync(options.extrasFile, 'utf8'));
+          if (extras.keyPoints) options.keyPoints = extras.keyPoints;
+          if (extras.ctaText)   options.ctaText   = extras.ctaText;
+          console.log(chalk.cyan(`📎 Extras loaded: ${Object.keys(extras).join(', ')}`));
+        } catch (e) {
+          console.warn(chalk.yellow(`  ⚠️  Could not load extras file: ${e.message}`));
+        }
+      }
       await generateScript(topic, options);
     } catch (err) {
       console.error(chalk.red(`\n❌ Error: ${err.message}`));

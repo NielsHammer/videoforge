@@ -208,8 +208,15 @@ async function regenerateThumbnail(order) {
 }
 
 async function processOrder(order) {
-  const { id: orderId, topic, script_upload, tone, voice_id, admin_notes, video_length } = order;
+  const {
+    id: orderId, topic, script_upload, tone, voice_id, admin_notes, video_length,
+    key_points, cta_text, background_theme  // Features 3, 4, 5
+  } = order;
+
   log(`Processing order ${orderId}: "${topic}"`);
+  if (key_points)       log(`  Key points: ${key_points.slice(0, 80)}...`);
+  if (cta_text)         log(`  CTA: ${cta_text}`);
+  if (background_theme) log(`  Theme: ${background_theme}`);
 
   const keepVoice = !!(admin_notes && /keep voice|same voice|reuse voice|don.t redo voice|voice is fine|voice is good/i.test(admin_notes));
   deleteOutputFolder(orderId, keepVoice);
@@ -245,13 +252,41 @@ async function processOrder(order) {
       };
       const duration = durationMap[(video_length || '').toLowerCase()] || '10';
 
-      const out = execSync(
-        `node src/cli.js script "${topicWithNotes.replace(/"/g, '\\"')}" --tone ${mappedTone} --duration ${duration}`,
-        { cwd: VIDEOFORGE_DIR, timeout: 600000, encoding: 'utf8' }
-      );
+      // Write key_points + cta_text to a sidecar JSON file.
+      // Using a file instead of CLI args avoids shell-escaping nightmares
+      // with multi-line text, quotes, and special characters from order forms.
+      const scriptsDir = path.join(VIDEOFORGE_DIR, 'scripts');
+      const extrasPath = path.join(scriptsDir, `order-${orderId}-extras.json`);
+      const hasExtras = !!(key_points || cta_text);
+
+      if (hasExtras) {
+        const extras = {};
+        if (key_points) extras.keyPoints = key_points;
+        if (cta_text)   extras.ctaText   = cta_text;
+        fs.mkdirSync(scriptsDir, { recursive: true }); // ensure dir exists before writing
+        fs.writeFileSync(extrasPath, JSON.stringify(extras));
+        log('  Extras file written');
+      }
+
+      const extrasFlag = hasExtras ? ` --extras-file "${extrasPath}"` : '';
+
+      let out;
+      try {
+        out = execSync(
+          `node src/cli.js script "${topicWithNotes.replace(/"/g, '\\"')}" --tone ${mappedTone} --duration ${duration}${extrasFlag}`,
+          { cwd: VIDEOFORGE_DIR, timeout: 600000, encoding: 'utf8' }
+        );
+      } finally {
+        // Always clean up the extras file — whether script generation succeeded or crashed.
+        // Without finally, a crash would leave JSON files accumulating in /scripts/
+        if (hasExtras && fs.existsSync(extrasPath)) {
+          fs.unlinkSync(extrasPath);
+        }
+      }
+
       const match = out.match(/Saved:\s*([^\n\r]+\.txt)/);
       if (!match) {
-        log(`  Script output: ${out.slice(-300)}`);
+        log(`  Script output tail: ${out.slice(-300)}`);
         throw new Error('Script generation failed — could not find output path in CLI output');
       }
       const rawPath = match[1].trim();
@@ -262,13 +297,16 @@ async function processOrder(order) {
     log('  Generating video (~10-15 min)...');
 
     const skipVoiceFlag = keepVoice ? ' --skip-voice' : '';
-    if (keepVoice) log('  Reusing existing voiceover (feedback says keep voice)');
+    if (keepVoice) log('  Reusing existing voiceover (admin notes say keep voice)');
 
-    // Pass --topic so pipeline.js uses it for theme detection and thumbnail generation
     const topicEscaped = topic.replace(/"/g, '\\"');
 
+    // Feature 5: pass --theme flag if customer chose a background style.
+    // cli.js generate already has --theme <template> built in, so no cli.js change needed.
+    const themeFlag = background_theme ? ` --theme ${background_theme}` : '';
+
     execSync(
-      `node src/cli.js generate "${scriptPath}"${voice_id ? ` --voice ${voice_id}` : ''}${skipVoiceFlag} --order-id ${orderId} --topic "${topicEscaped}"`,
+      `node src/cli.js generate "${scriptPath}"${voice_id ? ` --voice ${voice_id}` : ''}${skipVoiceFlag} --order-id ${orderId} --topic "${topicEscaped}"${themeFlag}`,
       { cwd: VIDEOFORGE_DIR, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024, timeout: 7200000 }
     );
 
@@ -296,7 +334,7 @@ async function processOrder(order) {
       admin_notes: null,
     }).eq('id', orderId);
 
-    log(`  Order ${orderId} complete! Ready for admin review.`);
+    log(`  Order ${orderId} complete — ready for admin review.`);
   } catch (err) {
     log(`  Order ${orderId} FAILED: ${err.message}`);
     await supabase.from('orders').update({
@@ -377,7 +415,7 @@ async function recoverStuckOrders() {
         await supabase.from('orders')
           .update({ status: 'queued', video_url: null, thumbnail_url: null, output_dir: null })
           .eq('id', o.id);
-        log(`  Recovered stuck order: "${o.topic}" → re-queued (old folder deleted)`);
+        log(`  Recovered stuck order: "${o.topic}" → re-queued`);
       }
     } else {
       log('  No stuck orders found.');
