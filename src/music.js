@@ -49,12 +49,12 @@ const THEME_MOOD_HINTS = {
   electric_cyan: "curious",
   purple_cosmic: "curious",
   midnight_blue: "dramatic",
-  steel_grey: "serious",
-  blue_grid: "serious",
+  steel_grey: "calm",
+  blue_grid: "calm",
 };
 
 export function detectMood(scriptText, theme) {
-  let best = "serious";
+  let best = "calm";
   let bestScore = 0;
   
   for (const [mood, pattern] of Object.entries(MOOD_PATTERNS)) {
@@ -77,14 +77,14 @@ export function selectMusicTrack(mood, projectRoot) {
   // Try mood-specific folder first, then related moods, then default, then any
   const fallbackChains = {
     horror:      ["horror", "dramatic", "default"],
-    luxury:      ["luxury", "calm", "serious", "default"],
+    luxury:      ["luxury", "calm", "calm", "default"],
     adventure:   ["adventure", "motivational", "upbeat", "default"],
     upbeat:      ["upbeat", "motivational", "default"],
     motivational:["motivational", "upbeat", "default"],
     calm:        ["calm", "default"],
-    dramatic:    ["dramatic", "serious", "default"],
-    serious:     ["serious", "calm", "default"],
-    curious:     ["curious", "calm", "serious", "default"],
+    dramatic:    ["dramatic", "calm", "default"],
+    serious:     ["calm", "calm", "default"],
+    curious:     ["curious", "calm", "calm", "default"],
   };
   
   const searchOrder = fallbackChains[mood] || [mood, "default", "motivational"];
@@ -126,7 +126,7 @@ export function mixMusicWithVoice(musicPath, voicePath, outputPath, duration) {
     `-filter_complex "` +
     `[0:a]atrim=0:${duration},asetpts=PTS-STARTPTS,` +
     `afade=t=in:st=0:d=2,afade=t=out:st=${fadeOutStart}:d=3,` +
-    `volume=0.40[music];` +
+    `volume=0.25[music];` +
     `[1:a]asetpts=PTS-STARTPTS[voice];` +
     `[music][voice]amix=inputs=2:duration=longest:dropout_transition=2[out]` +
     `" -map "[out]" -c:a aac -b:a 192k "${outputPath}"`,

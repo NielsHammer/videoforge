@@ -82,7 +82,14 @@ const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {
     const imgIndex = Math.floor(frame / crossfadeEvery) % clip.imagePaths.length;
     imgPath = clip.imagePaths[imgIndex] || imgPath;
   }
-  const imgSrc = imgPath ? staticFile(imgPath) : null;
+  // Convert absolute path to relative for Remotion (forward slashes required)
+  let imgSrc = null;
+  if (imgPath) {
+    const fwd = imgPath.replace(/\\/g, '/');
+    const idx = fwd.indexOf('/output/');
+    const rel = idx !== -1 ? fwd.slice(idx + 1) : fwd;
+    imgSrc = staticFile(rel);
+  }
 
   const isGraphicOnly = GRAPHIC_TYPES.includes(type);
   const isImage = type === "stock" || type === "ai_image" || type === "web_image";
