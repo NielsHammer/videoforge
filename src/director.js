@@ -140,7 +140,9 @@ function extractPowerSentences(scriptText) {
 }
 
 function detectListVideo(scriptText) {
-  return /\b(top \d+|number \d+|\d+ reasons|\d+ ways|\d+ things|number one|number two|number three)\b/i.test(scriptText);
+  // Only trigger for explicit Top N / ranked list videos
+  // NOT for general scripts that happen to have numbered sections
+  return /\b(top \d+|the \d+ best|the \d+ worst|\d+ reasons why|\d+ ways to|\d+ things (you|that)|ranked:)\b/i.test(scriptText);
 }
 
 function injectCountdownHooks(clips) {
@@ -186,6 +188,20 @@ async function processChunk(scriptText, chunkWords, startTime, endTime, chunkInd
   const nicheInfo = detectNiche(topic, scriptText);
   const isHorror = nicheInfo.niche === "horror" || nicheInfo.niche === "true_crime";
 
+  // Determine niche-aware infographic budget
+  const nicheBudgets = {
+    finance:    { maxPct: 50, label: "data-heavy — charts and numbers tell the story" },
+    business:   { maxPct: 30, label: "motivational — mix of inspiration and key stats only" },
+    health:     { maxPct: 35, label: "mix of lifestyle imagery and key health stats" },
+    horror:     { maxPct: 5,  label: "almost no infographics — pure atmosphere and imagery" },
+    true_crime: { maxPct: 10, label: "minimal infographics — storytelling through images" },
+    travel:     { maxPct: 10, label: "almost no infographics — scenery and culture" },
+    history:    { maxPct: 20, label: "mostly imagery with occasional timeline/dates" },
+    entertainment: { maxPct: 10, label: "mostly imagery and reaction shots" },
+    general:    { maxPct: 25, label: "light mix — use infographics sparingly" },
+  };
+  const budget = nicheBudgets[nicheInfo.niche] || nicheBudgets.general;
+
   const response = await axios.post(
     "https://api.anthropic.com/v1/messages",
     {
@@ -201,7 +217,15 @@ IMAGE STYLE: ${nicheInfo.imageStyle}
 CONTENT MODE: ${contentMode.toUpperCase()}
 SEGMENT: ${startTime.toFixed(1)}s to ${endTime.toFixed(1)}s (${duration.toFixed(0)}s total)
 
-YOUR JOB: Read what the narrator is saying at each moment. Choose visuals that REINFORCE that exact moment emotionally — not just the general topic.
+═══ INFOGRAPHIC BUDGET FOR THIS VIDEO ═══
+This is a ${nicheInfo.niche} video: ${budget.label}
+Maximum infographics allowed: ${budget.maxPct}% of clips
+That means for a ${duration.toFixed(0)}s video with ~${Math.round(duration/4)} clips, use AT MOST ${Math.round(duration/4 * budget.maxPct/100)} infographic clips.
+The rest MUST be stock images or text_flash.
+Too many infographics makes videos feel robotic and boring. Real YouTube creators use images 70-80% of the time.
+
+═══ YOUR JOB ═══
+Read what the narrator is saying at each moment. Choose visuals that REINFORCE that exact moment emotionally.
 
 CRITICAL:
 1. Images must match what's being SAID right now, not just the topic
@@ -211,6 +235,7 @@ CRITICAL:
 3. search_query describes the EMOTION and SPECIFIC MOMENT, not just the topic
 4. Vary pacing: shocking moment = 5-7s, transition = 2-3s, infographic = 5-6s minimum
 5. No subtitles — visuals stand alone
+6. PREFER stock images. Only use infographics when a number or comparison genuinely needs to be visualized.
 
 WORD TIMESTAMPS:
 ${wordRef}
@@ -218,50 +243,50 @@ ${wordRef}
 SCRIPT:
 ${scriptText.slice(0, 4000)}
 
-VISUAL TYPES:
+═══ VISUAL TYPES ═══
 
-INFOGRAPHICS (only when specific numbers/data mentioned):
-"number_reveal": number_data: {value: NUMBER, prefix: "$", suffix: "%", label: "label", style: "counter|gauge|bars|spotlight|ticker|impact"}
+INFOGRAPHICS — use sparingly, only when data genuinely needs visualizing:
+"number_reveal": number_data: {value: NUMBER only (no text), prefix: "$", suffix: "%", label: "short label", style: "counter|gauge|bars|spotlight|ticker|impact"}
 "line_chart": chart_data: {title, points:[{label,value}], suffix, color}
 "donut_chart": chart_data: {title, centerLabel, segments:[{label,value,color}]}
 "progress_bar": chart_data: {title, bars:[{label,value,suffix,color}]}
 "timeline": chart_data: {title, events:[{year,label}]}
 "leaderboard": chart_data: {title, items:[{label,value,suffix}]}
-"stat_card": chart_data: {title, stats:[{value,label,prefix,change,changeColor}]}
+"stat_card": chart_data: {title, stats:[{value,label,prefix,change,changeColor}]} — value must be a clean number or short string, NOT a range like "$1K-$5K"
 "checklist": chart_data: {title, items:[...], checked:true}
-"horizontal_bar": chart_data: {title, items:[{label,value,color}], suffix}
-"comparison": comparison_data: {items:[{label,value,display,color}]}
-"section_break": section_data: {number:"#1", title:"TITLE", hook_line:"Most provocative sentence from NEXT section to tease viewers"}
-"text_flash": text_flash_text: "2-4 WORDS" — MUST be words narrator is actually saying right now
-"quote_card": chart_data: {quote:"text", attribution:"source", style:"bold"}
+"horizontal_bar": chart_data: {title, items:[{label,value,color}], suffix} — value must be a NUMBER
+"comparison": comparison_data: {items:[{label,value,display,color}]} — value must be a NUMBER
+"section_break": section_data: {number:"#1", title:"TITLE", hook_line:"Most provocative sentence from NEXT section"}
+"text_flash": text_flash_text: "2-4 WORDS" — must be words narrator is literally saying right now
+"quote_card": chart_data: {quote:"exact quote", attribution:"", style:"bold"}
 
-IMAGES:
-"stock": search_query describes specific emotion/moment. display_style: fullscreen|framed|fullscreen_zoom|split_left|split_right. search_queries:["q1","q2","q3"] for clips 6+s. transition_speed:"fast"|"slow"
-  For split_left or split_right: REQUIRED field panel_text: "2-3 WORD IMPACT PHRASE" — this shows on the empty side of the split. Must be punchy, ALL CAPS, directly related to what narrator is saying. Examples: "92% FAIL", "TAKE ACTION", "START NOW", "NO EXCUSES", "TIME IS MONEY". NEVER use descriptive words like "PERSON" or "WAITING" — only impactful phrases.
-"ai_image": ai_prompt: 20-40 words ultra-specific cinematic matching exact moment
+IMAGES — your primary tool, use these most:
+"stock": search_query = specific emotion/moment happening RIGHT NOW in the script
+  display_style: fullscreen|framed|fullscreen_zoom|split_left|split_right
+  search_queries: ["q1","q2","q3"] for b-roll on clips 6+ seconds
+  transition_speed: "fast"|"slow"
+  panel_text: ONLY include this field for split_left/split_right AND only when you have a genuinely impactful 2-3 word phrase. Examples: "92% FAIL", "START NOW", "NO EXCUSES". If you can't think of something genuinely punchy — omit panel_text entirely, leave the split panel clean.
+"ai_image": ai_prompt: 20-40 words ultra-specific cinematic
 "web_image": ONLY for specific named real people/brands/landmarks
 
-${isFirstChunk ? `HOOK — first 5 seconds:
-Clip 1 (0-1.5s): number_reveal — first shocking stat, style "impact"  
-Clip 2 (1.5-3s): stock — emotional reality of that stat (struggling person, dramatic scene)
-Clip 3 (3-4.5s): text_flash — 2-3 words narrator is actually saying, creates tension
-Clip 4 (4.5-6s): comparison or horizontal_bar — dramatic contrast
-Fast. Emotional. Make people feel something.` : ""}
-${isLastChunk ? "CLOSE: checklist (action items) or quote_card (inspiring thought)." : ""}
+${isFirstChunk ? `HOOK — first 5 seconds (fast, emotional, grabbing):
+Clip 1 (0-1.5s): number_reveal — shocking opening stat, style "impact"
+Clip 2 (1.5-3.5s): stock — emotional reality of that stat
+Clip 3 (3.5-5s): text_flash — 2-3 words narrator is saying right now` : ""}
+${isLastChunk ? "CLOSE: end with checklist or quote_card." : ""}
 
-ANTI-REPETITION RULES — these are strict:
-- NEVER use the same visual_type more than 2 times in a row. Ever.
-- NEVER use stat_card more than 2 times total in the entire storyboard
-- NEVER use any single infographic type more than 3 times total
-- After every 2 infographics, you MUST have at least 1 stock image
-- Variety check: look at your last 4 clips — if 3+ are infographics, add a stock image
-- Every split_left or split_right clip MUST have panel_text field
-- Infographics: 5-6s minimum
-- Cover ${startTime.toFixed(1)}s to ${endTime.toFixed(1)}s, no gaps
-- BANNED terms in search_query: baby,infant,child,toddler,kid,subscribe,button,logo${isHorror ? "" : ",knife,weapon,mask,ghost,monster,blood,horror,scary,creepy,ghostface,scream,killer"}
+═══ STRICT RULES ═══
+- INFOGRAPHIC BUDGET: max ${budget.maxPct}% of clips. Count as you go. Stop adding infographics when you hit the limit.
+- NEVER same visual_type twice in a row
+- NEVER stat_card more than 2 times total
+- NEVER any infographic type more than 2 times total  
+- After every infographic, next clip MUST be stock or text_flash
+- stat_card and number_reveal values must be clean numbers or very short strings — never ranges like "$1K-$5K"
+- Cover ${startTime.toFixed(1)}s to ${endTime.toFixed(1)}s with no gaps
+- BANNED in search_query: baby,infant,child,toddler,kid,subscribe,button,logo${isHorror ? "" : ",knife,weapon,mask,ghost,monster,blood,horror,scary,creepy,ghostface,scream,killer"}
 
 Return ONLY valid JSON array, no markdown:
-[{"start_time":${startTime.toFixed(1)},"end_time":0,"visual_type":"","display_style":"split_left","search_query":"","search_queries":null,"ai_prompt":"","panel_text":null,"subtitle_words":[],"number_data":null,"comparison_data":null,"section_data":null,"text_flash_text":null,"chart_data":null,"transition_speed":"fast","interrupt_data":null,"quote_data":null,"countdown_data":null}]`
+[{"start_time":${startTime.toFixed(1)},"end_time":0,"visual_type":"","display_style":"fullscreen","search_query":"","search_queries":null,"ai_prompt":"","panel_text":null,"subtitle_words":[],"number_data":null,"comparison_data":null,"section_data":null,"text_flash_text":null,"chart_data":null,"transition_speed":"fast","interrupt_data":null,"quote_data":null,"countdown_data":null}]`
       }]
     },
     { headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" }, timeout: 120000 }
