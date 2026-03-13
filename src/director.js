@@ -119,7 +119,7 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
 // ─── INTERRUPT CARD INJECTION ────────────────────────────────────────────────
 function injectInterruptCards(clips, scriptText, totalDuration) {
   const INTERVAL = 90; // every 90 seconds
-  const CARD_DURATION = 3.5;
+  const CARD_DURATION = 5;
 
   // Extract facts/stats from script for interrupt cards
   const facts = extractFacts(scriptText);
@@ -200,7 +200,7 @@ function injectQuotePulls(clips, scriptText) {
     if (afterBreakIdx === -1) return;
 
     const afterClip = injected[afterBreakIdx];
-    const quoteDuration = 2.5;
+    const quoteDuration = 4.5;
 
     // Only inject if there's room (clip is at least 5s long)
     if (afterClip.end_time - afterClip.start_time < 5) return;
@@ -613,6 +613,11 @@ function validateClips(clips, startTime, endTime) {
 
     if (clip.end_time - clip.start_time < 1) {
       clip.end_time = clip.start_time + 2;
+    }
+    // Infographics need minimum 5s to complete their animations
+    const infraMin = ["number_reveal","line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","stat_card","checklist","horizontal_bar","vertical_bar","scale_comparison","growth_curve","ranking_cards","split_comparison"];
+    if (infraMin.includes(clip.visual_type) && clip.end_time - clip.start_time < 5) {
+      clip.end_time = clip.start_time + 5;
     }
 
     if (graphicTypes.includes(clip.visual_type)) {
