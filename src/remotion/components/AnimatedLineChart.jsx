@@ -19,7 +19,7 @@ export const AnimatedLineChart = ({ data, clipFrame = 0, theme = "grid" }) => {
   const prefix = data.prefix || "";
   const color = data.color || "#4a9eff";
 
-  const maxVal = Math.max(...points.map(p => p.value));
+  const maxVal = Math.max(points.map(p => p.value), 1);
   const minVal = Math.min(...points.map(p => p.value));
   const range = maxVal - minVal || 1;
 
