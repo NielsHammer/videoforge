@@ -377,16 +377,18 @@ export async function generateVideo(scriptPath, options) {
   }
 
   // Remove clips with null imagePath — these would crash Remotion
-  const beforeFilter = clips.length;
   const imageTypes = ['stock', 'ai_image', 'web_image', 'web_screenshot'];
-  clips = clips.filter(clip => {
-    if (!imageTypes.includes(clip.visual_type)) return true; // keep all graphic types
-    if (clip.imagePath && fs.existsSync(clip.imagePath)) return true; // image exists
-    console.log(chalk.yellow(`  ⚠️  Removing clip with missing image: ${clip.search_query || clip.visual_type}`));
-    return false;
+  const badClips = clips.filter(clip => {
+    if (!imageTypes.includes(clip.visual_type)) return false;
+    if (clip.imagePath && fs.existsSync(clip.imagePath)) return false;
+    return true;
   });
-  if (clips.length < beforeFilter) {
-    console.log(chalk.yellow(`  ⚠️  Removed ${beforeFilter - clips.length} clips with missing images`));
+  if (badClips.length > 0) {
+    badClips.forEach(clip => {
+      console.log(chalk.yellow(`  ⚠️  Removing clip with missing image: ${clip.search_query || clip.visual_type}`));
+      clips.splice(clips.indexOf(clip), 1);
+    });
+    console.log(chalk.yellow(`  ⚠️  Removed ${badClips.length} clips with missing images`));
   }
 
   // Select music
