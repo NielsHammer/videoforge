@@ -376,6 +376,19 @@ export async function generateVideo(scriptPath, options) {
     console.log(chalk.gray(`  ✔ AI replaced ${finalAI - aiClips} failed Pexels searches`));
   }
 
+  // Remove clips with null imagePath — these would crash Remotion
+  const beforeFilter = clips.length;
+  const imageTypes = ['stock', 'ai_image', 'web_image', 'web_screenshot'];
+  clips = clips.filter(clip => {
+    if (!imageTypes.includes(clip.visual_type)) return true; // keep all graphic types
+    if (clip.imagePath && fs.existsSync(clip.imagePath)) return true; // image exists
+    console.log(chalk.yellow(`  ⚠️  Removing clip with missing image: ${clip.search_query || clip.visual_type}`));
+    return false;
+  });
+  if (clips.length < beforeFilter) {
+    console.log(chalk.yellow(`  ⚠️  Removed ${beforeFilter - clips.length} clips with missing images`));
+  }
+
   // Select music
   let musicTrack = null;
   if (options.music !== false && !options.noMusic) {
