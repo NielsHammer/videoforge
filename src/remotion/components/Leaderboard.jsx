@@ -11,7 +11,10 @@ export const Leaderboard = ({ data, clipFrame = 0, theme = "grid" }) => {
   const { fps } = useVideoConfig();
   if (!data || !data.items || data.items.length === 0) return null;
 
-  const items = data.items.slice(0, 7);
+  const items = data.items.slice(0, 7).map(item => ({
+    ...item,
+    value: parseFloat(String(item.value).replace(/[^0-9.-]/g, '')) || 0,
+  }));
   const title = data.title || "";
   const maxVal = Math.max(...items.map(it => it.value), 1);
   const titleOp = interpolate(clipFrame, [fps * 0.05, fps * 0.2], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });

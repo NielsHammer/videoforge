@@ -11,7 +11,7 @@ export const ProgressBar = ({ data, clipFrame = 0, theme = "grid" }) => {
   const { fps } = useVideoConfig();
   if (!data || !data.bars || data.bars.length === 0) return null;
 
-  const bars = data.bars.slice(0, 6); // Max 6 bars
+  const bars = data.bars.slice(0, 6).map(b => ({ ...b, value: parseFloat(String(b.value).replace(/[^0-9.-]/g, '')) || 0 })); // Max 6 bars
   const title = data.title || "";
   const maxVal = Math.max(...bars.map(b => b.value), 1);
 
