@@ -149,7 +149,7 @@ const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {
       {/* ═══ SPLIT LAYOUT ═══ */}
       {isImage && isSplit && (
         <div style={{ opacity: imgOpacity }}>
-          <SplitLayout imageSrc={imgSrc} position={style === "split_left" ? "left" : "right"} clipFrame={frame} clipIndex={clipIndex} />
+          <SplitLayout imageSrc={imgSrc} position={style === "split_left" ? "left" : "right"} clipFrame={frame} clipIndex={clipIndex}  theme={theme} clip={clip} />
         </div>
       )}
 
