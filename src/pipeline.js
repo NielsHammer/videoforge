@@ -83,6 +83,28 @@ function detectContentMode(topic, script) {
   return vScore >= iScore ? "visual" : "infographic";
 }
 
+
+// Validate that a file is actually an image by checking magic bytes
+function isValidImageFile(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return false;
+    const size = fs.statSync(filePath).size;
+    if (size < 5000) return false;
+    // Read first 4 bytes and check magic bytes
+    const buf = Buffer.alloc(4);
+    const fd = fs.openSync(filePath, 'r');
+    fs.readSync(fd, buf, 0, 4, 0);
+    fs.closeSync(fd);
+    // JPEG: FF D8 FF
+    if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return true;
+    // PNG: 89 50 4E 47
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return true;
+    // WEBP: starts with RIFF
+    if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46) return true;
+    return false;
+  } catch { return false; }
+}
+
 export async function generateVideo(scriptPath, options) {
   const startTime = Date.now();
   const projectRoot = path.resolve(".");
@@ -247,7 +269,7 @@ export async function generateVideo(scriptPath, options) {
       if (clip.visual_type === "web_image" && clip.search_query && webImageAvailable) {
         try {
           await searchWebImage(clip.search_query, webPath, clip);
-          if (fs.existsSync(webPath) && fs.statSync(webPath).size > 5000 && !isAlreadyUsed(webPath)) {
+          if (isValidImageFile(webPath) && !isAlreadyUsed(webPath)) {
             fixImageRotation(webPath);
             clip.imagePath = webPath;
             clip.isCutout = false;
@@ -259,7 +281,7 @@ export async function generateVideo(scriptPath, options) {
                 const extraWebPath = path.join(assetsDir, `${baseName}-web-broll-${qi}.jpg`);
                 try {
                   await searchWebImage(clip.search_queries[qi], extraWebPath, clip);
-                  if (fs.existsSync(extraWebPath) && fs.statSync(extraWebPath).size > 5000) {
+                  if (isValidImageFile(extraWebPath)) {
                     fixImageRotation(extraWebPath);
                     clip.imagePaths.push(extraWebPath);
                   }
@@ -281,7 +303,7 @@ export async function generateVideo(scriptPath, options) {
             scriptText
           );
           await generateAIImage(detailedPrompt, aiPath);
-          if (fs.existsSync(aiPath) && fs.statSync(aiPath).size > 5000) {
+          if (isValidImageFile(aiPath)) {
             fixImageRotation(aiPath);
             clip.imagePath = aiPath;
             clip.isCutout = false;
@@ -311,7 +333,7 @@ export async function generateVideo(scriptPath, options) {
       let pexelsOk = false;
       try {
         await fetchPhoto(clip.search_query, photoPath);
-        if (fs.existsSync(photoPath) && fs.statSync(photoPath).size > 5000) {
+        if (isValidImageFile(photoPath)) {
           fixImageRotation(photoPath);
           clip.imagePath = photoPath;
           clip.isCutout = false;
@@ -324,7 +346,7 @@ export async function generateVideo(scriptPath, options) {
               const extraPath = path.join(assetsDir, `${baseName}-broll-${qi}.jpg`);
               try {
                 await fetchPhoto(clip.search_queries[qi], extraPath);
-                if (fs.existsSync(extraPath) && fs.statSync(extraPath).size > 5000) {
+                if (isValidImageFile(extraPath)) {
                   fixImageRotation(extraPath);
                   clip.imagePaths.push(extraPath);
                 }
@@ -376,11 +398,19 @@ export async function generateVideo(scriptPath, options) {
     console.log(chalk.gray(`  ✔ AI replaced ${finalAI - aiClips} failed Pexels searches`));
   }
 
-  // Remove clips with null imagePath — these would crash Remotion
+  // Remove clips with null/invalid imagePath — these would crash Remotion
+  // Also clean up b-roll imagePaths to remove any files that don't exist or are invalid
   const imageTypes = ['stock', 'ai_image', 'web_image', 'web_screenshot'];
+  // Clean up invalid b-roll paths
+  clips.forEach(clip => {
+    if (clip.imagePaths) {
+      clip.imagePaths = clip.imagePaths.filter(p => isValidImageFile(p));
+      if (clip.imagePaths.length === 0) clip.imagePaths = null;
+    }
+  });
   const badClips = clips.filter(clip => {
     if (!imageTypes.includes(clip.visual_type)) return false;
-    if (clip.imagePath && fs.existsSync(clip.imagePath)) return false;
+    if (clip.imagePath && isValidImageFile(clip.imagePath)) return false;
     return true;
   });
   if (badClips.length > 0) {
