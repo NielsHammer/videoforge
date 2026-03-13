@@ -38,12 +38,14 @@ export const SplitLayout = ({ imageSrc, position = "left", clipFrame = 0, clipIn
   const isLeft = position === "left";
 
   // Extract content for right panel from clip data
+  // Use clip's section_data title, text_flash_text, or first 2 meaningful words from query
+  // Never show internal words like "person", "waiting", "scene", "cinematic"
+  const SKIP_WORDS = new Set(["person","people","waiting","scene","cinematic","stock","image","photo","video","showing","looking","with","from","into","that","this","they","their","them","have","been","about","over","under","after","before","during","while","where","when","what","which","professional","background","stock"]);
   const searchQuery = clip?.search_query || "";
-  const keywords = searchQuery
-    .replace(/[^a-zA-Z\s]/g, "")
-    .split(" ")
-    .filter(w => w.length > 3)
-    .slice(0, 3);
+  const rawWords = searchQuery.replace(/[^a-zA-Z\s]/g, "").split(" ").filter(w => w.length > 3);
+  const keywords = rawWords.filter(w => !SKIP_WORDS.has(w.toLowerCase())).slice(0, 2);
+  // If we filtered everything out, use first 2 raw words
+  if (keywords.length === 0) rawWords.slice(0, 2).forEach(w => keywords.push(w));
 
   // Pick a panel style based on clipIndex for variety
   const panelStyle = clipIndex % 3;

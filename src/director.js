@@ -404,5 +404,47 @@ function validateClips(clips, startTime, endTime, nicheInfo) {
     if (!clip.transition_speed) clip.transition_speed = "fast";
   });
 
+  // Post-process: limit same visual_type to max 2 in a row, max 3 total per type
+  const typeCounts = {};
+  let lastType = '';
+  let lastTypeRun = 0;
+  const imageTypes = ['stock', 'ai_image', 'web_image'];
+  const infraTypes = ['stat_card', 'number_reveal', 'horizontal_bar', 'progress_bar', 'leaderboard', 'donut_chart', 'line_chart', 'checklist', 'comparison', 'timeline', 'ranking_cards'];
+
+  clips.forEach((clip, i) => {
+    const t = clip.visual_type;
+    typeCounts[t] = (typeCounts[t] || 0) + 1;
+
+    // Same type in a row
+    if (t === lastType) {
+      lastTypeRun++;
+    } else {
+      lastTypeRun = 1;
+      lastType = t;
+    }
+
+    // Max 2 same infographic in a row — swap to stock
+    if (lastTypeRun > 2 && infraTypes.includes(t)) {
+      clip.visual_type = 'stock';
+      clip.display_style = 'framed';
+      const niche = nicheInfo?.niche || 'general';
+      const fallbacks = nicheSafeQueries[niche] || nicheSafeQueries.general;
+      clip.search_query = fallbacks[i % fallbacks.length];
+      lastType = 'stock';
+      lastTypeRun = 1;
+      typeCounts[t]--;
+    }
+
+    // Max 4 total of same infographic type per video
+    if (typeCounts[t] > 4 && infraTypes.includes(t)) {
+      clip.visual_type = 'stock';
+      clip.display_style = 'framed';
+      const niche = nicheInfo?.niche || 'general';
+      const fallbacks = nicheSafeQueries[niche] || nicheSafeQueries.general;
+      clip.search_query = fallbacks[i % fallbacks.length];
+      typeCounts[t]--;
+    }
+  });
+
   return clips;
 }
