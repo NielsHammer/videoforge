@@ -7,8 +7,12 @@ export const ComparisonBar = ({ data, clipFrame = 0, theme = "grid" }) => {
   const th = getTheme(theme).comparison;
   if (!data || !data.items || data.items.length === 0) return null;
 
-  const items = data.items;
-  const maxValue = Math.max(...items.map(i => i.value));
+    // Parse values safely — director may send strings like "$5,000" or "42%"
+  const items = data.items.map(item => ({
+    ...item,
+    value: parseFloat(String(item.value).replace(/[^0-9.-]/g, '')) || 0,
+  }));
+  const maxValue = Math.max(...items.map(i => i.value), 1); // min 1 to avoid division by zero
 
   return (
     <div style={{
