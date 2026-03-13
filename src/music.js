@@ -22,7 +22,7 @@ import ora from "ora";
 */
 
 const MOOD_PATTERNS = {
-  motivational: /energy|morning|habit|routine|success|improve|better|change|power|strong|transform|wake|boost|achieve|goal|unlock|potential|tip|trick|hack|level up|grind|hustle|discipline/i,
+  motivational: /energy|morning|habit|routine|success|improve|better|change|power|strong|transform|wake|boost|achieve|goal|unlock|potential|tip|trick|hack|level up|grind|hustle|discipline|side hustle|passive income|freelance|online business|ecommerce|dropship|affiliate|make money|earn money|income stream/i,
   calm: /sleep|relax|rest|peace|calm|meditat|breath|wind down|quiet|gentle|slow|ease|comfort|sooth|night|dream|pillow|yoga|mindful/i,
   dramatic: /danger|risk|kill|destroy|ruin|worst|avoid|never|stop|dead|toxic|warning|crash|spike|collapse|catastroph/i,
   serious: /money|invest|financ|business|market|economy|trade|stock|tax|budget|profit|loss|debt|career|salary|billion|million|percent|revenue/i,
@@ -54,7 +54,7 @@ const THEME_MOOD_HINTS = {
 };
 
 export function detectMood(scriptText, theme) {
-  let best = "motivational";
+  let best = "serious";
   let bestScore = 0;
   
   for (const [mood, pattern] of Object.entries(MOOD_PATTERNS)) {
@@ -82,7 +82,7 @@ export function selectMusicTrack(mood, projectRoot) {
     upbeat:      ["upbeat", "motivational", "default"],
     motivational:["motivational", "upbeat", "default"],
     calm:        ["calm", "default"],
-    dramatic:    ["dramatic", "horror", "serious", "default"],
+    dramatic:    ["dramatic", "serious", "default"],
     serious:     ["serious", "calm", "default"],
     curious:     ["curious", "calm", "serious", "default"],
   };
