@@ -1,5 +1,5 @@
 import React from "react";
-import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig, interpolate, staticFile } from "remotion";
+import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig, interpolate, staticFile, Easing } from "remotion";
 import { AnimatedBackground } from "./components/AnimatedBackground";
 import { FullscreenScene } from "./components/FullscreenScene";
 import { TextFlash } from "./components/TextFlash";
@@ -7,7 +7,6 @@ import { SectionBreak } from "./components/SectionBreak";
 import { NumberReveal } from "./components/NumberReveal";
 import { ComparisonBar } from "./components/ComparisonBar";
 import { AccentElements } from "./components/AccentElements";
-import { WordSubtitle } from "./components/WordSubtitle";
 import { SplitLayout } from "./components/SplitLayout";
 // v24 infographic components (9)
 import { AnimatedLineChart } from "./components/AnimatedLineChart";
@@ -31,6 +30,10 @@ import { RankingCards } from "./components/RankingCards";
 import { SplitComparison } from "./components/SplitComparison";
 import { IconGrid } from "./components/IconGrid";
 import { FlowDiagram } from "./components/FlowDiagram";
+// v32 new engagement components
+import { InterruptCard } from "./components/InterruptCard";
+import { QuotePull } from "./components/QuotePull";
+import { CountdownCorner } from "./components/CountdownCorner";
 
 export const VideoComposition = ({ clips, wordTimestamps, theme }) => {
   const { fps } = useVideoConfig();
@@ -46,7 +49,7 @@ export const VideoComposition = ({ clips, wordTimestamps, theme }) => {
 
         return (
           <Sequence key={index} from={startFrame} durationInFrames={dur}>
-            <ClipRenderer clip={clip} clipIndex={index} totalClips={clips.length} wordTimestamps={wordTimestamps} theme={theme} />
+            <ClipRenderer clip={clip} clipIndex={index} totalClips={clips.length} theme={theme} />
           </Sequence>
         );
       })}
@@ -54,31 +57,55 @@ export const VideoComposition = ({ clips, wordTimestamps, theme }) => {
   );
 };
 
-const NO_SUBTITLE_TYPES = ["section_break"];
-
 const GRAPHIC_TYPES = [
   "number_reveal", "section_break", "comparison", "text_flash",
   "line_chart", "donut_chart", "progress_bar", "timeline",
   "leaderboard", "process_flow", "stat_card", "quote_card", "checklist",
   "horizontal_bar", "vertical_bar", "scale_comparison", "map_highlight",
   "body_diagram", "funnel_chart", "growth_curve", "ranking_cards",
-  "split_comparison", "icon_grid", "flow_diagram"
+  "split_comparison", "icon_grid", "flow_diagram",
+  // v32 engagement types
+  "interrupt_card", "quote_pull", "countdown_corner",
 ];
 
-const ClipRenderer = ({ clip, clipIndex, totalClips, wordTimestamps, theme }) => {
+const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
 
   const type = clip.visual_type;
   const style = clip.display_style || "split_left";
-  const imgSrc = clip.imagePath ? staticFile(clip.imagePath) : null;
+
+  // Support multi-image b-roll: pick which image to show based on time
+  let imgPath = clip.imagePath;
+  if (clip.imagePaths && clip.imagePaths.length > 0) {
+    const crossfadeEvery = fps * 3; // switch image every 3 seconds
+    const imgIndex = Math.floor(frame / crossfadeEvery) % clip.imagePaths.length;
+    imgPath = clip.imagePaths[imgIndex] || imgPath;
+  }
+  const imgSrc = imgPath ? staticFile(imgPath) : null;
 
   const isGraphicOnly = GRAPHIC_TYPES.includes(type);
   const isImage = type === "stock" || type === "ai_image" || type === "web_image";
   const isSplit = style === "split_left" || style === "split_right";
   const isFullscreen = style === "fullscreen" || style === "fullscreen_zoom";
 
-  // Fade in/out
+  // Zoom-to-black transition at end of clip (speed depends on transition_speed)
+  const transitionSpeed = clip.transition_speed || "fast";
+  const transitionFrames = transitionSpeed === "slow" ? fps * 0.5 : fps * 0.18;
+  const zoomScale = isImage ? interpolate(
+    frame,
+    [durationInFrames - transitionFrames, durationInFrames],
+    [1, 1.08],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.in(Easing.quad) }
+  ) : 1;
+  const zoomOpacity = isImage ? interpolate(
+    frame,
+    [durationInFrames - transitionFrames, durationInFrames],
+    [1, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  ) : 1;
+
+  // Standard fade in/out for graphics
   let fadeIn, fadeOut;
   if (isGraphicOnly) {
     fadeIn = interpolate(frame, [0, 2], [0, 1], { extrapolateRight: "clamp" });
@@ -86,37 +113,60 @@ const ClipRenderer = ({ clip, clipIndex, totalClips, wordTimestamps, theme }) =>
   } else {
     const fadeFrames = [fps * 0.08, fps * 0.04, fps * 0.12, fps * 0.06][clipIndex % 4];
     fadeIn = interpolate(frame, [0, fadeFrames], [0, 1], { extrapolateRight: "clamp" });
-    fadeOut = interpolate(frame, [durationInFrames - fps * 0.06, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+    fadeOut = isImage ? zoomOpacity : interpolate(frame, [durationInFrames - fps * 0.06, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   }
 
-  const clipWords = (clip.subtitle_words || []).map(idx => wordTimestamps[idx]).filter(Boolean);
-  const showSubtitles = clipWords.length > 0 && !NO_SUBTITLE_TYPES.includes(type);
-
-  let subtitlePosition = "bottom";
-  if (isSplit && isImage) {
-    subtitlePosition = style === "split_left" ? "split_right" : "split_left";
+  // Multi-image crossfade opacity for b-roll
+  let imgOpacity = 1;
+  if (clip.imagePaths && clip.imagePaths.length > 1) {
+    const crossfadeEvery = fps * 3;
+    const posInCycle = frame % crossfadeEvery;
+    const crossfadeDur = fps * 0.4;
+    if (posInCycle < crossfadeDur) {
+      imgOpacity = interpolate(posInCycle, [0, crossfadeDur], [0, 1], { extrapolateRight: "clamp" });
+    }
   }
 
   const cd = clip.chart_data;
 
   return (
-    <AbsoluteFill style={{ opacity: Math.min(fadeIn, fadeOut) }}>
+    <AbsoluteFill style={{
+      opacity: Math.min(fadeIn, fadeOut),
+      transform: isImage ? `scale(${zoomScale})` : undefined,
+      transformOrigin: "center center",
+    }}>
       {isImage && isFullscreen && (
         <div style={{ position: "absolute", inset: 0, backgroundColor: "#060c24", zIndex: 0 }} />
       )}
 
       {/* ═══ SPLIT LAYOUT ═══ */}
-      {isImage && isSplit && <SplitLayout imageSrc={imgSrc} position={style === "split_left" ? "left" : "right"} clipFrame={frame} clipIndex={clipIndex} />}
+      {isImage && isSplit && (
+        <div style={{ opacity: imgOpacity }}>
+          <SplitLayout imageSrc={imgSrc} position={style === "split_left" ? "left" : "right"} clipFrame={frame} clipIndex={clipIndex} />
+        </div>
+      )}
 
       {/* ═══ STANDARD IMAGE ═══ */}
-      {isImage && !isSplit && style === "fullscreen" && <FullscreenScene imageSrc={imgSrc} clipFrame={frame} clipIndex={clipIndex} sceneIndex={clipIndex} framed={false} />}
-      {isImage && !isSplit && style === "framed" && <FullscreenScene imageSrc={imgSrc} clipFrame={frame} clipIndex={clipIndex} sceneIndex={clipIndex} framed={true} />}
-      {isImage && !isSplit && style === "fullscreen_zoom" && <FullscreenScene imageSrc={imgSrc} clipFrame={frame} zoom={true} clipIndex={clipIndex} sceneIndex={clipIndex} framed={false} />}
+      {isImage && !isSplit && style === "fullscreen" && (
+        <div style={{ opacity: imgOpacity }}>
+          <FullscreenScene imageSrc={imgSrc} clipFrame={frame} clipIndex={clipIndex} sceneIndex={clipIndex} framed={false} />
+        </div>
+      )}
+      {isImage && !isSplit && style === "framed" && (
+        <div style={{ opacity: imgOpacity }}>
+          <FullscreenScene imageSrc={imgSrc} clipFrame={frame} clipIndex={clipIndex} sceneIndex={clipIndex} framed={true} />
+        </div>
+      )}
+      {isImage && !isSplit && style === "fullscreen_zoom" && (
+        <div style={{ opacity: imgOpacity }}>
+          <FullscreenScene imageSrc={imgSrc} clipFrame={frame} zoom={true} clipIndex={clipIndex} sceneIndex={clipIndex} framed={false} />
+        </div>
+      )}
 
       {/* ═══ ORIGINAL GRAPHIC TYPES ═══ */}
       {type === "number_reveal" && clip.number_data && <NumberReveal data={clip.number_data} clipFrame={frame} theme={theme} clipIndex={clipIndex} />}
       {type === "comparison" && clip.comparison_data && <ComparisonBar data={clip.comparison_data} clipFrame={frame} theme={theme} />}
-      {type === "section_break" && <SectionBreak data={clip.section_data || { number: "#1", title: "" }} theme={theme} clipIndex={clipIndex} />}
+      {type === "section_break" && <SectionBreak data={clip.section_data || { number: "", title: "", hook_line: "" }} theme={theme} clipIndex={clipIndex} />}
       {type === "text_flash" && <TextFlash text={clip.text_flash_text || ""} clipFrame={frame} theme={theme} />}
 
       {/* ═══ V24 INFOGRAPHIC TYPES (9) ═══ */}
@@ -143,8 +193,12 @@ const ClipRenderer = ({ clip, clipIndex, totalClips, wordTimestamps, theme }) =>
       {type === "icon_grid" && cd && <IconGrid data={cd} clipFrame={frame} theme={theme} />}
       {type === "flow_diagram" && cd && <FlowDiagram data={cd} clipFrame={frame} theme={theme} />}
 
-      {/* ═══ SUBTITLES ═══ */}
-      {showSubtitles && <WordSubtitle words={clipWords} clipStartTime={clip.start_time} position={subtitlePosition} theme={theme} />}
+      {/* ═══ V32 ENGAGEMENT TYPES ═══ */}
+      {type === "interrupt_card" && clip.interrupt_data && <InterruptCard data={clip.interrupt_data} theme={theme} />}
+      {type === "quote_pull" && clip.quote_data && <QuotePull data={clip.quote_data} theme={theme} />}
+      {type === "countdown_corner" && clip.countdown_data && <CountdownCorner data={clip.countdown_data} theme={theme} />}
+
+      {/* ═══ SUBTITLES REMOVED IN V32 ═══ */}
     </AbsoluteFill>
   );
 };

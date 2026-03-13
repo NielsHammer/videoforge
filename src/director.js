@@ -2,9 +2,15 @@ import axios from "axios";
 import chalk from "chalk";
 
 /**
- * Director v24: Topic-aware search queries.
- * - Claude now knows the video topic and must include it in every search query
- * - Theme pool expanded with descriptions so Claude picks best fit
+ * Director v32: Full visual overhaul.
+ * - Subtitles REMOVED completely
+ * - Interrupt cards injected every ~90s ("Did you know?")
+ * - Quote pulls injected per section (one powerful sentence)
+ * - Countdown hooks for list videos only (is_list_video detection)
+ * - Hook lines on section breaks (provocative teaser for next section)
+ * - Multi-image b-roll: search_queries array (2-3 per scene)
+ * - Niche-aware search queries (no dark/horror terms for non-horror niches)
+ * - transition_speed set per niche (fast/slow)
  */
 export async function createStoryboard(scriptText, wordTimestamps, totalDuration, contentMode = "visual", topic = "") {
   const CHUNK_SECONDS = 120;
@@ -79,10 +85,17 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
     }
   });
 
-  // Subtitle timing validation
-  const fixCount = validateSubtitleTiming(allClips, wordTimestamps);
-  if (fixCount > 0) {
-    console.log(chalk.gray(`  ✔ Fixed subtitle timing on ${fixCount} clips`));
+  // INJECT INTERRUPT CARDS every ~90 seconds
+  // Pull a surprising fact/stat from the script at that timestamp
+  allClips = injectInterruptCards(allClips, scriptText, totalDuration);
+
+  // INJECT QUOTE PULLS — one per major section break
+  allClips = injectQuotePulls(allClips, scriptText);
+
+  // DETECT LIST VIDEO — inject countdown corner if it's a ranking/list video
+  const isListVideo = detectListVideo(scriptText);
+  if (isListVideo) {
+    allClips = injectCountdownHooks(allClips, scriptText);
   }
 
   // Eliminate time overlaps
@@ -95,72 +108,181 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
     }
   }
 
-  // SUBTITLE BACKFILL
-  if (wordTimestamps && wordTimestamps.length > 0) {
-    allClips.forEach(clip => { clip.subtitle_words = []; });
+  // Sort by start time after injections
+  allClips.sort((a, b) => a.start_time - b.start_time);
 
-    for (let wi = 0; wi < wordTimestamps.length; wi++) {
-      const word = wordTimestamps[wi];
-      if (!word || word.start === undefined) continue;
-
-      for (let ci = 0; ci < allClips.length; ci++) {
-        const clip = allClips[ci];
-        if (word.start >= clip.start_time && word.start < clip.end_time) {
-          clip.subtitle_words.push(wi);
-          break;
-        }
-      }
-    }
-
-    const clipsWithWords = allClips.filter(c => c.subtitle_words.length > 0).length;
-    console.log(chalk.gray(`  ✔ Subtitle backfill: ${clipsWithWords}/${allClips.length} clips have words`));
-  }
+  console.log(chalk.gray(`  Storyboard complete: ${allClips.length} clips total`));
 
   return allClips;
 }
 
-function validateSubtitleTiming(clips, wordTimestamps) {
-  const BUFFER = 0.5;
-  let fixCount = 0;
+// ─── INTERRUPT CARD INJECTION ────────────────────────────────────────────────
+function injectInterruptCards(clips, scriptText, totalDuration) {
+  const INTERVAL = 90; // every 90 seconds
+  const CARD_DURATION = 3.5;
 
-  for (let i = 0; i < clips.length; i++) {
-    const clip = clips[i];
-    if (!clip.subtitle_words || clip.subtitle_words.length === 0) continue;
+  // Extract facts/stats from script for interrupt cards
+  const facts = extractFacts(scriptText);
+  if (facts.length === 0) return clips;
 
-    let latestWordEnd = 0;
-    for (const idx of clip.subtitle_words) {
-      const word = wordTimestamps[idx];
-      if (word && word.end > latestWordEnd) latestWordEnd = word.end;
-    }
-    if (latestWordEnd === 0) continue;
+  const injected = [...clips];
+  let factIndex = 0;
 
-    const requiredEnd = latestWordEnd + BUFFER;
-    if (requiredEnd > clip.end_time) {
-      clip.end_time = requiredEnd;
-      fixCount++;
-      if (i < clips.length - 1) {
-        const next = clips[i + 1];
-        if (clip.end_time > next.start_time) {
-          next.start_time = clip.end_time;
-          if (next.end_time - next.start_time < 1) next.end_time = next.start_time + 1.5;
-        }
-      }
+  for (let t = INTERVAL; t < totalDuration - 10; t += INTERVAL) {
+    if (factIndex >= facts.length) break;
+
+    // Find a clip that's playing at time t and is an image type (not a section break)
+    const hostClipIdx = injected.findIndex(c =>
+      c.start_time <= t && c.end_time > t + CARD_DURATION &&
+      (c.visual_type === "stock" || c.visual_type === "ai_image" || c.visual_type === "web_image")
+    );
+
+    if (hostClipIdx === -1) {
+      factIndex++;
+      continue;
     }
 
-    let earliestWordStart = Infinity;
-    for (const idx of clip.subtitle_words) {
-      const word = wordTimestamps[idx];
-      if (word && word.start < earliestWordStart) earliestWordStart = word.start;
-    }
-    if (earliestWordStart < clip.start_time && earliestWordStart !== Infinity) {
-      clip.start_time = Math.max(0, earliestWordStart - 0.1);
-      fixCount++;
-    }
+    // Inject interrupt card as an overlay clip at this time
+    // It overlays on top of the existing clip — same time window, higher z-order via type
+    const card = {
+      start_time: t,
+      end_time: t + CARD_DURATION,
+      visual_type: "interrupt_card",
+      display_style: "fullscreen",
+      search_query: "",
+      subtitle_words: [],
+      interrupt_data: {
+        fact: facts[factIndex],
+        label: "Did you know?",
+      },
+    };
+
+    injected.push(card);
+    factIndex++;
   }
 
-  return fixCount;
+  return injected;
 }
 
+function extractFacts(scriptText) {
+  // Pull sentences that contain numbers/stats — these make the best interrupt card facts
+  const sentences = scriptText.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 20 && s.length < 120);
+  const withNumbers = sentences.filter(s => /\d+|percent|million|billion|thousand|hundred/.test(s));
+  // Fallback to any interesting sentence if not enough numbers
+  const all = withNumbers.length >= 3 ? withNumbers : sentences;
+  // Return up to 5 facts, picking spread across the script
+  const step = Math.floor(all.length / 5) || 1;
+  const facts = [];
+  for (let i = 0; i < all.length && facts.length < 5; i += step) {
+    facts.push(all[i]);
+  }
+  return facts;
+}
+
+// ─── QUOTE PULL INJECTION ─────────────────────────────────────────────────────
+function injectQuotePulls(clips, scriptText) {
+  // Find section breaks and inject a quote pull after each one
+  const sectionBreaks = clips.filter(c => c.visual_type === "section_break");
+  if (sectionBreaks.length === 0) return clips;
+
+  const injected = [...clips];
+
+  // Extract powerful sentences from the script
+  const powerSentences = extractPowerSentences(scriptText);
+  if (powerSentences.length === 0) return clips;
+
+  sectionBreaks.forEach((breakClip, idx) => {
+    if (idx >= powerSentences.length) return;
+
+    // Find the clip right after this section break
+    const afterBreakIdx = injected.findIndex(c => c.start_time >= breakClip.end_time &&
+      (c.visual_type === "stock" || c.visual_type === "ai_image"));
+    if (afterBreakIdx === -1) return;
+
+    const afterClip = injected[afterBreakIdx];
+    const quoteDuration = 2.5;
+
+    // Only inject if there's room (clip is at least 5s long)
+    if (afterClip.end_time - afterClip.start_time < 5) return;
+
+    const quote = {
+      start_time: afterClip.start_time,
+      end_time: afterClip.start_time + quoteDuration,
+      visual_type: "quote_pull",
+      display_style: "fullscreen",
+      search_query: "",
+      subtitle_words: [],
+      quote_data: {
+        quote: powerSentences[idx],
+        attribution: "",
+      },
+    };
+
+    // Push the host clip forward
+    afterClip.start_time += quoteDuration;
+
+    injected.push(quote);
+  });
+
+  return injected;
+}
+
+function extractPowerSentences(scriptText) {
+  const sentences = scriptText.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 30 && s.length < 150);
+  // Prefer sentences with dramatic/punchy language
+  const dramatic = sentences.filter(s =>
+    /never|always|most|every|secret|truth|real|actually|nobody|everybody|worst|best|only|first|last/i.test(s)
+  );
+  const pool = dramatic.length >= 2 ? dramatic : sentences;
+  // Pick one per ~3 sections spread across the script
+  const step = Math.floor(pool.length / 5) || 1;
+  const picks = [];
+  for (let i = 0; i < pool.length && picks.length < 5; i += step) {
+    picks.push(pool[i]);
+  }
+  return picks;
+}
+
+// ─── COUNTDOWN HOOK INJECTION ────────────────────────────────────────────────
+function detectListVideo(scriptText) {
+  return /\b(top \d+|number \d+|reason \d+|\d+ reasons|\d+ ways|\d+ things|\d+ tips|number one|number two|number three|ranked|ranking|list)\b/i.test(scriptText);
+}
+
+function injectCountdownHooks(clips, scriptText) {
+  // Find section breaks to determine list count
+  const sectionBreaks = clips.filter(c => c.visual_type === "section_break");
+  const total = sectionBreaks.length;
+  if (total < 2) return clips;
+
+  const injected = [...clips];
+
+  sectionBreaks.forEach((breakClip, idx) => {
+    const remaining = total - idx;
+    // Attach countdown data to the section break itself
+    breakClip.countdown_data = {
+      current: idx + 1,
+      total,
+    };
+    // Also add a small overlay clip right after the section break
+    const countdownClip = {
+      start_time: breakClip.end_time,
+      end_time: breakClip.end_time + 4, // show for 4 seconds after break
+      visual_type: "countdown_corner",
+      display_style: "fullscreen",
+      search_query: "",
+      subtitle_words: [],
+      countdown_data: {
+        current: idx + 1,
+        total,
+      },
+    };
+    injected.push(countdownClip);
+  });
+
+  return injected;
+}
+
+// ─── MAIN CHUNK PROCESSOR ────────────────────────────────────────────────────
 async function processChunk(scriptText, chunkWords, startTime, endTime, chunkIndex, totalChunks, contentMode = "visual", topic = "") {
   const wordRef = chunkWords.map((w) => {
     const idx = w.originalIndex !== undefined ? w.originalIndex : chunkWords.indexOf(w);
@@ -172,9 +294,11 @@ async function processChunk(scriptText, chunkWords, startTime, endTime, chunkInd
   const isFirstChunk = chunkIndex === 0;
   const isLastChunk = chunkIndex === totalChunks - 1;
 
-  // Build topic context line for the prompt
+  // Detect niche for safe search query guidance
+  const nicheContext = buildNicheContext(topic, scriptText);
+
   const topicContext = topic
-    ? `\nVIDEO TOPIC: "${topic}"\nThis is CRITICAL — every image search_query MUST be contextually tied to this topic. If the narrator says "wealth", the query must be "${topic} wealth" or "ancient Roman gold treasure" — NEVER just "wealth". If the narrator says "weapons", the query must reflect the era/setting of this video. ALWAYS prefix or contextualize queries with the video's subject matter.\n`
+    ? `\nVIDEO TOPIC: "${topic}"\nEVERY image search_query MUST be contextually tied to this topic. Never use dark, scary, or horror imagery unless this IS a horror video. If the topic is side hustle/finance/business — use professional, aspirational, success imagery. If travel — use beautiful destinations. Match the EMOTIONAL TONE of the niche.\n${nicheContext}`
     : "";
 
   const response = await axios.post(
@@ -188,8 +312,9 @@ async function processChunk(scriptText, chunkWords, startTime, endTime, chunkInd
           content: `You are the creative director of a professional YouTube video production studio.
 
 CONTENT MODE: ${contentMode.toUpperCase()}
-${contentMode === "visual" ? "THIS IS A VISUAL VIDEO. Use 85-95% real photos and images. Infographics should be MAX 5-10% of clips — ONLY when a specific hard number or statistic is mentioned in the narration. NEVER use infographics in the first 5 seconds (the hook). The hook MUST be a striking photo or cinematic image. Default to stock photos and AI images for everything." : "THIS IS A DATA-DRIVEN VIDEO. Use 40-60% infographics when numbers and data are mentioned. Use real photos for scene-setting and transitions. Still avoid infographics in the first 3 seconds — start with a compelling image."}
+${contentMode === "visual" ? "THIS IS A VISUAL VIDEO. Use 85-95% real photos and images. Infographics MAX 10% — ONLY when a specific hard number or statistic is mentioned. NEVER use infographics in the first 5 seconds." : "THIS IS A DATA-DRIVEN VIDEO. Use 40-60% infographics when numbers and data are mentioned. Use real photos for scene-setting and transitions. Avoid infographics in the first 3 seconds."}
 ${topicContext}
+
 Create a visually compelling storyboard for this ${duration.toFixed(0)}s segment (${startTime.toFixed(1)}s to ${endTime.toFixed(1)}s).
 
 WORD TIMING:
@@ -198,15 +323,27 @@ ${wordRef}
 FULL SCRIPT (for context):
 ${scriptText.slice(0, 3000)}
 
-═══ YOUR VISUAL TOOLKIT (15 types) ═══
+IMPORTANT — NO SUBTITLES: This video has NO word-by-word subtitles. Do NOT include subtitle_words. Every visual must stand completely on its own — images must be compelling enough to watch without any text captions. Choose visuals that SHOW what the narrator is saying, not just illustrate generic concepts.
 
-INFOGRAPHIC TYPES (use when content has actual data — DATA topics: 40-60%, VISUAL topics: only 10-20%):
+B-ROLL MULTI-IMAGE: For stock/ai_image/web_image clips, you can provide search_queries (array of 2-3 queries) instead of a single search_query. These will cross-fade every 3 seconds, creating dynamic b-roll variety. Use this for longer clips (6+ seconds).
+Example: "search_queries": ["side hustle laptop work", "freelancer coffee shop", "online business growth"]
+
+SECTION BREAKS — HOOK LINES: Every section_break MUST include a hook_line — the most provocative, surprising sentence from the NEXT section. This teases what's coming and keeps viewers watching.
+section_data: {number: "#1", title: "CHAPTER TITLE", hook_line: "The thing nobody tells you about this will change everything."}
+
+TRANSITION SPEED: Set transition_speed on image clips based on niche:
+- "fast" for finance, business, side hustle, top 10 lists, motivation
+- "slow" for horror, true crime, documentary, history, mystery, travel
+
+═══ YOUR VISUAL TOOLKIT ═══
+
+INFOGRAPHIC TYPES (use when content has actual data):
 
 1. "number_reveal" — Animated counter for ANY number mentioned.
    number_data: {value: NUMBER, prefix: "$", suffix: "%", label: "short label", style: "counter|gauge|bars|spotlight|ticker|impact"}
 
 2. "line_chart" — Animated line chart for trends over time.
-   chart_data: {title: "Title", points: [{label: "2020", value: 100}, ...], suffix: "%", prefix: "$", color: "#4a9eff"}
+   chart_data: {title: "Title", points: [{label: "2020", value: 100}, ...], suffix: "%", color: "#4a9eff"}
 
 3. "donut_chart" — Pie/donut chart for proportions.
    chart_data: {title: "Title", centerLabel: "100%", segments: [{label: "A", value: 60, color: "#4a9eff"}, ...]}
@@ -217,11 +354,11 @@ INFOGRAPHIC TYPES (use when content has actual data — DATA topics: 40-60%, VIS
 5. "timeline" — Events on a horizontal timeline.
    chart_data: {title: "Title", events: [{year: "2020", label: "Event"}, ...]}
 
-6. "leaderboard" — Ranked list with bars (top 3 get medals).
+6. "leaderboard" — Ranked list with bars.
    chart_data: {title: "Title", items: [{label: "A", value: 3.1, suffix: "%"}, ...]}
 
 7. "process_flow" — Step-by-step circles with arrows.
-   chart_data: {title: "Title", steps: [{label: "Step", icon: "🔍"}, ...]}
+   chart_data: {title: "Title", steps: [{label: "Step", icon: "🔑"}, ...]}
 
 8. "stat_card" — Bold KPI numbers (1-3 stats).
    chart_data: {title: "Title", stats: [{value: "4.2T", label: "Label", prefix: "$", change: "+12%", changeColor: "#22c55e"}]}
@@ -232,158 +369,104 @@ INFOGRAPHIC TYPES (use when content has actual data — DATA topics: 40-60%, VIS
 10. "checklist" — Items checking off one by one.
     chart_data: {title: "Title", items: ["Item 1", "Item 2", ...], checked: true}
 
-11. "horizontal_bar" — Side-by-side comparison bars (GDP, salary, calories, rent, etc.).
-    chart_data: {title: "Title", items: [{label: "USA", value: 25000, color: "#4488ff"}, ...], suffix: "B", prefix: "$"}
+11. "horizontal_bar" — Side-by-side comparison bars.
+    chart_data: {title: "Title", items: [{label: "USA", value: 25000, color: "#4488ff"}, ...], suffix: "B"}
 
-12. "vertical_bar" — Bars rising from bottom (box office, subscribers, revenue rankings).
-    chart_data: {title: "Title", items: [{label: "Netflix", value: 230, color: "#ff4466"}, ...], suffix: "M", prefix: ""}
+12. "vertical_bar" — Bars rising from bottom.
+    chart_data: {title: "Title", items: [{label: "Netflix", value: 230, color: "#ff4466"}, ...], suffix: "M"}
 
-13. "scale_comparison" — Proportional circles or bars (planet sizes, building heights, speeds).
+13. "scale_comparison" — Proportional circles or bars.
     chart_data: {title: "Title", items: [{label: "Jupiter", value: 139820}, ...], suffix: " km", mode: "circles|bars"}
 
-14. "map_highlight" — World map with highlighted pins and stats.
+14. "map_highlight" — World map with highlighted pins.
     chart_data: {title: "Title", highlights: [{region: "USA", value: "330M", label: "Population", x: 22, y: 35}, ...]}
-    x,y are percentage positions on the map (0-100).
 
 15. "body_diagram" — Human body outline with labeled zones.
     chart_data: {title: "Title", zones: [{label: "Heart Rate", value: "72", suffix: " bpm", position: "chest"}, ...]}
-    positions: head, brain, chest, heart, lungs, arms, shoulders, core, stomach, legs, knees, feet, back, hips
 
-16. "funnel_chart" — Narrowing funnel with stages (conversion rates, failure rates).
-    chart_data: {title: "Title", stages: [{label: "Stage 1", value: 100, suffix: "%"}, {label: "Stage 2", value: 60}, ...]}
+16. "funnel_chart" — Narrowing funnel with stages.
+    chart_data: {title: "Title", stages: [{label: "Stage 1", value: 100, suffix: "%"}, ...]}
 
-17. "growth_curve" — Dramatic exponential growth animation (compound interest, net worth).
-    chart_data: {title: "Title", start_value: 1000, end_value: 100000, prefix: "$", years: 30, color: "#44dd88", label: "Invested $300/mo"}
+17. "growth_curve" — Exponential growth animation.
+    chart_data: {title: "Title", start_value: 1000, end_value: 100000, prefix: "$", years: 30, color: "#44dd88"}
 
-18. "ranking_cards" — Grid of ranked cards with medals (richest people, fastest cars, etc.).
-    chart_data: {title: "Title", items: [{label: "Elon Musk", value: 250, subtitle: "Tesla, SpaceX"}, ...], prefix: "$", suffix: "B"}
+18. "ranking_cards" — Grid of ranked cards.
+    chart_data: {title: "Title", items: [{label: "Elon Musk", value: 250, subtitle: "Tesla"}, ...], prefix: "$", suffix: "B"}
 
-19. "split_comparison" — Side-by-side VS comparison of TWO things.
+19. "split_comparison" — Side-by-side VS comparison.
     chart_data: {title: "Title", left: {name: "Stocks", color: "#4488ff"}, right: {name: "Bonds", color: "#ff6644"}, stats: [{label: "Return", left_value: "10%", right_value: "4%"}, ...]}
 
-20. "icon_grid" — Grid of icons with labels (income streams, bias types, benefits).
+20. "icon_grid" — Grid of icons with labels.
     chart_data: {title: "Title", items: [{label: "Rental Income", icon: "🏠", value: "$2K/mo"}, ...]}
 
-21. "flow_diagram" — Branching flow with decision points (career paths, decision trees).
-    chart_data: {title: "Title", nodes: [{label: "Start", step: "Step 1"}, {label: "Research", step: "Step 2"}, ...]}
+21. "flow_diagram" — Branching flow with decision points.
+    chart_data: {title: "Title", nodes: [{label: "Start", step: "Step 1"}, ...]}
 
-22. "comparison" — Side-by-side bar comparison (simple 2-item).
+22. "comparison" — Simple 2-item bar comparison.
     comparison_data: {items: [{label: "A", value: 80, display: "80%", color: "#4a9eff"}, {label: "B", value: 30, display: "30%", color: "#f97316"}]}
 
-23. "section_break" — Chapter title card.
-    section_data: {number: "#1", title: "CHAPTER TITLE"}
+23. "section_break" — Chapter title card. ALWAYS include hook_line.
+    section_data: {number: "#1", title: "CHAPTER TITLE", hook_line: "The most surprising thing about this changed my mind completely."}
 
 24. "text_flash" — Big bold impact words (2-5 words). Max ${textFlashAllowance} in this chunk.
     text_flash_text: "THE REAL TRUTH"
 
-IMAGE TYPES (30-40% of clips):
+IMAGE TYPES:
 
-25. "stock" — Real photo from Pexels. ALWAYS in rounded-corner frame.
+25. "stock" — Real photo from Pexels/Brave.
     display_style: fullscreen, framed, fullscreen_zoom, split_left, split_right
-    split_left: DEFAULT — Image LEFT (~46%), subtitles RIGHT.
-    search_query: 3-5 specific words that INCLUDE THE VIDEO TOPIC/ERA/SETTING.
-    ⚠️ NEVER use generic queries like "wealth" or "weapons" alone.
-    ✅ ALWAYS tie to the video topic: "Roman Empire gold coins", "ancient Rome legions battle", "medieval castle siege"
+    search_query: 3-5 specific topic-aware words
+    search_queries: ["query 1", "query 2", "query 3"] — use for b-roll variety on longer clips
+    transition_speed: "fast" | "slow"
+    ⚠️ NEVER use generic dark/scary/horror queries for non-horror niches
+    ✅ Match the emotional tone of the niche: aspirational for business, beautiful for travel, dramatic for crime
 
-26. "ai_image" — AI-generated image. ALWAYS in rounded-corner frame.
-    ai_prompt: 15-30 ultra-specific cinematic words including the video topic/era.
-    display_style: same as stock.
+26. "ai_image" — AI-generated image.
+    ai_prompt: 15-30 ultra-specific cinematic words
+    display_style: same as stock
+    transition_speed: "fast" | "slow"
 
-27. "web_image" — Real photo from Google Images for SPECIFIC real people, places, brands, events.
-    search_query: The specific person/place/brand name + context (e.g. "MrBeast YouTube creator", "Eiffel Tower Paris night")
-    display_style: same as stock.
-    USE WHEN: The narrator mentions a SPECIFIC real person, brand, company, landmark, or event by name.
-    DO NOT USE for generic concepts — use stock or ai_image for those.
+27. "web_image" — Real photo for SPECIFIC real people, places, brands.
+    search_query: "Person Name context" or "Brand Name product"
+    display_style: same as stock
+    USE WHEN: narrator mentions a specific real person, brand, landmark by name
 
-28. "web_screenshot" — Screenshot of a real website, YouTube channel, tweet, or article.
-    screenshot_query: Description of what to screenshot (e.g. "MrBeast YouTube channel page", "Tesla stock chart Google Finance")
-    display_style: same as stock.
+NICHE-AWARE SEARCH QUERY RULES:
+- Finance/business/side hustle → professional workspace, laptop entrepreneur, success money, city business district, confident professional
+- Travel → beautiful destination photography, landmark tourism, scenic landscape
+- Health/fitness → gym workout, healthy food, active lifestyle, sports performance  
+- Horror/true crime → ONLY for these niches: dark atmospheric, crime scene investigation, mystery thriller
+- History → historical reenactment, museum artifact, ancient ruins, period architecture
+- Entertainment/celebrity → stage performance, entertainment industry, media event
+- NEVER use horror/dark imagery for non-horror niches even if words like "danger" or "risk" appear
 
-CHOOSING BETWEEN IMAGE TYPES:
-- Generic concept in the video's era/setting → stock (with topic-aware query)
-- Abstract/impossible scene → ai_image (with topic-aware prompt)
-- SPECIFIC real person/place/brand → web_image
-- Website/channel/social media reference → web_screenshot
-- When in doubt → stock
+${isFirstChunk ? `CRITICAL — FIRST 5 SECONDS HOOK:
+REQUIRED first 4 clips (each 1-1.5 seconds):
+  Clip 1: number_reveal with the FIRST big number from the script. Style "impact" or "counter".
+  Clip 2: stock or ai_image — visceral, emotional image that matches the topic and niche.
+  Clip 3: text_flash with 2-3 PUNCHY words creating tension.
+  Clip 4: comparison or horizontal_bar showing a dramatic contrast.
+Fast cuts, big numbers, dramatic imagery. Feels like a trailer.` : ""}
+${isLastChunk ? "LAST CHUNK: End with a checklist (action items) or quote_card (inspiring close)." : ""}
 
-CRITICAL — SEARCH QUERY RULES:
-1. Every stock search_query MUST be contextually tied to the video topic
-2. If the video is about Roman Empire: "wealth" → "Roman Empire gold treasure coins", "army" → "ancient Roman legion soldiers"
-3. If the video is about fitness: "eating" → "bodybuilder meal prep protein", "tired" → "gym exhausted athlete training"
-4. If the video is about true crime: "missing" → "cold case missing person investigation", "evidence" → "crime scene forensic evidence"
-5. NEVER use single generic words as search queries
-6. ALWAYS ask: "Does this query make sense for THIS specific video?" If not, add topic context
-
-CRITICAL — WEB_IMAGE RULE:
-When the script mentions ANY of the following BY NAME, you MUST use "web_image":
-- A specific PERSON (MrBeast, Elon Musk, Warren Buffett, any named individual)
-- A specific BRAND or COMPANY (Tesla, Feastables, Amazon, any named brand)
-- A specific PLACE or LANDMARK (Times Square, Eiffel Tower, any named location)
-- A specific PRODUCT (iPhone, Model Y, any named product)
-- A specific YouTube CHANNEL or social media account
-
-CHOOSE THE RIGHT INFOGRAPHIC for the content:
-- Comparing multiple items → horizontal_bar, vertical_bar, leaderboard
-- Showing proportions → donut_chart, funnel_chart
-- Trends over time → line_chart, growth_curve, timeline
-- Ranking things → leaderboard, ranking_cards, vertical_bar
-- Comparing TWO things → split_comparison, comparison
-- Size/scale → scale_comparison
-- Geographic data → map_highlight
-- Health/body → body_diagram
-- Step-by-step → process_flow, flow_diagram, checklist
-- Categories/types → icon_grid
-- Key numbers → number_reveal, stat_card
-- Quotes → quote_card
-- Lists → checklist, icon_grid
-
-═══ VARIETY RULES ═══
+VARIETY RULES:
 - NEVER use the same infographic type twice in a row
 - NEVER use the same search_query twice
 - NEVER use the same display_style twice in a row for stock clips
-- Mix up infographic types: number_reveal → line_chart → stat_card → progress_bar
-- Stock clips should show DIFFERENT things — not 5 pictures of the same concept
+- Mix infographic types: number_reveal → line_chart → stat_card → progress_bar
 
-${isFirstChunk ? `CRITICAL — FIRST 5 SECONDS HOOK (non-negotiable):
-The opening MUST be a rapid-fire visual barrage. Viewers decide in 2 seconds whether to stay.
-NEVER start with a section_break or text_flash alone. NEVER start with just an image.
-
-REQUIRED first 4 clips (each 1-1.5 seconds):
-  Clip 1: number_reveal with the FIRST big number from the script (e.g. "95%" or "17 teaspoons"). Make it style "impact" or "counter".
-  Clip 2: stock or ai_image in split_left showing a visceral, emotional image that matches the topic.
-  Clip 3: text_flash with 2-3 PUNCHY words that create tension (e.g. "THE REAL TRUTH" or "NOBODY TELLS YOU").
-  Clip 4: comparison or horizontal_bar showing a dramatic contrast.
-
-Each clip should be 1-1.5 seconds. Short and fast. This creates the visual WOW effect.
-The hook must feel like a TRAILER — fast cuts, big numbers, dramatic imagery.` : ""}
-${isLastChunk ? "LAST CHUNK: End with a checklist (action items) or quote_card (inspiring close)." : ""}
-
-MINIMUM REQUIREMENTS:
-- Use at least 3 different visual types (don't just alternate stock and number_reveal)
-- Every specific number mentioned MUST get a number_reveal or stat_card
-- Never more than 2 of the same visual type in a row
-- Mix infographics with imagery to keep energy high
-
-═══ TECHNICAL RULES ═══
-- PACING: Switch visuals every 3-5 seconds. Default to 4 seconds per clip.
-  - Quick factual statements = 3-4 seconds
-  - Important data/stats = 4-5 seconds (viewer needs time to read)
-  - Section breaks = 2-3 seconds (title card)
-  - Text flash = 2-3 seconds
-  - Maximum 6 seconds on any clip
-  - CRITICAL: NEVER cut a scene in the middle of a sentence. Each clip should start and end at a natural speech pause — after a period, comma, or between sentences. Subtitles should never feel cut off mid-thought.
+TECHNICAL RULES:
+- NO subtitle_words needed — set as empty array []
+- Switch visuals every 3-5 seconds
 - Cover ${startTime.toFixed(1)}s to ${endTime.toFixed(1)}s with NO gaps
-- subtitle_words: array of word indices spoken during this clip
-- Each clip's end_time must be 0.5s AFTER the last spoken word
-- number_data.value MUST be a raw number (not string)
+- number_data.value MUST be a raw number
 - chart_data values MUST be raw numbers
 - Infographic clips do NOT need search_query
-- Cutout styles = ONLY for images of PEOPLE
 
 BANNED search terms: baby, infant, child, toddler, kid, children, subscribe, button, icon, logo
 
 Return ONLY a JSON array, no markdown, no backticks:
-[{"start_time":${startTime.toFixed(1)},"end_time":0,"visual_type":"","display_style":"","search_query":"","ai_prompt":"","subtitle_words":[],"number_data":null,"comparison_data":null,"section_data":null,"text_flash_text":null,"chart_data":null}]`,
+[{"start_time":${startTime.toFixed(1)},"end_time":0,"visual_type":"","display_style":"","search_query":"","search_queries":null,"ai_prompt":"","subtitle_words":[],"number_data":null,"comparison_data":null,"section_data":null,"text_flash_text":null,"chart_data":null,"transition_speed":"fast","interrupt_data":null,"quote_data":null,"countdown_data":null}]`,
         },
       ],
     },
@@ -403,6 +486,35 @@ Return ONLY a JSON array, no markdown, no backticks:
   return clips;
 }
 
+// ─── NICHE CONTEXT BUILDER ────────────────────────────────────────────────────
+function buildNicheContext(topic, scriptText) {
+  const text = (topic + " " + scriptText.slice(0, 500)).toLowerCase();
+
+  if (/horror|scary|creepy|haunted|ghost|demon|paranormal|murder|serial killer|nightmare|terror/.test(text)) {
+    return "NICHE: Horror/True Crime — dark atmospheric imagery is appropriate.\n";
+  }
+  if (/side hustle|passive income|make money|freelance|entrepreneur|ecommerce|dropship|affiliate/.test(text)) {
+    return "NICHE: Business/Side Hustle — use aspirational imagery: laptops, entrepreneurs, success, money, professional workspaces. Keep it positive and motivating.\n";
+  }
+  if (/invest|stock|dividend|portfolio|finance|wealth|market|trading/.test(text)) {
+    return "NICHE: Finance/Investing — use professional imagery: charts, business districts, confident professionals, luxury lifestyle aspirational.\n";
+  }
+  if (/travel|destination|country|tourism|adventure|vacation|beach|island/.test(text)) {
+    return "NICHE: Travel — use beautiful destination photography, scenic landscapes, cultural experiences.\n";
+  }
+  if (/health|fitness|gym|workout|diet|nutrition|body|exercise/.test(text)) {
+    return "NICHE: Health/Fitness — use active lifestyle imagery: gym, healthy food, sports, outdoor activities.\n";
+  }
+  if (/history|ancient|medieval|empire|war|civilization/.test(text)) {
+    return "NICHE: History — use historical imagery: ruins, artifacts, period architecture, museum pieces.\n";
+  }
+  if (/celebrity|actor|singer|rapper|entertainment|movie|film/.test(text)) {
+    return "NICHE: Entertainment — use entertainment industry imagery: performances, media events, popular culture.\n";
+  }
+  return "NICHE: General — use professional, clean, aspirational imagery. Avoid dark or scary visuals.\n";
+}
+
+// ─── JSON PARSER ─────────────────────────────────────────────────────────────
 function parseClipsJSON(content) {
   let str = content.trim();
   str = str.replace(/^```(?:json)?\s*/gm, "").replace(/```\s*$/gm, "").trim();
@@ -420,13 +532,26 @@ function parseClipsJSON(content) {
   throw new Error("Could not parse director storyboard JSON");
 }
 
+// ─── CLIP VALIDATOR ───────────────────────────────────────────────────────────
 function validateClips(clips, startTime, endTime) {
   if (!Array.isArray(clips) || !clips.length) throw new Error("Empty storyboard");
 
   const banned = ["baby","infant","child","toddler","kid","kids","children","subscribe","button","icon","logo"];
   const validStyles = ["fullscreen","framed","fullscreen_zoom","split_left","split_right"];
-  const validTypes = ["stock","number_reveal","comparison","section_break","text_flash","ai_image","web_image","web_screenshot","line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","stat_card","quote_card","checklist","horizontal_bar","vertical_bar","scale_comparison","map_highlight","body_diagram","funnel_chart","growth_curve","ranking_cards","split_comparison","icon_grid","flow_diagram"];
-  const graphicTypes = ["number_reveal","section_break","comparison","text_flash","line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","stat_card","quote_card","checklist","horizontal_bar","vertical_bar","scale_comparison","map_highlight","body_diagram","funnel_chart","growth_curve","ranking_cards","split_comparison","icon_grid","flow_diagram"];
+  const validTypes = [
+    "stock","number_reveal","comparison","section_break","text_flash","ai_image","web_image","web_screenshot",
+    "line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","stat_card","quote_card","checklist",
+    "horizontal_bar","vertical_bar","scale_comparison","map_highlight","body_diagram","funnel_chart","growth_curve",
+    "ranking_cards","split_comparison","icon_grid","flow_diagram",
+    // v32 engagement types
+    "interrupt_card","quote_pull","countdown_corner",
+  ];
+  const graphicTypes = [
+    "number_reveal","section_break","comparison","text_flash","line_chart","donut_chart","progress_bar","timeline",
+    "leaderboard","process_flow","stat_card","quote_card","checklist","horizontal_bar","vertical_bar","scale_comparison",
+    "map_highlight","body_diagram","funnel_chart","growth_curve","ranking_cards","split_comparison","icon_grid","flow_diagram",
+    "interrupt_card","quote_pull","countdown_corner",
+  ];
 
   let lastStyle = "";
   let lastNumberStyle = "";
@@ -437,9 +562,24 @@ function validateClips(clips, startTime, endTime) {
     if (!clip.display_style || !validStyles.includes(clip.display_style)) clip.display_style = "framed";
     if (!clip.search_query) clip.search_query = "cinematic landscape";
 
+    // Always clear subtitle_words — no subtitles in v32
+    clip.subtitle_words = [];
+
     let q = clip.search_query;
     banned.forEach(b => { q = q.replace(new RegExp(`\\b${b}\\b`, "gi"), "").trim(); });
     if (q.length < 3) q = "cinematic landscape";
+
+    // Also clean search_queries array if present
+    if (clip.search_queries && Array.isArray(clip.search_queries)) {
+      clip.search_queries = clip.search_queries
+        .map(sq => {
+          let cleaned = sq;
+          banned.forEach(b => { cleaned = cleaned.replace(new RegExp(`\\b${b}\\b`, "gi"), "").trim(); });
+          return cleaned.length >= 3 ? cleaned : null;
+        })
+        .filter(Boolean);
+      if (clip.search_queries.length === 0) clip.search_queries = null;
+    }
 
     // Smart image variety — limit any primary keyword to max 2 uses
     if (clip.visual_type === "stock" || clip.visual_type === "ai_image" || clip.visual_type === "web_image") {
@@ -448,7 +588,7 @@ function validateClips(clips, startTime, endTime) {
       const keyCount = usedQueries.get(primaryWord) || 0;
 
       if (keyCount >= 2) {
-        const alternatives = ["person thinking", "professional workspace", "nature landscape", "city skyline", "technology abstract", "hands working", "bright modern office", "calm ocean waves", "mountain sunrise", "walking outdoors"];
+        const alternatives = ["professional workspace", "nature landscape", "city skyline", "technology concept", "hands working", "modern office", "calm ocean", "mountain sunrise", "walking outdoors", "entrepreneur laptop"];
         q = alternatives[usedQueries.size % alternatives.length];
       }
 
@@ -465,7 +605,6 @@ function validateClips(clips, startTime, endTime) {
       clip.screenshot_query = clip.search_query;
     }
 
-    if (!clip.subtitle_words) clip.subtitle_words = [];
     if (clip.start_time === undefined || clip.start_time === null) clip.start_time = startTime;
     if (!clip.end_time) clip.end_time = clip.start_time + 3;
 
@@ -500,6 +639,9 @@ function validateClips(clips, startTime, endTime) {
       }
       lastStyle = clip.display_style;
     }
+
+    // Default transition speed if not set
+    if (!clip.transition_speed) clip.transition_speed = "fast";
   });
 
   return clips;

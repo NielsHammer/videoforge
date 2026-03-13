@@ -195,7 +195,9 @@ export async function generateVideo(scriptPath, options) {
     "process_flow","stat_card","quote_card","checklist",
     "horizontal_bar","vertical_bar","scale_comparison","map_highlight",
     "body_diagram","funnel_chart","growth_curve","ranking_cards",
-    "split_comparison","icon_grid","flow_diagram"];
+    "split_comparison","icon_grid","flow_diagram",
+    // v32 engagement types
+    "interrupt_card","quote_pull","countdown_corner"];
 
   const webImageAvailable = isWebSearchAvailable();
   if (webImageAvailable) {
@@ -250,6 +252,20 @@ export async function generateVideo(scriptPath, options) {
             clip.imagePath = webPath;
             clip.isCutout = false;
             usedImagePaths.add(webPath);
+            // Multi-image b-roll for web images
+            if (clip.search_queries && clip.search_queries.length > 1) {
+              clip.imagePaths = [webPath];
+              for (let qi = 1; qi < Math.min(clip.search_queries.length, 3); qi++) {
+                const extraWebPath = path.join(assetsDir, `${baseName}-web-broll-${qi}.jpg`);
+                try {
+                  await searchWebImage(clip.search_queries[qi], extraWebPath, clip);
+                  if (fs.existsSync(extraWebPath) && fs.statSync(extraWebPath).size > 5000) {
+                    fixImageRotation(extraWebPath);
+                    clip.imagePaths.push(extraWebPath);
+                  }
+                } catch {}
+              }
+            }
             s.succeed(`Clip ${i + 1}: 🌐 web image ${clip.display_style}`);
             continue;
           }
@@ -301,7 +317,21 @@ export async function generateVideo(scriptPath, options) {
           clip.isCutout = false;
           pexelsOk = true;
           usedImagePaths.add(photoPath);
-          s.succeed(`Clip ${i + 1}: 📷 ${clip.display_style}`);
+          // Multi-image b-roll: fetch additional search_queries if provided
+          if (clip.search_queries && clip.search_queries.length > 1) {
+            clip.imagePaths = [photoPath];
+            for (let qi = 1; qi < Math.min(clip.search_queries.length, 3); qi++) {
+              const extraPath = path.join(assetsDir, `${baseName}-broll-${qi}.jpg`);
+              try {
+                await fetchPhoto(clip.search_queries[qi], extraPath);
+                if (fs.existsSync(extraPath) && fs.statSync(extraPath).size > 5000) {
+                  fixImageRotation(extraPath);
+                  clip.imagePaths.push(extraPath);
+                }
+              } catch {}
+            }
+          }
+          s.succeed(`Clip ${i + 1}: 📷 ${clip.display_style}${clip.imagePaths ? ` (b-roll: ${clip.imagePaths.length})` : ''}`);
         }
       } catch {}
 
