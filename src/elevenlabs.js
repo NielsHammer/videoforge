@@ -289,7 +289,17 @@ export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath)
   const listPath = path.join(tmpDir, '_concat_list.txt');
   fs.writeFileSync(listPath, chunkPaths.map(p => `file '${p}'`).join('\n'));
   try {
-    execSync(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -acodec libmp3lame -b:a 192k "${outputPath}"`, { stdio: 'pipe', timeout: 120000 }); // 2 min
+    // Normalize each chunk first to prevent volume spikes at boundaries
+    const normalizedPaths = [];
+    for (let ni = 0; ni < chunkPaths.length; ni++) {
+      const normPath = path.join(tmpDir, `_norm_${ni}.mp3`);
+      execSync(`ffmpeg -y -i "${chunkPaths[ni]}" -af loudnorm=I=-16:TP=-1.5:LRA=11 -acodec libmp3lame -b:a 192k "${normPath}"`, { stdio: 'pipe', timeout: 60000 });
+      normalizedPaths.push(normPath);
+    }
+    const normListPath = path.join(tmpDir, '_norm_list.txt');
+    fs.writeFileSync(normListPath, normalizedPaths.map(p => `file '${p}'`).join('\n'));
+    execSync(`ffmpeg -y -f concat -safe 0 -i "${normListPath}" -acodec libmp3lame -b:a 192k "${outputPath}"`, { stdio: 'pipe', timeout: 120000 });
+    normalizedPaths.forEach(p => { try { fs.unlinkSync(p); } catch(e) {} });
   } catch (e) {
     execSync(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -c copy "${outputPath}"`, { stdio: 'pipe', timeout: 120000 });
   }
