@@ -237,6 +237,7 @@ INFOGRAPHICS (only when specific numbers/data mentioned):
 
 IMAGES:
 "stock": search_query describes specific emotion/moment. display_style: fullscreen|framed|fullscreen_zoom|split_left|split_right. search_queries:["q1","q2","q3"] for clips 6+s. transition_speed:"fast"|"slow"
+  For split_left or split_right: REQUIRED field panel_text: "2-3 WORD IMPACT PHRASE" — this shows on the empty side of the split. Must be punchy, ALL CAPS, directly related to what narrator is saying. Examples: "92% FAIL", "TAKE ACTION", "START NOW", "NO EXCUSES", "TIME IS MONEY". NEVER use descriptive words like "PERSON" or "WAITING" — only impactful phrases.
 "ai_image": ai_prompt: 20-40 words ultra-specific cinematic matching exact moment
 "web_image": ONLY for specific named real people/brands/landmarks
 
@@ -248,14 +249,19 @@ Clip 4 (4.5-6s): comparison or horizontal_bar — dramatic contrast
 Fast. Emotional. Make people feel something.` : ""}
 ${isLastChunk ? "CLOSE: checklist (action items) or quote_card (inspiring thought)." : ""}
 
-RULES:
-- Never same type twice in a row
+ANTI-REPETITION RULES — these are strict:
+- NEVER use the same visual_type more than 2 times in a row. Ever.
+- NEVER use stat_card more than 2 times total in the entire storyboard
+- NEVER use any single infographic type more than 3 times total
+- After every 2 infographics, you MUST have at least 1 stock image
+- Variety check: look at your last 4 clips — if 3+ are infographics, add a stock image
+- Every split_left or split_right clip MUST have panel_text field
 - Infographics: 5-6s minimum
 - Cover ${startTime.toFixed(1)}s to ${endTime.toFixed(1)}s, no gaps
 - BANNED terms in search_query: baby,infant,child,toddler,kid,subscribe,button,logo${isHorror ? "" : ",knife,weapon,mask,ghost,monster,blood,horror,scary,creepy,ghostface,scream,killer"}
 
 Return ONLY valid JSON array, no markdown:
-[{"start_time":${startTime.toFixed(1)},"end_time":0,"visual_type":"","display_style":"split_left","search_query":"","search_queries":null,"ai_prompt":"","subtitle_words":[],"number_data":null,"comparison_data":null,"section_data":null,"text_flash_text":null,"chart_data":null,"transition_speed":"fast","interrupt_data":null,"quote_data":null,"countdown_data":null}]`
+[{"start_time":${startTime.toFixed(1)},"end_time":0,"visual_type":"","display_style":"split_left","search_query":"","search_queries":null,"ai_prompt":"","panel_text":null,"subtitle_words":[],"number_data":null,"comparison_data":null,"section_data":null,"text_flash_text":null,"chart_data":null,"transition_speed":"fast","interrupt_data":null,"quote_data":null,"countdown_data":null}]`
       }]
     },
     { headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" }, timeout: 120000 }
@@ -402,48 +408,6 @@ function validateClips(clips, startTime, endTime, nicheInfo) {
     }
 
     if (!clip.transition_speed) clip.transition_speed = "fast";
-  });
-
-  // Post-process: limit same visual_type to max 2 in a row, max 3 total per type
-  const typeCounts = {};
-  let lastType = '';
-  let lastTypeRun = 0;
-  const imageTypes = ['stock', 'ai_image', 'web_image'];
-  const infraTypes = ['stat_card', 'number_reveal', 'horizontal_bar', 'progress_bar', 'leaderboard', 'donut_chart', 'line_chart', 'checklist', 'comparison', 'timeline', 'ranking_cards'];
-
-  clips.forEach((clip, i) => {
-    const t = clip.visual_type;
-    typeCounts[t] = (typeCounts[t] || 0) + 1;
-
-    // Same type in a row
-    if (t === lastType) {
-      lastTypeRun++;
-    } else {
-      lastTypeRun = 1;
-      lastType = t;
-    }
-
-    // Max 2 same infographic in a row — swap to stock
-    if (lastTypeRun > 2 && infraTypes.includes(t)) {
-      clip.visual_type = 'stock';
-      clip.display_style = 'framed';
-      const niche = nicheInfo?.niche || 'general';
-      const fallbacks = nicheSafeQueries[niche] || nicheSafeQueries.general;
-      clip.search_query = fallbacks[i % fallbacks.length];
-      lastType = 'stock';
-      lastTypeRun = 1;
-      typeCounts[t]--;
-    }
-
-    // Max 4 total of same infographic type per video
-    if (typeCounts[t] > 4 && infraTypes.includes(t)) {
-      clip.visual_type = 'stock';
-      clip.display_style = 'framed';
-      const niche = nicheInfo?.niche || 'general';
-      const fallbacks = nicheSafeQueries[niche] || nicheSafeQueries.general;
-      clip.search_query = fallbacks[i % fallbacks.length];
-      typeCounts[t]--;
-    }
   });
 
   return clips;
