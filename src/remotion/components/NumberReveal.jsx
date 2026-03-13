@@ -57,7 +57,7 @@ const CounterReveal = ({ displayValue, label, clipFrame, fps, th }) => {
   const glow = 0.15 + Math.sin(clipFrame / fps * 2.5) * 0.07;
 
   return (
-    <div style={{ position: "absolute", top: "8%", left: 0, right: 0, display: "flex", flexDirection: "column", alignItems: "center", transform: `scale(${scale})`, opacity, zIndex: 10 }}>
+    <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", transform: `scale(${scale})`, opacity, zIndex: 10 }}>
       <div style={{ position: "absolute", width: 400, height: 400, borderRadius: "50%", background: `radial-gradient(circle, rgba(${th.glowRgb},${glow}), transparent 55%)`, filter: "blur(40px)", top: -80 }} />
       <div style={{ fontSize: 120, fontWeight: 900, fontFamily: "Arial Black, Arial, sans-serif", background: th.gradient, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: -3, zIndex: 1, lineHeight: 1, maxWidth: 1400, textAlign: "center" }}>
         {displayValue}
