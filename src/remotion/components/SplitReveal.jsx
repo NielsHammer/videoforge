@@ -97,6 +97,44 @@ export const SplitReveal = ({ imageSrc, position = "left", clipFrame = 0, theme 
             </div>
           </div>
         )}
+
+        {panelType === "icon" && clip?.panel_icon && (
+          <div style={{ textAlign: "center" }}>
+            {/* Big animated icon */}
+            <div style={{
+              fontSize: 120,
+              lineHeight: 1,
+              filter: `drop-shadow(0 0 40px ${accent}80)`,
+              transform: `scale(${interpolate(clipFrame, [fps * 0.2, fps * 0.5], [0.3, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.back(1.5)) })}) translateY(${Math.sin(clipFrame / fps * 1.2) * 8}px)`,
+              opacity: interpolate(clipFrame, [fps * 0.2, fps * 0.4], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
+            }}>
+              {clip.panel_icon}
+            </div>
+            {/* Pulse ring */}
+            <div style={{
+              width: 160, height: 160,
+              borderRadius: "50%",
+              border: `2px solid ${accent}${Math.round(pulse * 60).toString(16).padStart(2, '0')}`,
+              position: "absolute",
+              top: "50%", left: "50%",
+              transform: "translate(-50%, -50%)",
+              pointerEvents: "none",
+            }} />
+            {/* Panel text below icon */}
+            {panelText && (
+              <div style={{
+                fontSize: 28, fontWeight: 900,
+                fontFamily: "Arial Black, Arial, sans-serif",
+                color: "white", textTransform: "uppercase",
+                letterSpacing: 2, marginTop: 24,
+                opacity: interpolate(clipFrame, [fps * 0.5, fps * 0.8], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
+                textShadow: `0 0 20px ${accent}40`,
+              }}>
+                {panelText}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
