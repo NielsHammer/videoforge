@@ -207,10 +207,23 @@ ${windowList}
 CLASSIFICATION RULES:
 - "stock": narrator is telling a story, giving context, describing a scene → display: "framed" ALWAYS (no fullscreen)
 - "animation": narrator makes a KEY STATEMENT — shocking stat, pivotal insight, emotional peak, call to action
-  → Choose the specific animation type: kinetic_text (2-4 punchy words MAX, not sentences), count_up (numbers), money_counter (money), reaction_face (shock/humor), neon_sign (bold claim), warning_siren (danger/mistake), checkmark_build (list of steps), before_after (transformation), news_breaking (dramatic reveal), highlight_build (key benefits), typewriter_reveal (quote or phrase)
-  → From theme preferred list use: ${themeHints.prefer.slice(0, 4).join(", ")}
+  → Choose the BEST fitting type from this full list:
+  IMPACT TEXT: kinetic_text (punchy 2-4 words), neon_sign (bold glowing claim), glitch_text (shocking tech moment), typewriter_reveal (quote or phrase types out)
+  STATS/NUMBERS: spotlight_stat (single dramatic %), count_up (number counts up), money_counter ($ amount), percent_fill (circle fills), trend_arrow (up/down direction)
+  REACTIONS: reaction_face (emoji slam - 🤯😱), warning_siren (danger/mistake), news_breaking (dramatic reveal), lightbulb_moment (idea/insight)
+  LISTS/STEPS: checkmark_build (steps building up), highlight_build (key phrases highlighted), icon_burst (icons radiating)
+  COMPARISONS: before_after (transformation), compare_reveal (side by side), side_by_side (two concepts)
+  SOCIAL/PLATFORM: tweet_card (quote as tweet), phone_screen (phone notification), stock_ticker (financial ticker)
+  EMOTIONAL: rocket_launch (growth/momentum), thumbs_up (verdict/recommendation), word_scatter (concept cloud)
+  → From theme preferred list also consider: ${themeHints.prefer.slice(0, 4).join(", ")}
 - "split": narrator describes a person, place, or situation — good for storytelling clips → display: "split_left" or "split_right"
-- "infographic": narrator cites specific data, statistics, or a list → number_reveal, stat_card, timeline, checklist, progress_bar, trend_arrow, percent_fill
+- "infographic": narrator cites specific data, statistics, or a list → choose best type:
+  SINGLE STAT: number_reveal (dramatic number), spotlight_stat (% with context)
+  CARDS: stat_card (2-3 stats side by side), compare_reveal (two options compared)
+  LISTS: checklist (steps/items with checkmarks), leaderboard (ranked items), ranking_cards (top items)
+  CHARTS: progress_bar (bars showing %s), horizontal_bar (comparison bars), line_chart (trend over time), growth_curve (exponential growth), donut_chart (pie breakdown)
+  FLOWS: timeline (events in sequence), process_flow (steps in a process), flow_diagram (A→B→C)
+  OTHER: percent_fill (single % circle), trend_arrow (direction of change), icon_grid (concepts as icons)
 
 CRITICAL DISTRIBUTION RULES — these override everything:
 1. FIRST 3 CLIPS (positions 0,1,2): MUST be "animation" or "stock" with display "framed". NEVER "fullscreen". NEVER "split". The hook must hit immediately.
@@ -320,8 +333,18 @@ function enforcePlan(clips, windows, planChunk, scriptText) {
   const maxPerType = 3; // max times same type can appear before rotating
 
   // Rotation pools for variety
-  const animRotation = ["kinetic_text","spotlight_stat","reaction_face","warning_siren","neon_sign","money_counter","count_up","typewriter_reveal","news_breaking","glitch_text","percent_fill","trend_arrow"];
-  const infraRotation = ["stat_card","number_reveal","checklist","progress_bar","timeline","percent_fill","trend_arrow"];
+  const animRotation = [
+    "kinetic_text","spotlight_stat","reaction_face","warning_siren","neon_sign",
+    "money_counter","count_up","typewriter_reveal","news_breaking","glitch_text",
+    "percent_fill","trend_arrow","before_after","compare_reveal","highlight_build",
+    "checkmark_build","icon_burst","lightbulb_moment","rocket_launch","tweet_card",
+    "phone_screen","word_scatter","side_by_side","thumbs_up","stock_ticker",
+  ];
+  const infraRotation = [
+    "stat_card","number_reveal","checklist","progress_bar","timeline",
+    "leaderboard","horizontal_bar","growth_curve","donut_chart","ranking_cards",
+    "percent_fill","trend_arrow","flow_diagram","process_flow","icon_grid",
+  ];
   let animRotationIdx = 0;
   let infraRotationIdx = 0;
 
@@ -432,22 +455,84 @@ function generateAnimationData(type, sentence) {
 function generateInfographicData(type, sentence, scriptText) {
   const numbers = sentence.match(/\d+(\.\d+)?/g) || [];
   const words = sentence.replace(/[^a-zA-Z0-9\s]/g, " ").split(/\s+/).filter(w => w.length > 2);
-  const stop = new Set(["the","and","but","for","with","this","that","have","from","they","their","your","you","was","are","were","has","had","not","can","will"]);
-  const key = words.filter(w => !stop.has(w.toLowerCase())).slice(0, 5);
+  const stop = new Set(["the","and","but","for","with","this","that","have","from","they","their","your","you","was","are","were","has","had","not","can","will","would","could","should","just","also","more","very"]);
+  const key = words.filter(w => !stop.has(w.toLowerCase())).slice(0, 6);
   const pct = sentence.match(/(\d+)\s*%/);
+  const title = key.slice(0, 3).join(" ");
+
+  // Pull nearby sentences from script for list-type infographics
+  const allSentences = scriptText.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 10 && s.length < 80);
+  const idx = allSentences.findIndex(s => s.includes(key[0] || ""));
+  const nearby = allSentences.slice(Math.max(0, idx - 1), idx + 4).filter(s => s.length > 10);
 
   switch (type) {
-    case "number_reveal": return { number_data: { value: parseFloat(numbers[0]) || 73, prefix: sentence.includes("$") ? "$" : "", suffix: pct ? "%" : "", label: key.slice(0, 3).join(" "), style: "counter" } };
-    case "stat_card": return { chart_data: { title: key.slice(0, 3).join(" "), stats: [{ value: numbers[0] || "73%", label: sentence.slice(0, 40) }] } };
-    case "checklist": {
-      const sentences = scriptText.split(/[.!?]/).map(s => s.trim()).filter(s => s.length > 15 && s.length < 70).slice(0, 4);
-      return { chart_data: { title: key.slice(0, 3).join(" "), items: sentences.length >= 2 ? sentences : ["First point", "Second point", "Third point"], checked: true } };
-    }
-    case "timeline": return { chart_data: { title: key.slice(0, 3).join(" "), events: [{ year: "2004", label: "Social media begins" }, { year: "2012", label: "Mobile dominates" }, { year: "2020", label: "Addiction peaks" }] } };
-    case "progress_bar": return { chart_data: { title: key.slice(0, 3).join(" "), bars: [{ label: key[0] || "Usage", value: parseInt(numbers[0]) || 65, suffix: "%", color: "" }] } };
-    case "trend_arrow": return { animation_data: { direction: "up", value: (numbers[0] || "73") + "%", label: key.slice(0, 4).join(" ").toLowerCase() } };
-    case "percent_fill": return { animation_data: { percent: parseInt(pct?.[1]) || 73, label: key.slice(0, 4).join(" ").toLowerCase() } };
-    default: return { chart_data: { title: key.slice(0, 3).join(" "), stats: [{ value: numbers[0] || "73%", label: sentence.slice(0, 40) }] } };
+    case "number_reveal":
+      return { number_data: { value: parseFloat(numbers[0]) || 73, prefix: sentence.includes("$") ? "$" : "", suffix: pct ? "%" : "", label: key.slice(0, 3).join(" "), style: "counter" } };
+
+    case "stat_card":
+      return { chart_data: { title, stats: [{ value: numbers[0] || "73%", label: sentence.slice(0, 40) }, numbers[1] ? { value: numbers[1], label: key.slice(3, 6).join(" ") } : null].filter(Boolean) } };
+
+    case "checklist":
+      const items = nearby.length >= 2 ? nearby.slice(0, 4) : ["First key point", "Second key point", "Third key point"];
+      return { chart_data: { title, items, checked: true } };
+
+    case "progress_bar":
+      return { chart_data: { title, bars: [
+        { label: key[0] || "Primary", value: parseInt(numbers[0]) || 65, suffix: "%", color: "" },
+        numbers[1] ? { label: key[1] || "Secondary", value: parseInt(numbers[1]) || 35, suffix: "%", color: "" } : null,
+      ].filter(Boolean) } };
+
+    case "timeline":
+      return { chart_data: { title, events: [
+        { year: numbers[0] || "2000", label: nearby[0]?.slice(0, 30) || "Phase one begins" },
+        { year: numbers[1] || "2010", label: nearby[1]?.slice(0, 30) || "Turning point" },
+        { year: numbers[2] || "2024", label: nearby[2]?.slice(0, 30) || "Present day" },
+      ] } };
+
+    case "leaderboard":
+      return { chart_data: { title, items: nearby.slice(0, 5).map((s, i) => ({ label: s.slice(0, 25), value: 100 - i * 15, suffix: "%" })) } };
+
+    case "horizontal_bar":
+      return { chart_data: { title, items: [
+        { label: key[0] || "Category A", value: parseInt(numbers[0]) || 75, color: "" },
+        { label: key[1] || "Category B", value: parseInt(numbers[1]) || 45, color: "" },
+        { label: key[2] || "Category C", value: parseInt(numbers[2]) || 25, color: "" },
+      ], suffix: "%" } };
+
+    case "growth_curve":
+      return { chart_data: { title, points: [
+        { label: "Start", value: parseInt(numbers[0]) || 10 },
+        { label: "Year 5", value: (parseInt(numbers[0]) || 10) * 3 },
+        { label: "Year 10", value: (parseInt(numbers[0]) || 10) * 10 },
+        { label: "Year 20", value: (parseInt(numbers[0]) || 10) * 50 },
+      ], suffix: "x" } };
+
+    case "donut_chart":
+      return { chart_data: { title, centerLabel: numbers[0] ? `${numbers[0]}%` : "73%", segments: [
+        { label: key[0] || "Group A", value: parseInt(numbers[0]) || 73, color: "" },
+        { label: key[1] || "Group B", value: 100 - (parseInt(numbers[0]) || 73), color: "" },
+      ] } };
+
+    case "ranking_cards":
+      return { chart_data: { title, items: nearby.slice(0, 5).map((s, i) => ({ label: s.slice(0, 30), value: `#${i + 1}` })) } };
+
+    case "flow_diagram":
+      return { chart_data: { title, nodes: nearby.slice(0, 4).map((s, i) => ({ id: i + 1, label: s.slice(0, 20) })), edges: [] } };
+
+    case "process_flow":
+      return { chart_data: { title, steps: nearby.slice(0, 4).map((s, i) => ({ number: i + 1, label: s.slice(0, 25) })) } };
+
+    case "icon_grid":
+      return { chart_data: { title, items: key.slice(0, 6).map((w, i) => ({ icon: ["💰","📈","🧠","⚡","🎯","🔥"][i] || "💡", label: w })) } };
+
+    case "trend_arrow":
+      return { animation_data: { direction: sentence.includes("decreas") || sentence.includes("down") || sentence.includes("less") ? "down" : "up", value: (numbers[0] || "73") + (pct ? "%" : ""), label: key.slice(0, 4).join(" ").toLowerCase() } };
+
+    case "percent_fill":
+      return { animation_data: { percent: parseInt(pct?.[1]) || 73, label: key.slice(0, 4).join(" ").toLowerCase() } };
+
+    default:
+      return { chart_data: { title, stats: [{ value: numbers[0] || "73%", label: sentence.slice(0, 40) }] } };
   }
 }
 
