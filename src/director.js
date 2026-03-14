@@ -207,7 +207,7 @@ ${windowList}
 CLASSIFICATION RULES:
 - "stock": narrator is telling a story, giving context, describing a scene → display: "framed" ALWAYS (no fullscreen)
 - "animation": narrator makes a KEY STATEMENT — shocking stat, pivotal insight, emotional peak, call to action
-  → Choose the specific animation type: kinetic_text (punchy words), count_up (numbers), money_counter (money), reaction_face (shock/humor), neon_sign (bold claim), warning_siren (danger/mistake), checkmark_build (list of steps), before_after (transformation), news_breaking (dramatic reveal), highlight_build (key benefits), typewriter_reveal (quote or phrase)
+  → Choose the specific animation type: kinetic_text (2-4 punchy words MAX, not sentences), count_up (numbers), money_counter (money), reaction_face (shock/humor), neon_sign (bold claim), warning_siren (danger/mistake), checkmark_build (list of steps), before_after (transformation), news_breaking (dramatic reveal), highlight_build (key benefits), typewriter_reveal (quote or phrase)
   → From theme preferred list use: ${themeHints.prefer.slice(0, 4).join(", ")}
 - "split": narrator describes a person, place, or situation — good for storytelling clips → display: "split_left" or "split_right"
 - "infographic": narrator cites specific data, statistics, or a list → number_reveal, stat_card, timeline, checklist, progress_bar, trend_arrow, percent_fill
@@ -365,7 +365,7 @@ STOCK (category: stock):
 - panel_icon: for split layouts — one emoji matching the moment (🚀💰🧠🔥⚡🎯💡📈🏆✅😤🎭💪😱) or null
 
 ANIMATION (category: animation) — use the PLAN type:
-- "kinetic_text" → animation_data: {lines:["EXACT","SPOKEN","WORDS"], style:"impact"} — max 3 lines, exact words narrator says
+- "kinetic_text" → animation_data: {lines:["SHORT","PUNCH"], style:"impact"} — MAX 2 lines, MAX 4 words each. Extract the most impactful 2-4 words from the sentence. NOT full sentences. WRONG: ["CAN'T STOP SCROLLING","SOCIAL MEDIA WAS USING HER"] — too long. RIGHT: ["SOCIAL MEDIA","USING YOU"] — punchy.
 - "count_up" → animation_data: {value:NUMBER, prefix:"$", suffix:"", label:"what it is", decimals:0}
 - "money_counter" → animation_data: {amount:NUMBER, currency:"$", label:"what the money is"}
 - "spotlight_stat" → animation_data: {value:"92%", label:"exact stat description", context:"one sentence context"}

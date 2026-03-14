@@ -112,9 +112,10 @@ const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {
   const type = clip.visual_type;
   const style = clip.display_style || "framed";
 
-  // B-roll image switching — fixed: never switches in last 0.5s of clip
+  // B-roll image switching — disabled for split layouts (panel already uses extra images)
   let imgPath = clip.imagePath;
-  if (clip.imagePaths && clip.imagePaths.length > 1) {
+  const isSplitStyle = style === "split_left" || style === "split_right";
+  if (clip.imagePaths && clip.imagePaths.length > 1 && !isSplitStyle) {
     const crossfadeEvery = fps * 3.5;
     const safeFrame = Math.min(frame, durationInFrames - fps * 0.5);
     const imgIndex = Math.floor(safeFrame / crossfadeEvery) % clip.imagePaths.length;

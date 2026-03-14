@@ -1,63 +1,115 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
+import { getTheme } from "../../themes.js";
 
-const defaultIcons = ["💰", "📈", "🎯", "⚡", "🔥", "💎", "🌟", "🏆", "🧠", "📊", "🔑", "💡"];
-const defaultColors = ["#4488ff", "#44dd88", "#ff8844", "#dd44aa", "#44dddd", "#ddaa44", "#ff4466", "#aa66ff", "#44aadd", "#88dd44", "#ff66aa", "#ddaa88"];
-
-export const IconGrid = ({ data = {}, clipFrame = 0, theme }) => {
+/**
+ * IconGrid v2 — Clean icon+label cards in a responsive grid
+ * Much cleaner than v1: no brand names, proper spacing, smooth stagger animation
+ * data: { title: "Dopamine Triggers", items: [{icon:"❤️", label:"Likes"}, ...] }
+ */
+export const IconGrid = ({ data, clipFrame = 0, theme = "blue_grid" }) => {
   const { fps } = useVideoConfig();
-  const title = data.title || "";
-  const items = data.items || [];
+  const th = getTheme(theme);
+  const accent = th.subtitle?.accent || "#3b82f6";
 
-  const titleOp = interpolate(clipFrame, [0, fps * 0.12], [0, 1], { extrapolateRight: "clamp" });
-  const count = Math.min(items.length, 12);
-  const cols = count <= 4 ? 2 : count <= 6 ? 3 : 4;
+  if (!data || !data.items || data.items.length === 0) return null;
+
+  const items = data.items.slice(0, 6);
+  const title = data.title || "";
+  const cols = items.length <= 3 ? items.length : items.length <= 4 ? 2 : 3;
+
+  const titleOp = interpolate(clipFrame, [0, fps * 0.3], [0, 1], { extrapolateRight: "clamp" });
+  const titleY  = interpolate(clipFrame, [0, fps * 0.3], [-12, 0], { extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
 
   return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 100px" }}>
+    <div style={{
+      position: "absolute", inset: 0,
+      display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      padding: "48px 80px", gap: 32,
+    }}>
+      {/* Title */}
       {title && (
-        <div style={{ fontSize: 34, fontWeight: 800, color: "#ffffff", textTransform: "uppercase", letterSpacing: 2, marginBottom: 30, opacity: titleOp, fontFamily: "'Arial Black', Arial, sans-serif" }}>
+        <div style={{
+          fontSize: 20, fontWeight: 700, color: accent,
+          letterSpacing: 5, textTransform: "uppercase",
+          fontFamily: "Arial, sans-serif",
+          opacity: titleOp, transform: `translateY(${titleY}px)`,
+        }}>
           {title}
         </div>
       )}
+
+      {/* Grid */}
       <div style={{
-        display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`,
-        gap: 16, width: "100%", maxWidth: 1000,
+        display: "grid",
+        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+        gap: 20,
+        width: "100%",
+        maxWidth: 900,
       }}>
-        {items.slice(0, count).map((item, i) => {
-          const delay = i * 0.06;
-          const scale = interpolate(clipFrame, [fps * (0.15 + delay), fps * (0.3 + delay)], [0.5, 1], {
-            extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.back(1.5)),
-          });
-          const op = interpolate(clipFrame, [fps * (0.12 + delay), fps * (0.25 + delay)], [0, 1], { extrapolateRight: "clamp" });
-          const color = item.color || defaultColors[i % defaultColors.length];
-          const icon = item.icon || defaultIcons[i % defaultIcons.length];
+        {items.map((item, i) => {
+          const delay = i * 0.12;
+          const cardOp = interpolate(clipFrame, [fps * (0.2 + delay), fps * (0.5 + delay)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+          const cardY  = interpolate(clipFrame, [fps * (0.2 + delay), fps * (0.5 + delay)], [20, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
+          const cardScale = interpolate(clipFrame, [fps * (0.2 + delay), fps * (0.5 + delay)], [0.9, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.back(1.2)) });
 
           return (
             <div key={i} style={{
-              display: "flex", alignItems: "center", gap: 14,
-              background: `${color}0a`, border: `1px solid ${color}22`, borderRadius: 14,
-              padding: "14px 18px",
-              transform: `scale(${scale})`, opacity: op,
+              opacity: cardOp,
+              transform: `translateY(${cardY}px) scale(${cardScale})`,
+              background: "rgba(255,255,255,0.04)",
+              border: `1px solid ${accent}22`,
+              borderRadius: 18,
+              padding: "28px 20px",
+              display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center",
+              gap: 14,
+              backdropFilter: "blur(4px)",
             }}>
+              {/* Icon */}
               <div style={{
-                width: 44, height: 44, borderRadius: 12,
-                background: `${color}18`, border: `1.5px solid ${color}33`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 22, flexShrink: 0,
+                fontSize: 52,
+                lineHeight: 1,
+                filter: `drop-shadow(0 4px 16px ${accent}40)`,
               }}>
-                {icon}
+                {item.icon || item.emoji || "•"}
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: "#ffffff", fontFamily: "'Arial Black', Arial, sans-serif", lineHeight: 1.2 }}>
-                  {item.label || ""}
+
+              {/* Label */}
+              <div style={{
+                fontSize: 16, fontWeight: 700,
+                color: "rgba(255,255,255,0.9)",
+                textTransform: "uppercase",
+                letterSpacing: 2,
+                fontFamily: "Arial Black, Arial, sans-serif",
+                textAlign: "center",
+                lineHeight: 1.3,
+              }}>
+                {item.label || item.name || ""}
+              </div>
+
+              {/* Sub label if present */}
+              {item.sub && (
+                <div style={{
+                  fontSize: 12, fontWeight: 600,
+                  color: accent,
+                  textTransform: "uppercase",
+                  letterSpacing: 2,
+                  fontFamily: "Arial, sans-serif",
+                  textAlign: "center",
+                  opacity: 0.8,
+                }}>
+                  {item.sub}
                 </div>
-                {item.value && (
-                  <div style={{ fontSize: 19, fontWeight: 700, color, fontFamily: "'Arial Black', Arial, sans-serif" }}>
-                    {item.value}
-                  </div>
-                )}
-              </div>
+              )}
+
+              {/* Subtle bottom accent line */}
+              <div style={{
+                width: "40%", height: 2,
+                background: `linear-gradient(90deg, transparent, ${accent}60, transparent)`,
+                borderRadius: 1,
+              }} />
             </div>
           );
         })}
