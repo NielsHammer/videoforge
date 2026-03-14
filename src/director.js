@@ -468,7 +468,7 @@ function generateAnimationData(type, sentence) {
       if (numbers[0]) return { value: numbers[0], label: key.slice(0, 3).join(" ").toLowerCase(), context: "" };
       return { value: key[0] || "FACT", label: sentence.slice(0, 40), context: "" };
     case "count_up": return { value: parseFloat(numbers[0]) || 73, prefix: money ? "$" : "", suffix: pct ? "%" : "", label: key.slice(0, 3).join(" ").toLowerCase(), decimals: 0 };
-    case "money_counter": return { amount: parseFloat((numbers[0] || "1000").replace(/,/g, "")), currency: "$", label: key.slice(0, 3).join(" ").toLowerCase() };
+    case "money_counter": return { amount: parseFloat(numbers[0]) || 1000, currency: "$", label: key.slice(0, 3).join(" ").toLowerCase() };
     case "reaction_face": return { emoji: /warn|danger|bad|problem|addict|shock|crazy/.test(sentence.toLowerCase()) ? "😱" : "🤯", label: key.slice(0, 2).join(" ") || "SHOCKING", style: "slam" };
     case "warning_siren": return { headline: "WARNING", body: sentence.slice(0, 60), icon: "⚠️", color: "#ef4444" };
     case "neon_sign": return { text: key.slice(0, 2).join(" ") || "THE TRUTH", subtitle: key[2] || "" };
