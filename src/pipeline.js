@@ -186,7 +186,7 @@ export async function generateVideo(scriptPath, options) {
   const s2 = ora("Director creating storyboard...").start();
   const contentMode = detectContentMode(projectName, scriptText);
   console.log(chalk.blue(`🎯 Content mode: ${contentMode}`));
-  const clips = await createStoryboard(scriptText, wordTimestamps, totalDuration, contentMode, options.topic || "", options.theme || theme || "blue_grid");
+  const clips = await createStoryboard(scriptText, wordTimestamps, totalDuration, contentMode, options.topic || "", options.theme || "blue_grid");
 
   const numReveals = clips.filter(c => c.visual_type === "number_reveal").length;
   const comparisons = clips.filter(c => c.visual_type === "comparison").length;
