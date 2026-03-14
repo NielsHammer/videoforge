@@ -385,11 +385,11 @@ IMAGES — your primary tool:
   search_query: ALWAYS set this — the primary image.
   search_queries: REQUIRED for any stock clip 5 seconds or longer. Give 2-3 DIFFERENT queries so the clip crossfades between images instead of one static photo sitting there. Each query = a different visual angle on the same moment. Example for "making money online" (7s clip): search_queries: ["entrepreneur working laptop cafe", "person celebrating income milestone", "freelancer productive home office"]. Short clips under 5s: leave search_queries null.
   transition_speed: "fast"|"slow"
-  panel_text: for split layouts — punchy 2-3 words. E.g. "92% FAIL". Omit if nothing fits.
-  panel_type: "words"|"icon"|"clean"
-  panel_icon: emoji for panel_type "icon". E.g. "🚀" growth, "💰" money, "🧠" mindset
+  panel_text: for split layouts ONLY — must be 1-3 words the narrator is LITERALLY SAYING right now. Not a topic, not a summary — the actual words being spoken. E.g. if narrator says "you need to ask for the sale" → panel_text: "ASK NOW". If nothing fits perfectly, leave null — don't invent words.
+  panel_type: "words"|"icon"|"clean" — use "icon" when you have a clear single emoji that matches the moment, "words" when you have exact spoken words, "clean" otherwise
+  panel_icon: single emoji that matches what narrator is saying RIGHT NOW. "🚀" for growth/launch, "💰" for money, "🧠" for mindset/learning, "🔥" for intensity, "⚡" for speed, "🎯" for focus, "💡" for ideas, "📈" for growth, "🏆" for winning, "😤" for struggle, "✅" for completion
 "ai_image": ai_prompt: 20-40 words ultra-specific cinematic
-"web_image": ONLY for specific named real people/brands/landmarks
+"web_image": ONLY for famous real people (Elon Musk, Jeff Bezos etc) or iconic landmarks. NEVER for company logos, app screenshots, or brand photos — these look wrong and unprofessional.
 
 ${isFirstChunk ? `HOOK — first 5 seconds:
 Clip 1 (0-1.5s): number_reveal OR kinetic_text — shocking opening stat or bold hook words, style "impact"
@@ -402,6 +402,8 @@ ${isLastChunk ? "CLOSE: end with checklist, quote_card, or thumbs_up." : ""}
 - INFOGRAPHIC BUDGET: max ${budget.maxPct}% of clips
 - NEVER same visual_type twice in a row
 - B-ROLL: any stock clip 5s or longer MUST have search_queries with 2-3 different queries. Single static photo for 5+ seconds looks amateurish.
+- PANEL TEXT: must be words narrator is LITERALLY saying right now — not a topic or summary. Max 3 words. If nothing fits, set panel_type:"icon" with a matching emoji instead.
+- WEB IMAGE: only for famous real people or iconic landmarks. NEVER company logos, app screenshots, branded products.
 - NEVER stat_card more than 2 times total
 - NEVER any infographic type more than 2 times total
 - After every infographic, next clip MUST be stock, animation, or text_flash
@@ -443,7 +445,7 @@ function validateClips(clips, startTime, endTime, nicheInfo) {
   if (!Array.isArray(clips) || !clips.length) throw new Error("Empty storyboard");
 
   const isHorror = nicheInfo?.niche === "horror" || nicheInfo?.niche === "true_crime";
-  const banned = ["baby","infant","child","toddler","kid","kids","children","subscribe","button","icon","logo"];
+  const banned = ["baby","infant","child","toddler","kid","kids","children","subscribe","button","icon","logo","brand","app store","google play","coursera","udemy","fiverr","upwork","amazon","facebook","instagram","tiktok"];
   const bannedVisuals = isHorror ? [] : ["knife","weapon","mask","ghost","monster","blood","horror","scary","creepy","death","murder","serial","killer","ghostface","scream","terror","haunted","demon","paranormal"];
 
   const validStyles = ["fullscreen","framed","fullscreen_zoom","split_left","split_right"];

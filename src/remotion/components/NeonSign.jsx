@@ -2,9 +2,9 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate } from "remotion";
 import { getTheme } from "../../themes.js";
 
-// NeonSign: Text with flickering neon glow effect — dramatic, edgy emphasis
-// Best for: shocking stats, warnings, bold claims, urban/nightlife/finance topics
-// data: { text: "THE TRUTH", subtitle: "nobody talks about", flicker: true }
+// NeonSign: Glowing neon text — dramatic, edgy emphasis
+// Flicker is OFF by default. Use flicker:true only for intentionally glitchy moments.
+// data: { text: "THE TRUTH", subtitle: "nobody talks about", flicker: false }
 export const NeonSign = ({ data, clipFrame = 0, theme = "blue_grid" }) => {
   const { fps } = useVideoConfig();
   const th = getTheme(theme);
@@ -13,47 +13,40 @@ export const NeonSign = ({ data, clipFrame = 0, theme = "blue_grid" }) => {
   if (!data || !data.text) return null;
   const text = data.text;
   const subtitle = data.subtitle || "";
-  const shouldFlicker = data.flicker !== false;
+  // Flicker defaults OFF — looks broken to most viewers
+  const shouldFlicker = data.flicker === true;
 
-  // Flicker pattern: mostly on with occasional brief off moments
-  const flickerFrames = [3, 4, 12, 13, 28, 45, 46, 60, 61];
-  const isFlickering = shouldFlicker && flickerFrames.includes(clipFrame % 70);
+  // Smooth pulse — glow breathes in and out naturally
+  const masterIn = interpolate(clipFrame, [0, fps * 0.5], [0, 1], { extrapolateRight: "clamp" });
+  const pulse = 0.75 + 0.25 * Math.sin(clipFrame * 0.08);
+  const glowIntensity = masterIn * pulse;
 
-  const masterGlow = interpolate(clipFrame, [0, fps * 0.6], [0, 1], { extrapolateRight: "clamp" });
-  // Pulsing glow intensity
-  const pulse = 0.7 + 0.3 * Math.sin(clipFrame * 0.15);
-  const glowIntensity = masterGlow * (isFlickering ? 0.15 : pulse);
+  // Only flicker if explicitly requested, and very subtly
+  const flickerFrames = [8, 9, 45, 46];
+  const isFlickering = shouldFlicker && flickerFrames.includes(clipFrame % 80);
+  const finalGlow = isFlickering ? glowIntensity * 0.4 : glowIntensity;
 
-  const glowStr = `0 0 10px ${accent}, 0 0 30px ${accent}, 0 0 60px ${accent}${Math.round(glowIntensity * 255).toString(16).padStart(2, "0")}`;
-  const subtitleOp = interpolate(clipFrame, [fps * 0.8, fps * 1.2], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const glowStr = `0 0 10px ${accent}, 0 0 30px ${accent}${Math.round(finalGlow * 180).toString(16).padStart(2, "0")}, 0 0 60px ${accent}${Math.round(finalGlow * 100).toString(16).padStart(2, "0")}`;
+  const subtitleOp = interpolate(clipFrame, [fps * 0.6, fps * 1.0], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
 
   return (
     <div style={{
       position: "absolute", inset: 0, display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center", padding: "60px",
-      backgroundColor: "rgba(0,0,0,0.4)",
     }}>
-      {/* Decorative top line */}
-      <div style={{ width: 200, height: 2, backgroundColor: accent, boxShadow: `0 0 10px ${accent}`, marginBottom: 30, opacity: glowIntensity }} />
-
+      <div style={{ width: 180, height: 2, backgroundColor: accent, boxShadow: `0 0 10px ${accent}`, marginBottom: 30, opacity: glowIntensity * 0.8 }} />
       <div style={{
-        fontSize: text.length > 12 ? 88 : 110,
+        fontSize: text.length > 14 ? 80 : text.length > 10 ? 96 : 114,
         fontWeight: 900, fontFamily: "Arial Black, Arial, sans-serif",
-        color: isFlickering ? `rgba(255,255,255,0.1)` : "white",
-        textTransform: "uppercase", letterSpacing: 6, textAlign: "center",
-        lineHeight: 1.1,
-        textShadow: isFlickering ? "none" : glowStr,
-        opacity: masterGlow,
+        color: "white", textTransform: "uppercase", letterSpacing: 6, textAlign: "center",
+        lineHeight: 1.1, textShadow: glowStr, opacity: masterIn,
       }}>
         {text}
       </div>
-
-      {/* Decorative bottom line */}
-      <div style={{ width: 200, height: 2, backgroundColor: accent, boxShadow: `0 0 10px ${accent}`, marginTop: 30, opacity: glowIntensity }} />
-
+      <div style={{ width: 180, height: 2, backgroundColor: accent, boxShadow: `0 0 10px ${accent}`, marginTop: 30, opacity: glowIntensity * 0.8 }} />
       {subtitle && (
         <div style={{
-          fontSize: 24, fontWeight: 600, color: `rgba(255,255,255,0.7)`,
+          fontSize: 22, fontWeight: 600, color: "rgba(255,255,255,0.75)",
           letterSpacing: 4, textTransform: "uppercase", marginTop: 20,
           opacity: subtitleOp, fontFamily: "Arial, sans-serif",
         }}>

@@ -60,7 +60,14 @@ export const SplitReveal = ({ imageSrc, position = "left", clipFrame = 0, theme 
         opacity: panelOp,
         transform: `translateX(${panelX}px)`,
       }}>
-        {panelType === "clean" && null}
+        {panelType === "clean" && (
+          // Even "clean" panels show a subtle animated accent — empty panel looks broken
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, opacity: 0.4 }}>
+            <div style={{ width: 2, height: 80, background: `linear-gradient(to bottom, transparent, ${accent}, transparent)`, opacity: pulse }} />
+            <div style={{ width: 40, height: 40, borderRadius: "50%", border: `2px solid ${accent}`, opacity: pulse * 0.6 }} />
+            <div style={{ width: 2, height: 80, background: `linear-gradient(to bottom, ${accent}, transparent)`, opacity: pulse * 0.4 }} />
+          </div>
+        )}
 
         {panelType === "words" && panelText && (
           <div style={{ textAlign: "center", width: "100%" }}>
