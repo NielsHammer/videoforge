@@ -298,6 +298,11 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
   const CHUNK_SIZE = 40;
   const allClips = [];
 
+  // Persistent across chunks so neon_sign used in chunk 1 counts toward chunk 2's cap
+  const globalTypeCounts = {};
+  let globalAnimIdx = 0;
+  let globalInfraIdx = 0;
+
   for (let ci = 0; ci < clipWindows.length; ci += CHUNK_SIZE) {
     const windowChunk = clipWindows.slice(ci, ci + CHUNK_SIZE);
     const planChunk = plan.slice(ci, ci + CHUNK_SIZE);
@@ -311,9 +316,11 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
       nicheInfo, themeHints, budget, topic, theme, isHorror
     );
 
-    // Enforce plan: if Pass 2 returned stock for a planned animation/infographic, re-inject it
-    const enforcedClips = enforcePlan(chunkClips, windowChunk, planChunk, scriptText);
-    allClips.push(...enforcedClips);
+    // Enforce plan with persistent global counts
+    const result = enforcePlan(chunkClips, windowChunk, planChunk, scriptText, globalTypeCounts, globalAnimIdx, globalInfraIdx);
+    allClips.push(...result.clips);
+    globalAnimIdx = result.animIdx;
+    globalInfraIdx = result.infraIdx;
   }
 
   // Post-processing
@@ -327,10 +334,8 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
 // ─── ENFORCE PLAN ────────────────────────────────────────────────────────────
 // Pass 2 often ignores the plan and returns stock for everything.
 // This re-injects planned animation/infographic with auto-generated data.
-function enforcePlan(clips, windows, planChunk, scriptText) {
-  // Track type usage to prevent repetition
-  const typeCounts = {};
-  const maxPerType = 3; // max times same type can appear before rotating
+function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, animRotationIdx = 0, infraRotationIdx = 0) {
+  const maxPerType = 3; // max per type before rotating to next
 
   // Rotation pools for variety
   const animRotation = [
@@ -345,10 +350,9 @@ function enforcePlan(clips, windows, planChunk, scriptText) {
     "leaderboard","horizontal_bar","growth_curve","donut_chart","ranking_cards",
     "percent_fill","trend_arrow","flow_diagram","process_flow","icon_grid",
   ];
-  let animRotationIdx = 0;
-  let infraRotationIdx = 0;
+  // animRotationIdx and infraRotationIdx come from function params (persistent across chunks)
 
-  return clips.map((clip, i) => {
+  const result = clips.map((clip, i) => {
     const plan = planChunk[i] || {};
     const window = windows[i] || {};
     const sentence = window.text || "";
@@ -420,6 +424,7 @@ function enforcePlan(clips, windows, planChunk, scriptText) {
     }
     return clip;
   });
+  return { clips: result, animIdx: animRotationIdx, infraIdx: infraRotationIdx };
 }
 
 function generateAnimationData(type, sentence) {
