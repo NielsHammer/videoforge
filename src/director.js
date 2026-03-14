@@ -96,6 +96,37 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
     }
   }
 
+  // Max clip duration cap — long clips look boring, force b-roll variety
+  // Stock/ai/web images: max 8s. Animation types: max 7s. Graphics: no cap (they're designed length).
+  const imageTypes = new Set(["stock","ai_image","web_image","web_screenshot"]);
+  const animSet = new Set([
+    "kinetic_text","spotlight_stat","icon_burst","typewriter_reveal","money_counter","glitch_text",
+    "checkmark_build","trend_arrow","stock_ticker","phone_screen","tweet_card","word_scatter",
+    "social_counter","before_after","lightbulb_moment","rocket_launch","news_breaking","percent_fill",
+    "compare_reveal","highlight_build","count_up","neon_sign","reaction_face","thumbs_up","side_by_side",
+    "youtube_progress","warning_siren","quote_overlay","overlay_caption","polaroid_stack",
+  ]);
+  allClips.forEach(clip => {
+    const dur = clip.end_time - clip.start_time;
+    if (imageTypes.has(clip.visual_type) && dur > 8) clip.end_time = clip.start_time + 8;
+    if (animSet.has(clip.visual_type) && dur > 7) clip.end_time = clip.start_time + 7;
+  });
+
+  // Combined non-image cap: animations + infographics together max 45% of clips
+  // Prevents videos that are mostly graphics with barely any real imagery
+  const allNonImageTypes = new Set([...animSet, ...infraTypes]);
+  const maxNonImage = Math.ceil(allClips.length * 0.45);
+  let nonImageCount = 0;
+  allClips.forEach(clip => {
+    if (allNonImageTypes.has(clip.visual_type)) {
+      nonImageCount++;
+      if (nonImageCount > maxNonImage) {
+        clip.visual_type = "stock";
+        clip.display_style = "framed";
+      }
+    }
+  });
+
   console.log(chalk.gray(`  Storyboard: ${allClips.length} clips`));
   return allClips;
 }
@@ -479,6 +510,7 @@ function validateClips(clips, startTime, endTime, nicheInfo) {
 
   let lastStyle = "";
   let lastNumberStyle = "";
+  let lastType = "";
   const usedQueries = new Map();
 
   clips.forEach((clip) => {
@@ -501,6 +533,14 @@ function validateClips(clips, startTime, endTime, nicheInfo) {
       clip.visual_type = "stock";
       clip.display_style = "framed";
     }
+
+    // Enforce no same visual_type twice in a row — convert duplicate to stock
+    // Exception: stock can repeat (it's the default fallback type)
+    if (clip.visual_type !== "stock" && clip.visual_type === lastType) {
+      clip.visual_type = "stock";
+      clip.display_style = "framed";
+    }
+    lastType = clip.visual_type;
 
     let q = (clip.search_query || "").toLowerCase();
     banned.forEach(b => { q = q.replace(new RegExp(`\\b${b}\\b`, "gi"), "").trim(); });
