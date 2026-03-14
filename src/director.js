@@ -297,7 +297,10 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
       windowChunk, planChunk, scriptText, isFirst, isLast,
       nicheInfo, themeHints, budget, topic, theme, isHorror
     );
-    allClips.push(...chunkClips);
+
+    // Enforce plan: if Pass 2 returned stock for a planned animation/infographic, re-inject it
+    const enforcedClips = enforcePlan(chunkClips, windowChunk, planChunk, scriptText);
+    allClips.push(...enforcedClips);
   }
 
   // Post-processing
@@ -305,6 +308,116 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
 
   console.log(chalk.gray(`  Storyboard: ${finalClips.length} clips`));
   return finalClips;
+}
+
+
+// ─── ENFORCE PLAN ────────────────────────────────────────────────────────────
+// Pass 2 often ignores the plan and returns stock for everything.
+// This re-injects planned animation/infographic with auto-generated data.
+function enforcePlan(clips, windows, planChunk, scriptText) {
+  return clips.map((clip, i) => {
+    const plan = planChunk[i] || {};
+    const window = windows[i] || {};
+    const sentence = window.text || "";
+
+    // If Pass 2 honored the plan, leave it alone
+    if (plan.category === "stock" && clip.visual_type === "stock") return clip;
+    if (plan.category === "split" && (clip.display_style === "split_left" || clip.display_style === "split_right")) return clip;
+    if (plan.category === "animation" && clip.visual_type !== "stock" && clip.animation_data) return clip;
+    if (plan.category === "infographic" && clip.visual_type !== "stock" && (clip.chart_data || clip.number_data || clip.animation_data)) return clip;
+
+    // Pass 2 ignored the plan — re-inject
+    if (plan.category === "animation") {
+      const animData = generateAnimationData(plan.type, sentence);
+      if (animData) {
+        return { ...clip, visual_type: plan.type, display_style: "framed", animation_data: animData, search_query: "" };
+      }
+    }
+    if (plan.category === "infographic") {
+      const infraData = generateInfographicData(plan.type, sentence, scriptText);
+      if (infraData.chart_data || infraData.number_data || infraData.animation_data) {
+        return { ...clip, visual_type: plan.type, display_style: "framed", ...infraData, search_query: "" };
+      }
+    }
+    if (plan.category === "split") {
+      return { ...clip, display_style: plan.display || (i % 2 === 0 ? "split_left" : "split_right"), panel_type: "icon", panel_icon: pickIconForSentence(sentence) };
+    }
+    return clip;
+  });
+}
+
+function generateAnimationData(type, sentence) {
+  const words = sentence.replace(/[^a-zA-Z0-9\s%$]/g, " ").split(/\s+/).filter(w => w.length > 2);
+  const numbers = sentence.match(/\d+(\.\d+)?/g) || [];
+  const pct = sentence.match(/(\d+)\s*%/);
+  const money = sentence.match(/\$[\d,]+/);
+  const stop = new Set(["the","and","but","for","with","this","that","have","from","they","their","your","you","was","are","were","has","had","not","can","will","would","could","should","what","when","where","how","why","who","which","been","being","than","then","into","just","more","most","some","such","even","also","very"]);
+  const key = words.filter(w => !stop.has(w.toLowerCase())).map(w => w.toUpperCase());
+
+  switch (type) {
+    case "kinetic_text": return key.length ? { lines: key.slice(0, 2), style: "impact" } : null;
+    case "spotlight_stat":
+      if (pct) return { value: pct[0], label: key.slice(0, 3).join(" ").toLowerCase(), context: "" };
+      if (money) return { value: money[0], label: key.slice(0, 3).join(" ").toLowerCase(), context: "" };
+      if (numbers[0]) return { value: numbers[0], label: key.slice(0, 3).join(" ").toLowerCase(), context: "" };
+      return { value: key[0] || "FACT", label: sentence.slice(0, 40), context: "" };
+    case "count_up": return { value: parseFloat(numbers[0]) || 73, prefix: money ? "$" : "", suffix: pct ? "%" : "", label: key.slice(0, 3).join(" ").toLowerCase(), decimals: 0 };
+    case "money_counter": return { amount: parseFloat((numbers[0] || "1000").replace(/,/g, "")), currency: "$", label: key.slice(0, 3).join(" ").toLowerCase() };
+    case "reaction_face": return { emoji: /warn|danger|bad|problem|addict/.test(sentence.toLowerCase()) ? "😱" : "🤯", label: key.slice(0, 2).join(" ") || "SHOCKING", style: "slam" };
+    case "warning_siren": return { headline: "WARNING", body: sentence.slice(0, 60), icon: "⚠️", color: "#ef4444" };
+    case "neon_sign": return { text: key.slice(0, 2).join(" ") || "THE TRUTH", subtitle: key[2] || "" };
+    case "typewriter_reveal": return { text: sentence.slice(0, 60), subtitle: "" };
+    case "glitch_text": return { text: key.slice(0, 2).join(" ") || "HACKED", subtitle: "" };
+    case "news_breaking": return { headline: sentence.slice(0, 50).toUpperCase(), subtext: sentence.slice(50, 90), ticker: "DEVELOPING STORY • MORE TO COME" };
+    case "highlight_build": {
+      const parts = sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 5).slice(0, 3);
+      return { lines: parts.length >= 2 ? parts : [key.slice(0, 3).join(" "), key.slice(3, 6).join(" ")].filter(Boolean), delay: 0.3 };
+    }
+    case "checkmark_build": {
+      const parts = sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 5).slice(0, 3);
+      return { items: parts.length >= 2 ? parts : [sentence.slice(0, 35), sentence.slice(35, 70)].filter(s => s.trim()), title: "" };
+    }
+    case "before_after": return { before: "Before", after: "After", label: key.slice(0, 3).join(" ").toLowerCase() };
+    case "percent_fill": return { percent: parseInt(pct?.[1]) || 73, label: key.slice(0, 4).join(" ").toLowerCase() };
+    case "trend_arrow": return { direction: "up", value: (numbers[0] || "73") + (pct ? "%" : ""), label: key.slice(0, 4).join(" ").toLowerCase() };
+    default: return { lines: key.slice(0, 2).filter(Boolean), style: "impact" };
+  }
+}
+
+function generateInfographicData(type, sentence, scriptText) {
+  const numbers = sentence.match(/\d+(\.\d+)?/g) || [];
+  const words = sentence.replace(/[^a-zA-Z0-9\s]/g, " ").split(/\s+/).filter(w => w.length > 2);
+  const stop = new Set(["the","and","but","for","with","this","that","have","from","they","their","your","you","was","are","were","has","had","not","can","will"]);
+  const key = words.filter(w => !stop.has(w.toLowerCase())).slice(0, 5);
+  const pct = sentence.match(/(\d+)\s*%/);
+
+  switch (type) {
+    case "number_reveal": return { number_data: { value: parseFloat(numbers[0]) || 73, prefix: sentence.includes("$") ? "$" : "", suffix: pct ? "%" : "", label: key.slice(0, 3).join(" "), style: "counter" } };
+    case "stat_card": return { chart_data: { title: key.slice(0, 3).join(" "), stats: [{ value: numbers[0] || "73%", label: sentence.slice(0, 40) }] } };
+    case "checklist": {
+      const sentences = scriptText.split(/[.!?]/).map(s => s.trim()).filter(s => s.length > 15 && s.length < 70).slice(0, 4);
+      return { chart_data: { title: key.slice(0, 3).join(" "), items: sentences.length >= 2 ? sentences : ["First point", "Second point", "Third point"], checked: true } };
+    }
+    case "timeline": return { chart_data: { title: key.slice(0, 3).join(" "), events: [{ year: "2004", label: "Social media begins" }, { year: "2012", label: "Mobile dominates" }, { year: "2020", label: "Addiction peaks" }] } };
+    case "progress_bar": return { chart_data: { title: key.slice(0, 3).join(" "), bars: [{ label: key[0] || "Usage", value: parseInt(numbers[0]) || 65, suffix: "%", color: "" }] } };
+    case "trend_arrow": return { animation_data: { direction: "up", value: (numbers[0] || "73") + "%", label: key.slice(0, 4).join(" ").toLowerCase() } };
+    case "percent_fill": return { animation_data: { percent: parseInt(pct?.[1]) || 73, label: key.slice(0, 4).join(" ").toLowerCase() } };
+    default: return { chart_data: { title: key.slice(0, 3).join(" "), stats: [{ value: numbers[0] || "73%", label: sentence.slice(0, 40) }] } };
+  }
+}
+
+function pickIconForSentence(sentence) {
+  const s = sentence.toLowerCase();
+  if (/money|earn|income|profit|\$/.test(s)) return "💰";
+  if (/addict|trap|hook|captive|stuck/.test(s)) return "🎣";
+  if (/brain|mind|dopamine|psych/.test(s)) return "🧠";
+  if (/warn|danger|risk|mistake|bad/.test(s)) return "⚠️";
+  if (/phone|scroll|screen|app|social/.test(s)) return "📱";
+  if (/grow|increas|rise/.test(s)) return "📈";
+  if (/time|hour|minute|daily/.test(s)) return "⏰";
+  if (/free|break|escape|quit|stop/.test(s)) return "🔓";
+  if (/happy|better|good|peace/.test(s)) return "✨";
+  return "💡";
 }
 
 // ─── PASS 2: ASSIGN VISUAL DETAILS ───────────────────────────────────────────
@@ -483,7 +596,7 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
     horror: ["dark atmospheric night","mysterious shadowy","abandoned eerie","foggy dark","suspenseful shadow"],
     true_crime: ["detective investigation","evidence analysis","courtroom justice","newspaper headline","investigation board"],
     history: ["ancient ruins architecture","historical artifact","medieval castle","period historical","ancient civilization"],
-    creator: ["content creator studio","filming camera","social media engagement","online audience","creator workspace desk"],
+    creator: ["person scrolling phone late night blue light","social media feed scrolling smartphone","young person phone screen dopamine","phone notification alert social media","person sitting alone staring at phone"],
     general: ["professional modern aspirational","person thoughtful confident","city skyline panoramic","nature peaceful","team collaboration success"],
   };
 

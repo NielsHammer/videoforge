@@ -158,9 +158,9 @@ const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {
     fadeOut = isImage ? zoomOpacity : interpolate(frame, [durationInFrames - fps * 0.06, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   }
 
-  // B-roll crossfade — don't crossfade in last second
+  // B-roll crossfade — don't crossfade in last second, skip for splits (panel handles its own timing)
   let imgOpacity = 1;
-  if (clip.imagePaths && clip.imagePaths.length > 1) {
+  if (clip.imagePaths && clip.imagePaths.length > 1 && !isSplitStyle) {
     const crossfadeEvery = fps * 3.5;
     const posInCycle = frame % crossfadeEvery;
     const crossfadeDur = fps * 0.35;
