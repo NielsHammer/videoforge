@@ -318,14 +318,20 @@ ${wordRef}
 SCRIPT:
 ${scriptText.slice(0, 4000)}
 
-═══ CREATIVE ANIMATIONS — use these liberally, they make videos unique ═══
+═══ CREATIVE ANIMATIONS — use SPARINGLY for high-impact moments only ═══
+CRITICAL: Animations should appear MAX 1 every 30-40 seconds. Most clips should be stock images.
+Only use an animation when the narrator makes a KEY STATEMENT — a shocking fact, a pivotal insight, a call to action.
+If the narrator is just telling a story or giving context, use a stock image instead.
+The animation text MUST be pulled DIRECTLY from what the narrator says at that exact moment.
+WRONG: narrator says "Sarah from Portland made $4,000" → animation_data: {text:"CREATE FROM NOTHING"} — this is invented
+RIGHT: narrator says "Sarah from Portland made $4,000" → animation_data: {text:"$4,000 MONTH ONE"} — this is what was said
 
 TEXT/WORD ANIMATIONS:
 "kinetic_text": animation_data: {lines:["WORD1","WORD2","WORD3"], style:"impact|stack|typewriter"} — words slam onto screen dramatically. Best for: hook moments, key revelations, transitions. 3-5s.
 "typewriter_reveal": animation_data: {text:"FULL PHRASE HERE", subtitle:"optional context"} — text types out character by character. Best for: builds, reveals, quotes. 4-6s.
 "highlight_build": animation_data: {lines:["Key Phrase","Second Point","Third Point"], delay:0.35} — phrases appear with highlighter swipe. Best for: lists of benefits, key takeaways. 5-8s.
 "glitch_text": animation_data: {text:"SHOCKING CLAIM", subtitle:"optional"} — digital glitch effect. Best for: tech topics, shocking stats, green_matrix/cyber themes. 3-5s.
-"neon_sign": animation_data: {text:"THE TRUTH", subtitle:"nobody talks about", flicker:true} — glowing neon with flicker. Best for: dramatic emphasis, bold claims, night/urban topics. 4-6s.
+"neon_sign": animation_data: {text:"THE TRUTH", subtitle:"nobody talks about"} — glowing neon text, smooth pulse. Best for: dramatic reveals, bold statements. Never set flicker:true. 4-6s.
 "word_scatter": animation_data: {words:["word1","word2","word3","word4","word5"]} — words fly in from random directions. Best for: listing many concepts, brainstorm moments. 4-6s.
 
 STAT/DATA ANIMATIONS:
@@ -385,9 +391,9 @@ IMAGES — your primary tool:
   search_query: ALWAYS set this — the primary image.
   search_queries: REQUIRED for any stock clip 5 seconds or longer. Give 2-3 DIFFERENT queries so the clip crossfades between images instead of one static photo sitting there. Each query = a different visual angle on the same moment. Example for "making money online" (7s clip): search_queries: ["entrepreneur working laptop cafe", "person celebrating income milestone", "freelancer productive home office"]. Short clips under 5s: leave search_queries null.
   transition_speed: "fast"|"slow"
-  panel_text: for split layouts ONLY — must be 1-3 words the narrator is LITERALLY SAYING right now. Not a topic, not a summary — the actual words being spoken. E.g. if narrator says "you need to ask for the sale" → panel_text: "ASK NOW". If nothing fits perfectly, leave null — don't invent words.
-  panel_type: "words"|"icon"|"clean" — use "icon" when you have a clear single emoji that matches the moment, "words" when you have exact spoken words, "clean" otherwise
-  panel_icon: single emoji that matches what narrator is saying RIGHT NOW. "🚀" for growth/launch, "💰" for money, "🧠" for mindset/learning, "🔥" for intensity, "⚡" for speed, "🎯" for focus, "💡" for ideas, "📈" for growth, "🏆" for winning, "😤" for struggle, "✅" for completion
+  panel_text: DO NOT USE. Leave null always. Text on split panels looks wrong and never matches.
+  panel_type: "icon" or "clean" only — never "words"
+  panel_icon: single emoji matching what narrator says RIGHT NOW. Only set if you have a genuinely fitting emoji. Otherwise leave null and use panel_type:"clean".
 "ai_image": ai_prompt: 20-40 words ultra-specific cinematic
 "web_image": ONLY for famous real people (Elon Musk, Jeff Bezos etc) or iconic landmarks. NEVER for company logos, app screenshots, or brand photos — these look wrong and unprofessional.
 
@@ -402,7 +408,7 @@ ${isLastChunk ? "CLOSE: end with checklist, quote_card, or thumbs_up." : ""}
 - INFOGRAPHIC BUDGET: max ${budget.maxPct}% of clips
 - NEVER same visual_type twice in a row
 - B-ROLL: any stock clip 5s or longer MUST have search_queries with 2-3 different queries. Single static photo for 5+ seconds looks amateurish.
-- PANEL TEXT: must be words narrator is LITERALLY saying right now — not a topic or summary. Max 3 words. If nothing fits, set panel_type:"icon" with a matching emoji instead.
+- PANEL TEXT: always null. Never set panel_text. Use panel_icon with an emoji or panel_type:"clean".
 - WEB IMAGE: only for famous real people or iconic landmarks. NEVER company logos, app screenshots, branded products.
 - NEVER stat_card more than 2 times total
 - NEVER any infographic type more than 2 times total

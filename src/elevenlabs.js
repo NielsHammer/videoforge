@@ -289,17 +289,16 @@ export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath)
   const listPath = path.join(tmpDir, '_concat_list.txt');
   fs.writeFileSync(listPath, chunkPaths.map(p => `file '${p}'`).join('\n'));
   try {
-    // Normalize each chunk first to prevent volume spikes at boundaries
-    const normalizedPaths = [];
-    for (let ni = 0; ni < chunkPaths.length; ni++) {
-      const normPath = path.join(tmpDir, `_norm_${ni}.mp3`);
-      execSync(`ffmpeg -y -i "${chunkPaths[ni]}" -af loudnorm=I=-16:TP=-1.5:LRA=11 -acodec libmp3lame -b:a 192k "${normPath}"`, { stdio: 'pipe', timeout: 60000 });
-      normalizedPaths.push(normPath);
+    // Concat chunks first, then normalize the WHOLE file in one pass
+    // Normalizing each chunk separately causes volume spikes when a short chunk
+    // gets normalized more aggressively than a long one
+    execSync(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -acodec libmp3lame -b:a 192k "${outputPath}"`, { stdio: 'pipe', timeout: 120000 });
+    // Now normalize the complete file (single-pass loudnorm on full audio = consistent volume)
+    const tempNorm = outputPath.replace('.mp3', '-norm.mp3');
+    execSync(`ffmpeg -y -i "${outputPath}" -af loudnorm=I=-16:TP=-1.5:LRA=11 -acodec libmp3lame -b:a 192k "${tempNorm}"`, { stdio: 'pipe', timeout: 120000 });
+    if (fs.existsSync(tempNorm) && fs.statSync(tempNorm).size > 1000) {
+      fs.renameSync(tempNorm, outputPath);
     }
-    const normListPath = path.join(tmpDir, '_norm_list.txt');
-    fs.writeFileSync(normListPath, normalizedPaths.map(p => `file '${p}'`).join('\n'));
-    execSync(`ffmpeg -y -f concat -safe 0 -i "${normListPath}" -acodec libmp3lame -b:a 192k "${outputPath}"`, { stdio: 'pipe', timeout: 120000 });
-    normalizedPaths.forEach(p => { try { fs.unlinkSync(p); } catch(e) {} });
   } catch (e) {
     execSync(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -c copy "${outputPath}"`, { stdio: 'pipe', timeout: 120000 });
   }
