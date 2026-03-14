@@ -463,9 +463,9 @@ function generateAnimationData(type, sentence) {
   switch (type) {
     case "kinetic_text": return key.length ? { lines: key.slice(0, 2), style: "impact" } : null;
     case "spotlight_stat":
-      if (pct) return { value: pct[0], label: key.slice(0, 3).join(" ").toLowerCase(), context: "" };
+      if (pct) return { value: pct[1] + "%", label: key.slice(0, 3).join(" ").toLowerCase(), context: "" };
       if (money) return { value: money[0], label: key.slice(0, 3).join(" ").toLowerCase(), context: "" };
-      if (numbers[0]) return { value: numbers[0], label: key.slice(0, 3).join(" ").toLowerCase(), context: "" };
+      if (numbers[0]) return { value: sentence.toLowerCase().includes("percent") ? numbers[0] + "%" : String(numbers[0]), label: key.slice(0, 3).join(" ").toLowerCase(), context: "" };
       return { value: key[0] || "FACT", label: sentence.slice(0, 40), context: "" };
     case "count_up": return { value: parseFloat(numbers[0]) || 73, prefix: money ? "$" : "", suffix: pct ? "%" : "", label: key.slice(0, 3).join(" ").toLowerCase(), decimals: 0 };
     case "money_counter": return { amount: parseFloat(numbers[0]) || 1000, currency: "$", label: key.slice(0, 3).join(" ").toLowerCase() };
@@ -811,15 +811,33 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
 
     if (!validTypes.includes(clip.visual_type)) clip.visual_type = "stock";
 
-    // Animation needs animation_data — strip if missing, use kinetic_text fallback
+    // Animation needs animation_data — validate schema, regenerate if missing or wrong shape
     const animTypes = new Set(["kinetic_text","spotlight_stat","icon_burst","typewriter_reveal","money_counter","glitch_text","checkmark_build","trend_arrow","stock_ticker","phone_screen","tweet_card","word_scatter","social_counter","before_after","lightbulb_moment","rocket_launch","news_breaking","percent_fill","compare_reveal","highlight_build","count_up","neon_sign","reaction_face","thumbs_up","side_by_side","youtube_progress","warning_siren","quote_overlay","overlay_caption","polaroid_stack"]);
-    if (animTypes.has(clip.visual_type) && !clip.animation_data) {
-      // Generate fallback data instead of dropping to stock
+
+    // Per-type schema checks — catches wrong-format data that renders blank
+    const schemaOk = (type, d) => {
+      if (!d) return false;
+      switch(type) {
+        case "compare_reveal": return Array.isArray(d.items) && d.items.length >= 2 && d.items[0]?.label;
+        case "icon_burst":     return Array.isArray(d.icons) && d.icons.length >= 2;
+        case "word_scatter":   return Array.isArray(d.words) && d.words.length >= 2;
+        case "stock_ticker":   return Array.isArray(d.items) && d.items.length >= 1;
+        case "checkmark_build": return Array.isArray(d.items) && d.items.length >= 1;
+        case "highlight_build": return Array.isArray(d.lines) && d.lines.length >= 1;
+        case "kinetic_text":   return Array.isArray(d.lines) && d.lines.length >= 1;
+        case "before_after":   return d.before !== undefined && d.after !== undefined;
+        case "side_by_side":   return d.left !== undefined;
+        case "warning_siren":  return d.headline !== undefined;
+        case "spotlight_stat": return d.value !== undefined;
+        default: return true;
+      }
+    };
+
+    if (animTypes.has(clip.visual_type) && !schemaOk(clip.visual_type, clip.animation_data)) {
       const fallback = generateAnimationData(clip.visual_type, windows[i]?.text || "");
-      if (fallback) {
+      if (fallback && schemaOk(clip.visual_type, fallback)) {
         clip.animation_data = fallback;
       } else {
-        // Last resort: kinetic_text with sentence words
         const words = (windows[i]?.text || "").split(/\s+/).filter(w => w.length > 3).slice(0, 2);
         clip.visual_type = "kinetic_text";
         clip.animation_data = { lines: words.length ? words.map(w => w.toUpperCase()) : ["KEY", "INSIGHT"], style: "impact" };
