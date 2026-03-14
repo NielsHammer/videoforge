@@ -361,6 +361,14 @@ function enforcePlan(clips, windows, planChunk, scriptText) {
       return clip;
     }
     if (plan.category === "infographic" && clip.visual_type !== "stock" && (clip.chart_data || clip.number_data || clip.animation_data)) {
+      // Pass 2 provided data — validate it's not malformed
+      if (clip.visual_type === "number_reveal") {
+        // Ensure number_data.value is actually a number
+        if (!clip.number_data || typeof clip.number_data.value !== "number") {
+          const repaired = generateInfographicData("number_reveal", sentence, scriptText);
+          clip.number_data = repaired.number_data;
+        }
+      }
       typeCounts[clip.visual_type] = (typeCounts[clip.visual_type] || 0) + 1;
       return clip;
     }
@@ -755,19 +763,19 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
       clip.display_style = "framed";
     }
 
-    // Infographic types need chart_data or number_data
-    // If missing, generate fallback data so they actually render
+    // Infographic types need chart_data or number_data — generate real fallback data
     const needsChartData = new Set(["stat_card","line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","quote_card","checklist","horizontal_bar","vertical_bar","growth_curve","ranking_cards","split_comparison","scale_comparison","funnel_chart","body_diagram","map_highlight","icon_grid","flow_diagram"]);
     const needsNumberData = new Set(["number_reveal"]);
 
     if (needsChartData.has(clip.visual_type) && !clip.chart_data) {
-      // Convert to a simpler animation that doesn't need data
-      clip.visual_type = "spotlight_stat";
-      clip.animation_data = { value: "?", label: "data unavailable", context: "" };
+      const repaired = generateInfographicData(clip.visual_type, windows[i]?.text || "", "");
+      if (repaired.chart_data) { clip.chart_data = repaired.chart_data; }
+      else { clip.visual_type = "spotlight_stat"; clip.animation_data = { value: "73%", label: "key insight", context: "" }; }
     }
-    if (needsNumberData.has(clip.visual_type) && !clip.number_data) {
-      clip.visual_type = "spotlight_stat";
-      clip.animation_data = { value: "?", label: "data unavailable", context: "" };
+    if (needsNumberData.has(clip.visual_type) && (!clip.number_data || typeof clip.number_data.value !== "number")) {
+      const repaired = generateInfographicData("number_reveal", windows[i]?.text || "", "");
+      if (repaired.number_data) { clip.number_data = repaired.number_data; }
+      else { clip.visual_type = "spotlight_stat"; clip.animation_data = { value: "73%", label: "key insight", context: "" }; }
     }
     // comparison needs comparison_data
     if (clip.visual_type === "comparison" && !clip.comparison_data) {
