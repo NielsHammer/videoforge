@@ -196,7 +196,7 @@ NICHE STYLE: ${budget.label}
 THEME ANIMATIONS TO PREFER: ${themeHints.prefer.join(", ")}
 
 TARGET MIX for ${total} total clips:
-- ${stockTarget} clips → "stock" (framed images, fullscreen for hook only)
+- ${stockTarget} clips → "stock" (framed images only — fullscreen BANNED except clips after position 5)
 - ${animTarget} clips → "animation" (kinetic_text, reaction_face, count_up, neon_sign, etc.)
 - ${splitTarget} clips → "split" (split_left or split_right with panel icon)
 - ${infraTarget} clips → "infographic" (number_reveal, checklist, timeline, stat_card, etc.)
@@ -205,17 +205,22 @@ CLIP WINDOWS:
 ${windowList}
 
 CLASSIFICATION RULES:
-- "stock": narrator is telling a story, giving context, describing a scene
+- "stock": narrator is telling a story, giving context, describing a scene → display: "framed" ALWAYS (no fullscreen)
 - "animation": narrator makes a KEY STATEMENT — shocking stat, pivotal insight, emotional peak, call to action
-  → Choose the specific animation type that fits: kinetic_text (punchy words), count_up (numbers), money_counter (money), reaction_face (shock/humor), neon_sign (bold claim), warning_siren (danger/mistake), checkmark_build (list of steps), before_after (transformation), news_breaking (dramatic reveal), highlight_build (key benefits), typewriter_reveal (quote or phrase)
+  → Choose the specific animation type: kinetic_text (punchy words), count_up (numbers), money_counter (money), reaction_face (shock/humor), neon_sign (bold claim), warning_siren (danger/mistake), checkmark_build (list of steps), before_after (transformation), news_breaking (dramatic reveal), highlight_build (key benefits), typewriter_reveal (quote or phrase)
   → From theme preferred list use: ${themeHints.prefer.slice(0, 4).join(", ")}
-- "split": narrator describes a person, place, or situation — good for storytelling clips
-- "infographic": narrator cites specific data, statistics, or a list that benefits from visualization
-  → Choose: number_reveal, stat_card, timeline, checklist, progress_bar, trend_arrow, percent_fill
+- "split": narrator describes a person, place, or situation — good for storytelling clips → display: "split_left" or "split_right"
+- "infographic": narrator cites specific data, statistics, or a list → number_reveal, stat_card, timeline, checklist, progress_bar, trend_arrow, percent_fill
 
-Hit the target counts as closely as possible. Spread variety throughout — no 3+ same category in a row.
-First clip should be dramatic (animation or fullscreen stock).
-Last clip should be memorable (checkmark_build, quote_overlay, or strong stock image).
+CRITICAL DISTRIBUTION RULES — these override everything:
+1. FIRST 3 CLIPS (positions 0,1,2): MUST be "animation" or "stock" with display "framed". NEVER "fullscreen". NEVER "split". The hook must hit immediately.
+2. Clip 0 MUST be "animation" — this is the hook. Pick the most dramatic animation for the opening line.
+3. SPREAD: animations and infographics must appear throughout the WHOLE video. In every group of 5 consecutive clips, at least 2 must be non-stock (animation, split, or infographic).
+4. DO NOT bunch all animations at the end. Distribute them evenly — early, middle, AND late.
+5. "fullscreen" display is only allowed for positions 4+ and max 2 times total in the entire video.
+
+Example good pattern for 10 clips: animation, stock, split, stock, animation, infographic, stock, split, animation, infographic
+Example BAD pattern: stock, stock, stock, stock, stock, stock, stock, animation, infographic, infographic ← DON'T DO THIS
 
 Return ONLY a JSON array of ${total} objects, one per clip, in order:
 [{"i":0,"category":"stock","type":"stock","display":"framed"},{"i":1,"category":"animation","type":"kinetic_text","display":"framed"},...]
@@ -381,9 +386,11 @@ ANIMATION (category: animation) — use the PLAN type:
 SPLIT (category: split):
 - visual_type: "stock"
 - display_style: "split_left" or "split_right" (use from plan)
-- search_query: scene matching what narrator is saying
-- panel_type: "icon"
-- panel_icon: ONE emoji that genuinely matches the narrator's words right now
+- search_query: main image matching what narrator is saying (this goes on the big side)
+- search_queries: REQUIRED for splits — always provide 3 different queries. The extra images fill the right panel as smaller frames appearing one at a time. Make each query a different visual angle on the same moment. Example: ["woman scrolling phone bedroom night", "close up phone screen social media feed", "tired person blue screen glow dark room"]
+- panel_type: "stat" if narrator mentions a number/fact right now, "icon" otherwise
+- panel_stat: if narrator says a number → {value: "3 hours", label: "average daily scroll"} — exact from script
+- panel_icon: if no number → one emoji matching the moment (🚀💰🧠🔥⚡🎯💡📈🏆✅😤🎭💪😱)
 
 INFOGRAPHIC (category: infographic) — use the PLAN type:
 - "number_reveal" → number_data: {value:NUMBER, prefix:"$", suffix:"%", label:"short label", style:"counter"}
@@ -394,8 +401,10 @@ INFOGRAPHIC (category: infographic) — use the PLAN type:
 - "trend_arrow" → animation_data: {direction:"up|down", value:"X%", label:"what is changing"}
 - "percent_fill" → animation_data: {percent:NUMBER, label:"description of the percentage"}
 
-${isFirst ? `FIRST CLIP: Make it dramatic. Use kinetic_text with the most shocking words from the opening, or a fullscreen stock image.` : ""}
-${isLast ? `LAST CLIP: Make it memorable. Use checkmark_build, thumbs_up, or quote_overlay.` : ""}
+${isFirst ? `FIRST 15 SECONDS — HOOK (critical, audience decides here whether to keep watching):
+- Clip 0: MUST be an animation — kinetic_text, reaction_face, neon_sign, or spotlight_stat using the most shocking words from the first sentence. NO fullscreen. NO stock image.
+- Clips 1-4: alternate between framed stock and animations/splits. NO fullscreen at all in first 15 seconds.` : ""}
+${isLast ? `LAST CLIP: end with checkmark_build, thumbs_up, or quote_overlay — something memorable.` : ""}
 
 ═══ RULES ═══
 - NEVER change start_time or end_time
@@ -598,12 +607,17 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo) {
     lastType = clip.visual_type;
   });
 
-  // Hook protection: no data infographics in first 5s
+  // Hook protection: no fullscreen in first 5 clips, no data infographics in first 5s
   const infraTypes = new Set(["number_reveal","line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","stat_card","horizontal_bar","vertical_bar","growth_curve","ranking_cards","split_comparison","scale_comparison","funnel_chart","body_diagram","map_highlight","icon_grid","flow_diagram","checklist","quote_card"]);
-  allClips.forEach(clip => {
+  allClips.forEach((clip, idx) => {
+    // No fullscreen in first 5 clips
+    if (idx < 5 && (clip.display_style === "fullscreen" || clip.display_style === "fullscreen_zoom")) {
+      clip.display_style = "framed";
+    }
+    // No data infographics in first 5 seconds
     if (clip.start_time < 5 && infraTypes.has(clip.visual_type)) {
       clip.visual_type = "stock";
-      clip.display_style = clip.start_time < 2 ? "fullscreen" : "framed";
+      clip.display_style = "framed";
       clip.search_query = clip.search_query || "dramatic cinematic opening";
     }
   });
