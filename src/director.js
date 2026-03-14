@@ -382,7 +382,8 @@ IMAGES — your primary tool:
     "split_left" or "split_right" — image one side, content other. 20-30% of clips.
     "fullscreen" — ONLY opening hook or max ${Math.ceil(duration/60*4)} total for this segment.
     "fullscreen_zoom" — same restriction.
-  search_queries: ["q1","q2","q3"] for b-roll on clips 6+ seconds
+  search_query: ALWAYS set this — the primary image.
+  search_queries: REQUIRED for any stock clip 5 seconds or longer. Give 2-3 DIFFERENT queries so the clip crossfades between images instead of one static photo sitting there. Each query = a different visual angle on the same moment. Example for "making money online" (7s clip): search_queries: ["entrepreneur working laptop cafe", "person celebrating income milestone", "freelancer productive home office"]. Short clips under 5s: leave search_queries null.
   transition_speed: "fast"|"slow"
   panel_text: for split layouts — punchy 2-3 words. E.g. "92% FAIL". Omit if nothing fits.
   panel_type: "words"|"icon"|"clean"
@@ -400,6 +401,7 @@ ${isLastChunk ? "CLOSE: end with checklist, quote_card, or thumbs_up." : ""}
 - DISPLAY STYLE: "framed" for 60%+ of stock clips. Max ${Math.ceil(duration/60*4)} fullscreen for this segment.
 - INFOGRAPHIC BUDGET: max ${budget.maxPct}% of clips
 - NEVER same visual_type twice in a row
+- B-ROLL: any stock clip 5s or longer MUST have search_queries with 2-3 different queries. Single static photo for 5+ seconds looks amateurish.
 - NEVER stat_card more than 2 times total
 - NEVER any infographic type more than 2 times total
 - After every infographic, next clip MUST be stock, animation, or text_flash
