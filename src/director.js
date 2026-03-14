@@ -245,6 +245,11 @@ ${scriptText.slice(0, 4000)}
 
 ═══ VISUAL TYPES ═══
 
+CREATIVE ANIMATIONS — use these for high-impact moments, they look amazing:
+"kinetic_text": animation_data: {lines:["WORD1","WORD2","WORD3"], style:"impact|stack|typewriter"} — words slam/reveal dramatically. Use for hook moments, key revelations, section transitions. 3-5s duration.
+"spotlight_stat": animation_data: {value:"92%", label:"never take action", context:"Don't be a statistic"} — single dramatic stat with spotlight effect. Use for shocking numbers. 4-6s duration.
+"icon_burst": animation_data: {icons:["🚀","💰","🎯","⚡","🔥"], label:"What you'll learn", style:"burst|grid|orbit"} — animated icons burst onto screen. Use for list reveals, benefits, features. 3-5s duration.
+
 INFOGRAPHICS — use sparingly, only when data genuinely needs visualizing:
 "number_reveal": number_data: {value: NUMBER only (no text), prefix: "$", suffix: "%", label: "short label", style: "counter|gauge|bars|spotlight|ticker|impact"}
 "line_chart": chart_data: {title, points:[{label,value}], suffix, color}
@@ -286,7 +291,7 @@ ${isLastChunk ? "CLOSE: end with checklist or quote_card." : ""}
 - BANNED in search_query: baby,infant,child,toddler,kid,subscribe,button,logo${isHorror ? "" : ",knife,weapon,mask,ghost,monster,blood,horror,scary,creepy,ghostface,scream,killer"}
 
 Return ONLY valid JSON array, no markdown:
-[{"start_time":${startTime.toFixed(1)},"end_time":0,"visual_type":"","display_style":"fullscreen","search_query":"","search_queries":null,"ai_prompt":"","panel_text":null,"subtitle_words":[],"number_data":null,"comparison_data":null,"section_data":null,"text_flash_text":null,"chart_data":null,"transition_speed":"fast","interrupt_data":null,"quote_data":null,"countdown_data":null}]`
+[{"start_time":${startTime.toFixed(1)},"end_time":0,"visual_type":"","display_style":"fullscreen","search_query":"","search_queries":null,"ai_prompt":"","panel_text":null,"panel_type":"clean","subtitle_words":[],"number_data":null,"comparison_data":null,"section_data":null,"text_flash_text":null,"chart_data":null,"animation_data":null,"transition_speed":"fast","interrupt_data":null,"quote_data":null,"countdown_data":null}]`
       }]
     },
     { headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" }, timeout: 120000 }
@@ -323,9 +328,9 @@ function validateClips(clips, startTime, endTime, nicheInfo) {
   const bannedVisuals = isHorror ? [] : ["knife","weapon","mask","ghost","monster","blood","horror","scary","creepy","death","murder","serial","killer","ghostface","scream","terror","haunted","demon","paranormal"];
 
   const validStyles = ["fullscreen","framed","fullscreen_zoom","split_left","split_right"];
-  const validTypes = ["stock","number_reveal","comparison","section_break","text_flash","ai_image","web_image","web_screenshot","line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","stat_card","quote_card","checklist","horizontal_bar","vertical_bar","scale_comparison","map_highlight","body_diagram","funnel_chart","growth_curve","ranking_cards","split_comparison","icon_grid","flow_diagram","interrupt_card","quote_pull","countdown_corner"];
-  const graphicTypes = ["number_reveal","section_break","comparison","text_flash","line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","stat_card","quote_card","checklist","horizontal_bar","vertical_bar","scale_comparison","map_highlight","body_diagram","funnel_chart","growth_curve","ranking_cards","split_comparison","icon_grid","flow_diagram","interrupt_card","quote_pull","countdown_corner"];
-  const infraMinDuration = ["number_reveal","line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","stat_card","checklist","horizontal_bar","vertical_bar","scale_comparison","growth_curve","ranking_cards","split_comparison"];
+  const validTypes = ["stock","number_reveal","comparison","section_break","text_flash","ai_image","web_image","web_screenshot","line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","stat_card","quote_card","checklist","horizontal_bar","vertical_bar","scale_comparison","map_highlight","body_diagram","funnel_chart","growth_curve","ranking_cards","split_comparison","icon_grid","flow_diagram","interrupt_card","quote_pull","countdown_corner","kinetic_text","spotlight_stat","icon_burst"];
+  const graphicTypes = ["number_reveal","section_break","comparison","text_flash","line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","stat_card","quote_card","checklist","horizontal_bar","vertical_bar","scale_comparison","map_highlight","body_diagram","funnel_chart","growth_curve","ranking_cards","split_comparison","icon_grid","flow_diagram","interrupt_card","quote_pull","countdown_corner","kinetic_text","spotlight_stat","icon_burst"];
+  const infraMinDuration = ["number_reveal","line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","stat_card","checklist","horizontal_bar","vertical_bar","scale_comparison","growth_curve","ranking_cards","split_comparison","kinetic_text","spotlight_stat","icon_burst"];
 
   const nicheSafeQueries = {
     business: ["entrepreneur success laptop", "professional workspace modern", "business confidence achievement", "freelancer productive", "startup team collaboration"],
