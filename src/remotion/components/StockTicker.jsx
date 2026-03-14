@@ -35,8 +35,8 @@ export const StockTicker = ({ data, clipFrame = 0, theme = "blue_grid" }) => {
             <div key={i} style={{ width: 260, flexShrink: 0, display: "flex", alignItems: "center", gap: 16, padding: "0 20px" }}>
               <div style={{ fontSize: 22, fontWeight: 900, fontFamily: "Arial Black, Arial, sans-serif", color: "white", letterSpacing: 1 }}>{item.symbol}</div>
               <div style={{ fontSize: 20, fontWeight: 700, color: "rgba(255,255,255,0.8)", fontFamily: "Arial, sans-serif" }}>{item.value}</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: item.up ? "#22c55e" : "#ef4444", fontFamily: "Arial, sans-serif" }}>
-                {item.up ? "▲" : "▼"} {item.change}
+              <div style={{ fontSize: 16, fontWeight: 700, color: (item.change || "").startsWith("+") ? "#22c55e" : "#ef4444", fontFamily: "Arial, sans-serif" }}>
+                {(item.change || "").startsWith("+") ? "▲" : "▼"} {item.change}
               </div>
               <div style={{ width: 1, height: 30, background: "rgba(255,255,255,0.15)", marginLeft: 4 }} />
             </div>

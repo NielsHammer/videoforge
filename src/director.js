@@ -59,7 +59,23 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
     });
   }
 
-  // Fullscreen cap: max 4 per minute of video
+  // Text flash limit: max 3
+  let textFlashCount = 0;
+  allClips.forEach(clip => {
+    if (clip.visual_type === "text_flash") {
+      textFlashCount++;
+      if (textFlashCount > 3) { clip.visual_type = "stock"; clip.search_query = "cinematic scene"; clip.display_style = "framed"; }
+    }
+  });
+
+  // Inject engagement elements BEFORE fullscreen cap so injected clips are counted
+  allClips = injectInterruptCards(allClips, scriptText, totalDuration);
+  allClips = injectQuotePulls(allClips, scriptText);
+  if (detectListVideo(scriptText)) allClips = injectCountdownHooks(allClips);
+
+  // Fullscreen cap: max 4 per minute — runs AFTER injections so all clips are counted
+  // Injected graphic types (interrupt_card, quote_pull, countdown_corner) use "framed"
+  // since display_style doesn't affect rendering for graphic-only types anyway
   const maxFullscreen = Math.max(2, Math.ceil((totalDuration / 60) * 4));
   let fullscreenCount = 0;
   allClips.forEach(clip => {
@@ -70,20 +86,6 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
       }
     }
   });
-
-  // Text flash limit: max 3
-  let textFlashCount = 0;
-  allClips.forEach(clip => {
-    if (clip.visual_type === "text_flash") {
-      textFlashCount++;
-      if (textFlashCount > 3) { clip.visual_type = "stock"; clip.search_query = "cinematic scene"; clip.display_style = "framed"; }
-    }
-  });
-
-  // Inject engagement elements
-  allClips = injectInterruptCards(allClips, scriptText, totalDuration);
-  allClips = injectQuotePulls(allClips, scriptText);
-  if (detectListVideo(scriptText)) allClips = injectCountdownHooks(allClips);
 
   // Sort and fix overlaps
   allClips.sort((a, b) => a.start_time - b.start_time);
@@ -485,6 +487,20 @@ function validateClips(clips, startTime, endTime, nicheInfo) {
     if (!validTypes.includes(clip.visual_type)) clip.visual_type = "stock";
     if (!clip.display_style || !validStyles.includes(clip.display_style)) clip.display_style = "framed";
     if (!clip.search_query) clip.search_query = "professional scene";
+
+    // If an animation type has no animation_data, convert to stock so it doesn't render blank
+    const animationTypes = [
+      "kinetic_text","spotlight_stat","icon_burst",
+      "typewriter_reveal","money_counter","glitch_text","checkmark_build","trend_arrow",
+      "stock_ticker","phone_screen","tweet_card","word_scatter","social_counter","before_after",
+      "lightbulb_moment","rocket_launch","news_breaking","percent_fill","compare_reveal",
+      "highlight_build","count_up","neon_sign","reaction_face","thumbs_up","side_by_side",
+      "youtube_progress","warning_siren","quote_overlay","overlay_caption","polaroid_stack",
+    ];
+    if (animationTypes.includes(clip.visual_type) && !clip.animation_data) {
+      clip.visual_type = "stock";
+      clip.display_style = "framed";
+    }
 
     let q = (clip.search_query || "").toLowerCase();
     banned.forEach(b => { q = q.replace(new RegExp(`\\b${b}\\b`, "gi"), "").trim(); });
