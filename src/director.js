@@ -148,8 +148,8 @@ function detectNiche(topic, scriptText) {
     return { niche: "health", imageStyle: "gym workout, healthy food, active lifestyle, sports" };
   if (/history|ancient|medieval|empire|war|civilization/.test(text))
     return { niche: "history", imageStyle: "historical ruins, ancient artifact, period architecture" };
-  if (/personal brand|youtube|content creator|social media|influencer|audience/.test(text))
-    return { niche: "creator", imageStyle: "content creator studio, camera recording, social media" };
+  if (/personal brand|youtube|content creator|social media|influencer|audience|tiktok|instagram|addiction|screen time|dopamine/.test(text))
+    return { niche: "creator", imageStyle: "content creator studio, camera recording, social media, phone screen" };
   return { niche: "general", imageStyle: "professional modern, aspirational, person thinking, city skyline" };
 }
 
@@ -392,14 +392,16 @@ SPLIT (category: split):
 - panel_stat: if narrator says a number → {value: "3 hours", label: "average daily scroll"} — exact from script
 - panel_icon: if no number → one emoji matching the moment (🚀💰🧠🔥⚡🎯💡📈🏆✅😤🎭💪😱)
 
-INFOGRAPHIC (category: infographic) — use the PLAN type:
-- "number_reveal" → number_data: {value:NUMBER, prefix:"$", suffix:"%", label:"short label", style:"counter"}
-- "stat_card" → chart_data: {title:"title", stats:[{value:"clean number",label:"description"}]}
-- "timeline" → chart_data: {title:"title", events:[{year:"year",label:"event"}]}
-- "checklist" → chart_data: {title:"title", items:["item from script","item","item"], checked:true}
-- "progress_bar" → chart_data: {title:"title", bars:[{label:"item",value:75,suffix:"%",color:""}]}
-- "trend_arrow" → animation_data: {direction:"up|down", value:"X%", label:"what is changing"}
-- "percent_fill" → animation_data: {percent:NUMBER, label:"description of the percentage"}
+INFOGRAPHIC (category: infographic) — CRITICAL: you MUST fill in the data field or it renders blank.
+- "number_reveal" → set number_data field: {"value":2,"prefix":"","suffix":" hours","label":"average daily scroll","style":"counter"} — value must be a NUMBER
+- "stat_card" → set chart_data field: {"title":"Screen Time Reality","stats":[{"value":"2.5 hours","label":"average daily use"},{"value":"87%","label":"check phone first thing"}]}
+- "timeline" → set chart_data field: {"title":"How It Started","events":[{"year":"2004","label":"Facebook launched"},{"year":"2010","label":"Instagram created"},{"year":"2016","label":"TikTok born"}]}
+- "checklist" → set chart_data field: {"title":"Signs You're Addicted","items":["Check phone within 5 minutes of waking","Scroll during conversations","Feel anxious without it"],"checked":true}
+- "progress_bar" → set chart_data field: {"title":"Where Your Time Goes","bars":[{"label":"Social Media","value":35,"suffix":"%","color":""},{"label":"Sleep","value":33,"suffix":"%","color":""},{"label":"Work","value":25,"suffix":"%","color":""}]}
+- "trend_arrow" → set animation_data field: {"direction":"up","value":"73%","label":"increase in anxiety since 2010"}
+- "percent_fill" → set animation_data field: {"percent":73,"label":"of teens feel worse after using social media"}
+
+IMPORTANT: Use real numbers from the script when available. If the script doesn't mention a specific number, invent a plausible one that matches the topic — the point is to VISUALIZE the idea, not quote precisely.
 
 ${isFirst ? `FIRST 15 SECONDS — HOOK (critical, audience decides here whether to keep watching):
 - Clip 0: MUST be an animation — kinetic_text, reaction_face, neon_sign, or spotlight_stat using the most shocking words from the first sentence. NO fullscreen. NO stock image.
@@ -503,9 +505,29 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
 
     if (!validTypes.includes(clip.visual_type)) clip.visual_type = "stock";
 
-    // Animation needs animation_data
+    // Animation needs animation_data — strip if missing
     const animTypes = new Set(["kinetic_text","spotlight_stat","icon_burst","typewriter_reveal","money_counter","glitch_text","checkmark_build","trend_arrow","stock_ticker","phone_screen","tweet_card","word_scatter","social_counter","before_after","lightbulb_moment","rocket_launch","news_breaking","percent_fill","compare_reveal","highlight_build","count_up","neon_sign","reaction_face","thumbs_up","side_by_side","youtube_progress","warning_siren","quote_overlay","overlay_caption","polaroid_stack"]);
     if (animTypes.has(clip.visual_type) && !clip.animation_data) {
+      clip.visual_type = "stock";
+      clip.display_style = "framed";
+    }
+
+    // Infographic types need chart_data or number_data
+    // If missing, generate fallback data so they actually render
+    const needsChartData = new Set(["stat_card","line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","quote_card","checklist","horizontal_bar","vertical_bar","growth_curve","ranking_cards","split_comparison","scale_comparison","funnel_chart","body_diagram","map_highlight","icon_grid","flow_diagram"]);
+    const needsNumberData = new Set(["number_reveal"]);
+
+    if (needsChartData.has(clip.visual_type) && !clip.chart_data) {
+      // Convert to a simpler animation that doesn't need data
+      clip.visual_type = "spotlight_stat";
+      clip.animation_data = { value: "?", label: "data unavailable", context: "" };
+    }
+    if (needsNumberData.has(clip.visual_type) && !clip.number_data) {
+      clip.visual_type = "spotlight_stat";
+      clip.animation_data = { value: "?", label: "data unavailable", context: "" };
+    }
+    // comparison needs comparison_data
+    if (clip.visual_type === "comparison" && !clip.comparison_data) {
       clip.visual_type = "stock";
       clip.display_style = "framed";
     }
