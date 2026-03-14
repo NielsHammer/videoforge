@@ -439,7 +439,7 @@ function generateAnimationData(type, sentence) {
       return { value: key[0] || "FACT", label: sentence.slice(0, 40), context: "" };
     case "count_up": return { value: parseFloat(numbers[0]) || 73, prefix: money ? "$" : "", suffix: pct ? "%" : "", label: key.slice(0, 3).join(" ").toLowerCase(), decimals: 0 };
     case "money_counter": return { amount: parseFloat((numbers[0] || "1000").replace(/,/g, "")), currency: "$", label: key.slice(0, 3).join(" ").toLowerCase() };
-    case "reaction_face": return { emoji: /warn|danger|bad|problem|addict/.test(sentence.toLowerCase()) ? "😱" : "🤯", label: key.slice(0, 2).join(" ") || "SHOCKING", style: "slam" };
+    case "reaction_face": return { emoji: /warn|danger|bad|problem|addict|shock|crazy/.test(sentence.toLowerCase()) ? "😱" : "🤯", label: key.slice(0, 2).join(" ") || "SHOCKING", style: "slam" };
     case "warning_siren": return { headline: "WARNING", body: sentence.slice(0, 60), icon: "⚠️", color: "#ef4444" };
     case "neon_sign": return { text: key.slice(0, 2).join(" ") || "THE TRUTH", subtitle: key[2] || "" };
     case "typewriter_reveal": return { text: sentence.slice(0, 60), subtitle: "" };
@@ -453,9 +453,34 @@ function generateAnimationData(type, sentence) {
       const parts = sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 5).slice(0, 3);
       return { items: parts.length >= 2 ? parts : [sentence.slice(0, 35), sentence.slice(35, 70)].filter(s => s.trim()), title: "" };
     }
-    case "before_after": return { before: "Before", after: "After", label: key.slice(0, 3).join(" ").toLowerCase() };
+    case "before_after": {
+      const fromMatch = sentence.match(/from\s+([^,]+)\s+to\s+([^,.]+)/i);
+      return fromMatch
+        ? { before: fromMatch[1].trim().slice(0, 20), after: fromMatch[2].trim().slice(0, 20), label: key.slice(0, 3).join(" ").toLowerCase() }
+        : { before: key[0] || "Before", after: key[1] || "After", label: key.slice(2, 5).join(" ").toLowerCase() };
+    }
     case "percent_fill": return { percent: parseInt(pct?.[1]) || 73, label: key.slice(0, 4).join(" ").toLowerCase() };
-    case "trend_arrow": return { direction: "up", value: (numbers[0] || "73") + (pct ? "%" : ""), label: key.slice(0, 4).join(" ").toLowerCase() };
+    case "trend_arrow": return { direction: /decreas|drop|down|fall|less|lower|shrink/.test(sentence.toLowerCase()) ? "down" : "up", value: (numbers[0] || "73") + (pct ? "%" : ""), label: key.slice(0, 4).join(" ").toLowerCase() };
+    case "compare_reveal": return {
+      items: [
+        { label: key[0] || "Option A", score: numbers[0] || "Low", description: sentence.slice(0, 30), icon: "❌" },
+        { label: key[1] || "Option B", score: numbers[1] || "High", description: sentence.slice(30, 60), icon: "✅" },
+      ],
+      title: key.slice(2, 5).join(" ") || "Compare",
+      winner: 1,
+    };
+    case "side_by_side": return { left: key[0] || "BEFORE", right: key[1] || "AFTER", leftSub: numbers[0] || sentence.slice(0, 20), rightSub: numbers[1] || sentence.slice(20, 40), vs: true, leftColor: "#ef4444", rightColor: "#22c55e" };
+    case "icon_burst": {
+      const icons = ["💰","📈","🧠","⚡","🎯","🔥","🏆","💡","✅","🚀"].slice(0, Math.max(3, key.length));
+      return { icons, label: key.slice(0, 3).join(" "), style: "burst" };
+    }
+    case "lightbulb_moment": return { text: sentence.slice(0, 50), subtext: key.slice(0, 3).join(" ") };
+    case "rocket_launch": return { headline: key.slice(0, 2).join(" ").toUpperCase() || "GROWTH", subtext: key.slice(2, 4).join(" ") || "", stage: "launch" };
+    case "tweet_card": return { handle: "@viewer", text: sentence.slice(0, 100), likes: `${Math.floor(Math.random() * 90 + 10)}.${Math.floor(Math.random() * 9)}K`, retweets: `${Math.floor(Math.random() * 20 + 5)}.${Math.floor(Math.random() * 9)}K` };
+    case "phone_screen": return { app: "instagram", notification: sentence.slice(0, 50), metric: numbers[0] ? `${numbers[0]}K` : "10.2K" };
+    case "word_scatter": return { words: key.slice(0, 7).filter(Boolean), centerWord: key[0] || "" };
+    case "thumbs_up": return { type: /don't|avoid|mistake|wrong|bad|never/.test(sentence.toLowerCase()) ? "down" : "up", items: key.slice(0, 3), verdict: key.slice(0, 2).join(" ").toUpperCase() };
+    case "stock_ticker": return { items: key.slice(0, 3).map((w, i) => ({ symbol: w.toUpperCase().slice(0, 6), price: `$${(Math.random() * 500 + 50).toFixed(2)}`, change: i === 0 ? `+${(Math.random() * 20).toFixed(1)}%` : `-${(Math.random() * 10).toFixed(1)}%` })), title: "" };
     default: return { lines: key.slice(0, 2).filter(Boolean), style: "impact" };
   }
 }
@@ -756,11 +781,19 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
 
     if (!validTypes.includes(clip.visual_type)) clip.visual_type = "stock";
 
-    // Animation needs animation_data — strip if missing
+    // Animation needs animation_data — strip if missing, use kinetic_text fallback
     const animTypes = new Set(["kinetic_text","spotlight_stat","icon_burst","typewriter_reveal","money_counter","glitch_text","checkmark_build","trend_arrow","stock_ticker","phone_screen","tweet_card","word_scatter","social_counter","before_after","lightbulb_moment","rocket_launch","news_breaking","percent_fill","compare_reveal","highlight_build","count_up","neon_sign","reaction_face","thumbs_up","side_by_side","youtube_progress","warning_siren","quote_overlay","overlay_caption","polaroid_stack"]);
     if (animTypes.has(clip.visual_type) && !clip.animation_data) {
-      clip.visual_type = "stock";
-      clip.display_style = "framed";
+      // Generate fallback data instead of dropping to stock
+      const fallback = generateAnimationData(clip.visual_type, windows[i]?.text || "");
+      if (fallback) {
+        clip.animation_data = fallback;
+      } else {
+        // Last resort: kinetic_text with sentence words
+        const words = (windows[i]?.text || "").split(/\s+/).filter(w => w.length > 3).slice(0, 2);
+        clip.visual_type = "kinetic_text";
+        clip.animation_data = { lines: words.length ? words.map(w => w.toUpperCase()) : ["KEY", "INSIGHT"], style: "impact" };
+      }
     }
 
     // Infographic types need chart_data or number_data — generate real fallback data
