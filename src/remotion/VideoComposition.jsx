@@ -97,11 +97,13 @@ const GRAPHIC_TYPES = [
   "typewriter_reveal","money_counter","glitch_text","checkmark_build",
   "trend_arrow","stock_ticker","phone_screen","tweet_card","word_scatter",
   "social_counter","before_after","lightbulb_moment","rocket_launch",
-  "news_breaking","percent_fill","quote_overlay","compare_reveal",
+  "news_breaking","percent_fill","compare_reveal",
   // batch3
   "highlight_build","count_up","neon_sign","reaction_face",
-  "thumbs_up","side_by_side","youtube_progress","polaroid_stack",
-  "warning_siren","overlay_caption",
+  "thumbs_up","side_by_side","youtube_progress",
+  "warning_siren",
+  // NOT included: quote_overlay, overlay_caption, polaroid_stack
+  // These render over fetched images — they need image fade timing, not graphic fade
 ];
 
 const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {

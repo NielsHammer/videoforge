@@ -321,10 +321,10 @@ SOCIAL/PLATFORM ANIMATIONS:
 "youtube_progress": animation_data: {views:"10.2M", subs:"500K", title:"This video changed everything", views_bar:0.82, revenue:"$8,400"} — YouTube analytics card. Best for: creator topics, YouTube growth. 5-7s.
 "news_breaking": animation_data: {headline:"LOCAL MAN MAKES $50K", subtext:"from laptop in bedroom", ticker:"MARKETS RESPOND • STORY DEVELOPING"} — breaking news card. Best for: dramatic reveals, shocking facts. 4-6s.
 
-SCENE OVERLAYS (use with stock images):
-"quote_overlay": animation_data: {quote:"The greatest risk is not taking one.", attribution:"—Mark Zuckerberg"} — quote over image. Best for: inspirational moments. 4-6s.
-"overlay_caption": animation_data: {caption:"This changes everything", position:"bottom|top|center", style:"bold|subtitle"} — bold caption over full image. Best for: documentary style, dramatic reveals. 4-7s.
-"polaroid_stack": animation_data: {captions:["caption1","caption2","caption3"]} — images as falling polaroids. Best for: lifestyle, personal brand, story content. 5-7s. (needs imagePaths from b-roll)
+SCENE OVERLAYS — these REQUIRE a search_query (they render text/animation ON TOP of a fetched image):
+"quote_overlay": search_query:"REQUIRED — cinematic background image", animation_data: {quote:"The greatest risk is not taking one.", attribution:"—Mark Zuckerberg"} — quote overlaid on an image. Best for: inspirational moments. 4-6s.
+"overlay_caption": search_query:"REQUIRED — dramatic scene matching the caption mood", animation_data: {caption:"This changes everything", position:"bottom|top|center", style:"bold|subtitle"} — bold caption on a full image, documentary style. 4-7s.
+"polaroid_stack": search_query:"REQUIRED — lifestyle scene", search_queries:["scene1","scene2","scene3"], animation_data: {captions:["caption1","caption2","caption3"]} — b-roll images displayed as falling polaroids. Best for: personal brand, lifestyle, story. 5-7s.
 "stock_ticker": animation_data: {items:[{symbol:"HUSTLE",price:"$247.50",change:"+18.4%"},{symbol:"EFFORT",price:"$891.20",change:"+12.1%"}], title:"optional"} — scrolling stock ticker. Best for: finance, business, ironic emphasis. 5-7s.
 
 LEGACY INFOGRAPHICS — only when data genuinely needs visualizing:

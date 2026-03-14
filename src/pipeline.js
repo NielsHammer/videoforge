@@ -212,14 +212,28 @@ export async function generateVideo(scriptPath, options) {
   // --- STEP 3: Fetch visuals — NO CACHING, always fresh per clip ---
   console.log(chalk.blue("📷 Fetching visuals...\n"));
 
-  const graphicTypes = ["number_reveal","comparison","section_break","text_flash",
+  const graphicTypes = [
+    // Legacy infographics
+    "number_reveal","comparison","section_break","text_flash",
     "line_chart","donut_chart","progress_bar","timeline","leaderboard",
     "process_flow","stat_card","quote_card","checklist",
     "horizontal_bar","vertical_bar","scale_comparison","map_highlight",
     "body_diagram","funnel_chart","growth_curve","ranking_cards",
     "split_comparison","icon_grid","flow_diagram",
-    // v32 engagement types
-    "interrupt_card","quote_pull","countdown_corner"];
+    "interrupt_card","quote_pull","countdown_corner",
+    // Batch 1 animations (no image needed)
+    "kinetic_text","spotlight_stat","icon_burst",
+    // Batch 2 animations (no image needed)
+    "typewriter_reveal","money_counter","glitch_text","checkmark_build",
+    "trend_arrow","stock_ticker","phone_screen","tweet_card","word_scatter",
+    "social_counter","before_after","lightbulb_moment","rocket_launch",
+    "news_breaking","percent_fill","compare_reveal",
+    // Batch 3 animations (no image needed)
+    "highlight_build","count_up","neon_sign","reaction_face",
+    "thumbs_up","side_by_side","youtube_progress","warning_siren",
+    // NOTE: quote_overlay, overlay_caption, polaroid_stack are NOT here
+    // — they render over fetched images and need the pipeline to fetch them
+  ];
 
   const webImageAvailable = isWebSearchAvailable();
   if (webImageAvailable) {
