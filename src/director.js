@@ -317,7 +317,7 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
 function enforcePlan(clips, windows, planChunk, scriptText) {
   // Track type usage to prevent repetition
   const typeCounts = {};
-  const maxPerType = 2; // max times same type can appear
+  const maxPerType = 3; // max times same type can appear before rotating
 
   // Rotation pools for variety
   const animRotation = ["kinetic_text","spotlight_stat","reaction_face","warning_siren","neon_sign","money_counter","count_up","typewriter_reveal","news_breaking","glitch_text","percent_fill","trend_arrow"];
@@ -777,24 +777,13 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo) {
     }
   });
 
-  // No same type twice in a row
+  // No same type twice in a row (but allow same type to repeat with stock in between)
   let lastType = "";
-  // Also cap any single non-stock type at 2 occurrences total
-  const globalTypeCounts = {};
   allClips.forEach(clip => {
-    if (clip.visual_type === "stock") { lastType = clip.visual_type; return; }
-    // No same type twice in a row
+    if (clip.visual_type === "stock") { lastType = "stock"; return; }
     if (clip.visual_type === lastType) {
       clip.visual_type = "stock";
       clip.display_style = "framed";
-      return;
-    }
-    // Cap non-stock types at 2 total
-    globalTypeCounts[clip.visual_type] = (globalTypeCounts[clip.visual_type] || 0) + 1;
-    if (globalTypeCounts[clip.visual_type] > 2) {
-      clip.visual_type = "stock";
-      clip.display_style = "framed";
-      return;
     }
     lastType = clip.visual_type;
   });
