@@ -22,6 +22,9 @@ export async function renderWithRemotion(clips, wordTimestamps, totalDuration, o
   const clipsForRemotion = clips.map((clip) => ({
     ...clip,
     imagePath: clip.imagePath && fs.existsSync(clip.imagePath) ? path.basename(clip.imagePath) : null,
+    imagePaths: clip.imagePaths
+      ? clip.imagePaths.filter(p => p && fs.existsSync(p)).map(p => path.basename(p))
+      : null,
   }));
 
   const inputProps = { clips: clipsForRemotion, wordTimestamps, theme };
