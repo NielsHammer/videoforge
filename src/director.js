@@ -278,18 +278,26 @@ ${windowRef}
 FULL SCRIPT CONTEXT:
 ${scriptText.slice(0, 3000)}
 
-═══ PACING RULES ═══
-- Most clips (70%+) should be stock images — that's what real YouTube videos use
-- Animations only for KEY MOMENTS: shocking stats, pivotal insights, calls to action
-- Max 1 animation per 30 seconds of video
-- When you use a text animation, the text MUST be the EXACT WORDS being spoken (not a paraphrase)
-- Never invent phrases. If narrator says "you can make $4,000 in month one" → animation text is "$4,000 MONTH ONE" not "CREATE WEALTH"
+═══ PACING RULES — VARIETY IS ESSENTIAL ═══
+Target mix for a great YouTube video:
+- 50% stock images (mix of framed, split_left, split_right — NOT all the same)
+- 25% animations (kinetic_text, count_up, reaction_face, neon_sign, money_counter, etc.)
+- 15% split screens with panel icons (split_left/right with panel_icon emoji)
+- 10% full infographics or overlay types (when data genuinely exists)
+
+PACING:
+- Vary clip types constantly — never 3 stock images in a row
+- Use split screens for storytelling moments (narrator describes a person or situation)
+- Use animations for shocking facts, pivotal lines, calls to action, emotional peaks
+- Use framed images for context-setting and transitions
+- Animation text MUST be exact words being spoken — not invented phrases
+- If narrator says "she made $4,000 in month one" → animation: {value:"$4,000", label:"month one"}
 
 ═══ VISUAL TYPES ═══
 
-IMAGES (use for 70%+ of clips):
+IMAGES:
 "stock" — search for a photo matching what's being said RIGHT NOW
-  display_style: "framed" (default, shows theme background) | "split_left" | "split_right" | "fullscreen" (rarely)
+  display_style: "framed" (shows theme background) | "split_left" | "split_right" | "fullscreen" (hook only)
   search_query: specific scene matching narrator's words — emotion + subject
   search_queries: for clips 5s+, add 2-3 different angles as array for crossfade variety
   panel_type: "icon" or "clean" — NEVER "words"
@@ -566,7 +574,7 @@ function applyPostProcessing(allClips, totalDuration, contentMode, scriptText, n
     "thumbs_up","side_by_side","youtube_progress","warning_siren",
   ]);
 
-  const maxNonImage = Math.ceil(allClips.length * 0.40);
+  const maxNonImage = Math.ceil(allClips.length * 0.50);
   let nonImageCount = 0;
   allClips.forEach(clip => {
     if (nonImageTypes.has(clip.visual_type)) {
