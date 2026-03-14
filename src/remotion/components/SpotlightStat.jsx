@@ -13,8 +13,13 @@ export const SpotlightStat = ({ data, clipFrame = 0, theme = "blue_grid" }) => {
   if (!data) return null;
 
   const value = data.value || "0";
-  const label = data.label || "";
-  const context = data.context || "";
+  // Clamp label to 4 words max — long sentences look terrible at this size
+  const rawLabel = data.label || "";
+  const labelWords = rawLabel.split(/\s+/).filter(Boolean);
+  const label = labelWords.slice(0, 4).join(" ");
+  // Context only shows if it's short (under 40 chars) — otherwise skip it
+  const rawContext = data.context || "";
+  const context = rawContext.length <= 40 ? rawContext : "";
 
   // Spotlight expands
   const spotRadius = interpolate(clipFrame, [0, fps * 0.6], [0, 800], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
@@ -71,7 +76,7 @@ export const SpotlightStat = ({ data, clipFrame = 0, theme = "blue_grid" }) => {
 
       {/* Label */}
       <div style={{
-        fontSize: 32, fontWeight: 700,
+        fontSize: 28, fontWeight: 700,
         fontFamily: "Arial Black, Arial, sans-serif",
         color: "rgba(255,255,255,0.85)",
         textTransform: "uppercase",

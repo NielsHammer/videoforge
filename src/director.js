@@ -315,30 +315,75 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
 // Pass 2 often ignores the plan and returns stock for everything.
 // This re-injects planned animation/infographic with auto-generated data.
 function enforcePlan(clips, windows, planChunk, scriptText) {
+  // Track type usage to prevent repetition
+  const typeCounts = {};
+  const maxPerType = 2; // max times same type can appear
+
+  // Rotation pools for variety
+  const animRotation = ["kinetic_text","spotlight_stat","reaction_face","warning_siren","neon_sign","money_counter","count_up","typewriter_reveal","news_breaking","glitch_text","percent_fill","trend_arrow"];
+  const infraRotation = ["stat_card","number_reveal","checklist","progress_bar","timeline","percent_fill","trend_arrow"];
+  let animRotationIdx = 0;
+  let infraRotationIdx = 0;
+
   return clips.map((clip, i) => {
     const plan = planChunk[i] || {};
     const window = windows[i] || {};
     const sentence = window.text || "";
 
-    // If Pass 2 honored the plan, leave it alone
+    // If Pass 2 honored the plan, track usage and leave it alone
     if (plan.category === "stock" && clip.visual_type === "stock") return clip;
     if (plan.category === "split" && (clip.display_style === "split_left" || clip.display_style === "split_right")) return clip;
-    if (plan.category === "animation" && clip.visual_type !== "stock" && clip.animation_data) return clip;
-    if (plan.category === "infographic" && clip.visual_type !== "stock" && (clip.chart_data || clip.number_data || clip.animation_data)) return clip;
+    if (plan.category === "animation" && clip.visual_type !== "stock" && clip.animation_data) {
+      typeCounts[clip.visual_type] = (typeCounts[clip.visual_type] || 0) + 1;
+      return clip;
+    }
+    if (plan.category === "infographic" && clip.visual_type !== "stock" && (clip.chart_data || clip.number_data || clip.animation_data)) {
+      typeCounts[clip.visual_type] = (typeCounts[clip.visual_type] || 0) + 1;
+      return clip;
+    }
 
-    // Pass 2 ignored the plan — re-inject
+    // Pass 2 ignored the plan — re-inject with variety
     if (plan.category === "animation") {
-      const animData = generateAnimationData(plan.type, sentence);
+      // Pick a type we haven't overused
+      let type = plan.type;
+      if ((typeCounts[type] || 0) >= maxPerType) {
+        // Find next unused type in rotation
+        for (let r = 0; r < animRotation.length; r++) {
+          const candidate = animRotation[(animRotationIdx + r) % animRotation.length];
+          if ((typeCounts[candidate] || 0) < maxPerType) {
+            type = candidate;
+            animRotationIdx = (animRotationIdx + r + 1) % animRotation.length;
+            break;
+          }
+        }
+      }
+      typeCounts[type] = (typeCounts[type] || 0) + 1;
+      const animData = generateAnimationData(type, sentence);
       if (animData) {
-        return { ...clip, visual_type: plan.type, display_style: "framed", animation_data: animData, search_query: "" };
+        return { ...clip, visual_type: type, display_style: "framed", animation_data: animData, search_query: "" };
       }
     }
+
     if (plan.category === "infographic") {
-      const infraData = generateInfographicData(plan.type, sentence, scriptText);
+      // Pick an infographic type we haven't overused
+      let type = plan.type;
+      if ((typeCounts[type] || 0) >= maxPerType) {
+        for (let r = 0; r < infraRotation.length; r++) {
+          const candidate = infraRotation[(infraRotationIdx + r) % infraRotation.length];
+          if ((typeCounts[candidate] || 0) < maxPerType) {
+            type = candidate;
+            infraRotationIdx = (infraRotationIdx + r + 1) % infraRotation.length;
+            break;
+          }
+        }
+      }
+      typeCounts[type] = (typeCounts[type] || 0) + 1;
+      const infraData = generateInfographicData(type, sentence, scriptText);
       if (infraData.chart_data || infraData.number_data || infraData.animation_data) {
-        return { ...clip, visual_type: plan.type, display_style: "framed", ...infraData, search_query: "" };
+        return { ...clip, visual_type: type, display_style: "framed", ...infraData, search_query: "" };
       }
     }
+
     if (plan.category === "split") {
       return { ...clip, display_style: plan.display || (i % 2 === 0 ? "split_left" : "split_right"), panel_type: "icon", panel_icon: pickIconForSentence(sentence) };
     }
@@ -734,10 +779,22 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo) {
 
   // No same type twice in a row
   let lastType = "";
+  // Also cap any single non-stock type at 2 occurrences total
+  const globalTypeCounts = {};
   allClips.forEach(clip => {
-    if (clip.visual_type !== "stock" && clip.visual_type === lastType) {
+    if (clip.visual_type === "stock") { lastType = clip.visual_type; return; }
+    // No same type twice in a row
+    if (clip.visual_type === lastType) {
       clip.visual_type = "stock";
       clip.display_style = "framed";
+      return;
+    }
+    // Cap non-stock types at 2 total
+    globalTypeCounts[clip.visual_type] = (globalTypeCounts[clip.visual_type] || 0) + 1;
+    if (globalTypeCounts[clip.visual_type] > 2) {
+      clip.visual_type = "stock";
+      clip.display_style = "framed";
+      return;
     }
     lastType = clip.visual_type;
   });

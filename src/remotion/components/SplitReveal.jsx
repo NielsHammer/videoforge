@@ -46,7 +46,8 @@ export const SplitReveal = ({ imageSrc, position = "left", clipFrame = 0, clipIn
   };
 
   const sec1Src = toSrc(secondaryPaths[0]);
-  const sec2Src = toSrc(secondaryPaths[1] || secondaryPaths[0]);
+  // Only show second panel image if there's actually a different third image
+  const sec2Src = secondaryPaths.length >= 2 ? toSrc(secondaryPaths[1]) : null;
 
   const hasMultiImage = sec1Src !== null;
   const hasStat  = !!(clip?.panel_stat?.value);
@@ -123,7 +124,8 @@ export const SplitReveal = ({ imageSrc, position = "left", clipFrame = 0, clipIn
               flexShrink: 0,
             }} />
 
-            {/* Bottom smaller image */}
+            {/* Bottom smaller image - only if different from top */}
+            {sec2Src && (
             <div style={{
               width: "100%",
               height: "44%",
@@ -137,6 +139,7 @@ export const SplitReveal = ({ imageSrc, position = "left", clipFrame = 0, clipIn
             }}>
               <Img src={sec2Src} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             </div>
+            )}
           </>
         )}
 
