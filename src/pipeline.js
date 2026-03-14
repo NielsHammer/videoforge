@@ -186,7 +186,18 @@ export async function generateVideo(scriptPath, options) {
   const s2 = ora("Director creating storyboard...").start();
   const contentMode = detectContentMode(projectName, scriptText);
   console.log(chalk.blue(`🎯 Content mode: ${contentMode}`));
-  const clips = await createStoryboard(scriptText, wordTimestamps, totalDuration, contentMode, options.topic || "", options.theme || "blue_grid");
+  // Pick theme BEFORE storyboard so director gets correct theme personality
+  let theme = "blue_grid";
+  if (options.theme) {
+    theme = options.theme;
+    console.log(chalk.blue(`🎨 Theme override: ${theme}`));
+  } else {
+    const themeTopic = options.topic || projectName.replace(/-/g, " ");
+    theme = await pickThemeForTopic(themeTopic, scriptText) || "blue_grid";
+    console.log(chalk.blue(`🎨 Claude picked theme: ${theme}`));
+  }
+
+  const clips = await createStoryboard(scriptText, wordTimestamps, totalDuration, contentMode, options.topic || "", theme);
 
   const numReveals = clips.filter(c => c.visual_type === "number_reveal").length;
   const comparisons = clips.filter(c => c.visual_type === "comparison").length;
@@ -446,18 +457,6 @@ export async function generateVideo(scriptPath, options) {
       ms.warn("No music — add .mp3 to music/ folder");
     }
   }
-
-  // --- Theme detection: Claude picks the best theme for the topic ---
-  let theme = "blue_grid"; // safe default
-  if (!options.theme) {
-    const themeTopic = options.topic || projectName.replace(/-/g, " ");
-    theme = await pickThemeForTopic(themeTopic, scriptText);
-    if (!theme) theme = "blue_grid"; // fallback if Claude fails
-  } else {
-    theme = options.theme;
-    console.log(chalk.blue(`🎨 Theme override: ${theme}`));
-  }
-
   fs.writeFileSync(path.join(outputDir, "storyboard.json"), JSON.stringify({ clips, wordTimestamps, totalDuration, theme }, null, 2));
 
   // --- STEP 4: Render ---
