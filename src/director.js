@@ -2,277 +2,232 @@ import axios from "axios";
 import chalk from "chalk";
 
 /**
- * Director v33 — Creative Director Mode
+ * Director v34 — Sentence-Synced Creative Director
  *
- * Claude reads the script like a human editor, understands emotional arc,
- * and makes intentional moment-by-moment decisions. No more template filling.
- * Every visual matches what the narrator is SAYING right now.
- * 
- * v33: 27 animation components, fullscreen cap per-minute, theme-matched animations
+ * Core philosophy:
+ * - Timing comes from the ACTUAL AUDIO (word timestamps), not guesswork
+ * - Claude gets pre-computed sentence windows and decides WHAT to show, not WHEN
+ * - Duration = sentence length × importance multiplier (1.0 normal, 1.5 key, 0.75 filler)
+ * - Minimum 1.5s, maximum 8s per clip
+ * - Text on screen = exact words being spoken at that moment
+ * - Animations only for genuinely important statements
  */
-export async function createStoryboard(scriptText, wordTimestamps, totalDuration, contentMode = "visual", topic = "", theme = "blue_grid") {
-  const CHUNK_SECONDS = 120;
-  let allClips;
 
-  if (totalDuration <= 180) {
-    allClips = await processChunk(scriptText, wordTimestamps, 0, totalDuration, 0, 1, contentMode, topic, theme);
-  } else {
-    const chunks = [];
-    let chunkStart = 0;
-    while (chunkStart < totalDuration) {
-      const chunkEnd = Math.min(chunkStart + CHUNK_SECONDS, totalDuration);
-      const chunkWords = wordTimestamps
-        .map((w, i) => ({ ...w, originalIndex: i }))
-        .filter(w => w.start >= chunkStart - 0.1 && w.start < chunkEnd);
-      if (chunkWords.length > 0) chunks.push({ words: chunkWords, startTime: chunkStart, endTime: chunkEnd });
-      chunkStart = chunkEnd;
-    }
-    console.log(chalk.gray(`  Splitting into ${chunks.length} chunks for director...`));
-    allClips = [];
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      console.log(chalk.gray(`  Directing chunk ${i + 1}/${chunks.length} (${chunk.startTime.toFixed(0)}s-${chunk.endTime.toFixed(0)}s)...`));
-      const chunkClips = await processChunk(scriptText, chunk.words, chunk.startTime, chunk.endTime, i, chunks.length, contentMode, topic, theme);
-      allClips.push(...chunkClips);
-    }
-  }
+// ─── SENTENCE PARSER ─────────────────────────────────────────────────────────
+// Convert word timestamps into sentence-level windows with start/end times
+function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
+  if (!wordTimestamps || wordTimestamps.length === 0) return [];
 
-  // Hook protection: first 5s = image only
-  const infraTypes = ["number_reveal","line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","stat_card","horizontal_bar","vertical_bar","growth_curve","ranking_cards","split_comparison","scale_comparison","funnel_chart","body_diagram","map_highlight","icon_grid","flow_diagram","checklist","quote_card"];
-  allClips.forEach(clip => {
-    if (clip.start_time < 5 && infraTypes.includes(clip.visual_type)) {
-      clip.visual_type = "stock";
-      clip.search_query = clip.search_query || "dramatic cinematic opening";
-      clip.display_style = "fullscreen";
-    }
-  });
+  // Split script into sentences
+  const rawSentences = scriptText
+    .split(/(?<=[.!?])\s+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 2);
 
-  // Visual mode: cap infographics at 15%
-  if (contentMode === "visual") {
-    let infraCount = 0;
-    const maxInfra = Math.max(2, Math.floor(allClips.length * 0.15));
-    allClips.forEach(clip => {
-      if (infraTypes.includes(clip.visual_type)) {
-        infraCount++;
-        if (infraCount > maxInfra) { clip.visual_type = "stock"; clip.search_query = clip.search_query || "cinematic scene"; clip.display_style = "framed"; }
-      }
-    });
-  }
+  const sentences = [];
+  let wordIdx = 0;
 
-  // Text flash limit: max 3
-  let textFlashCount = 0;
-  allClips.forEach(clip => {
-    if (clip.visual_type === "text_flash") {
-      textFlashCount++;
-      if (textFlashCount > 3) { clip.visual_type = "stock"; clip.search_query = "cinematic scene"; clip.display_style = "framed"; }
-    }
-  });
+  for (const sentence of rawSentences) {
+    // Find the words that belong to this sentence by matching cleaned text
+    const sentenceWords = sentence
+      .replace(/[^a-zA-Z0-9\s']/g, " ")
+      .split(/\s+/)
+      .filter(w => w.length > 0);
 
-  // Inject engagement elements BEFORE fullscreen cap so injected clips are counted
-  allClips = injectInterruptCards(allClips, scriptText, totalDuration);
-  allClips = injectQuotePulls(allClips, scriptText);
-  if (detectListVideo(scriptText)) allClips = injectCountdownHooks(allClips);
+    if (sentenceWords.length === 0) continue;
 
-  // Fullscreen cap: max 4 per minute — runs AFTER injections so all clips are counted
-  // Injected graphic types (interrupt_card, quote_pull, countdown_corner) use "framed"
-  // since display_style doesn't affect rendering for graphic-only types anyway
-  const maxFullscreen = Math.max(2, Math.ceil((totalDuration / 60) * 4));
-  let fullscreenCount = 0;
-  allClips.forEach(clip => {
-    if (clip.display_style === "fullscreen" || clip.display_style === "fullscreen_zoom") {
-      fullscreenCount++;
-      if (fullscreenCount > maxFullscreen) {
-        clip.display_style = "framed";
+    // Find first word match in timestamps
+    let startWordIdx = wordIdx;
+    let found = false;
+    const firstWord = sentenceWords[0].toLowerCase();
+
+    for (let i = wordIdx; i < Math.min(wordIdx + 20, wordTimestamps.length); i++) {
+      if (wordTimestamps[i].word.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(
+        firstWord.replace(/[^a-z0-9]/g, "").slice(0, 4)
+      )) {
+        startWordIdx = i;
+        found = true;
+        break;
       }
     }
-  });
 
-  // Sort and fix overlaps
-  allClips.sort((a, b) => a.start_time - b.start_time);
-  for (let i = 1; i < allClips.length; i++) {
-    if (allClips[i].start_time < allClips[i - 1].end_time) {
-      allClips[i].start_time = allClips[i - 1].end_time;
-      if (allClips[i].end_time <= allClips[i].start_time) allClips[i].end_time = allClips[i].start_time + 2;
-    }
-  }
+    if (!found) startWordIdx = wordIdx;
 
-  // Max clip duration cap — long clips look boring, force b-roll variety
-  // Stock/ai/web images: max 8s. Animation types: max 7s. Graphics: no cap (they're designed length).
-  const imageTypes = new Set(["stock","ai_image","web_image","web_screenshot"]);
-  const animSet = new Set([
-    "kinetic_text","spotlight_stat","icon_burst","typewriter_reveal","money_counter","glitch_text",
-    "checkmark_build","trend_arrow","stock_ticker","phone_screen","tweet_card","word_scatter",
-    "social_counter","before_after","lightbulb_moment","rocket_launch","news_breaking","percent_fill",
-    "compare_reveal","highlight_build","count_up","neon_sign","reaction_face","thumbs_up","side_by_side",
-    "youtube_progress","warning_siren","quote_overlay","overlay_caption","polaroid_stack",
-  ]);
-  allClips.forEach(clip => {
-    const dur = clip.end_time - clip.start_time;
-    if (imageTypes.has(clip.visual_type) && dur > 8) clip.end_time = clip.start_time + 8;
-    if (animSet.has(clip.visual_type) && dur > 7) clip.end_time = clip.start_time + 7;
-  });
+    // Find end word (last word of sentence)
+    const lastWord = sentenceWords[sentenceWords.length - 1].toLowerCase();
+    let endWordIdx = startWordIdx;
 
-  // Combined non-image cap: animations + infographics together max 45% of clips
-  // Prevents videos that are mostly graphics with barely any real imagery
-  const allNonImageTypes = new Set([...animSet, ...infraTypes]);
-  const maxNonImage = Math.ceil(allClips.length * 0.45);
-  let nonImageCount = 0;
-  allClips.forEach(clip => {
-    if (allNonImageTypes.has(clip.visual_type)) {
-      nonImageCount++;
-      if (nonImageCount > maxNonImage) {
-        clip.visual_type = "stock";
-        clip.display_style = "framed";
+    for (let i = startWordIdx; i < Math.min(startWordIdx + sentenceWords.length + 5, wordTimestamps.length); i++) {
+      if (wordTimestamps[i].word.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(
+        lastWord.replace(/[^a-z0-9]/g, "").slice(0, 4)
+      )) {
+        endWordIdx = i;
       }
     }
-  });
 
-  console.log(chalk.gray(`  Storyboard: ${allClips.length} clips`));
-  return allClips;
-}
+    const startTime = wordTimestamps[startWordIdx]?.start ?? 0;
+    const endTime = wordTimestamps[endWordIdx]?.end ?? startTime + 2;
 
-function injectInterruptCards(clips, scriptText, totalDuration) {
-  const INTERVAL = 90, CARD_DURATION = 5;
-  const facts = extractFacts(scriptText);
-  if (!facts.length) return clips;
-  const injected = [...clips];
-  let factIndex = 0;
-  for (let t = INTERVAL; t < totalDuration - 10; t += INTERVAL) {
-    if (factIndex >= facts.length) break;
-    const hostClipIdx = injected.findIndex(c => c.start_time <= t && c.end_time > t + CARD_DURATION && (c.visual_type === "stock" || c.visual_type === "ai_image" || c.visual_type === "web_image"));
-    if (hostClipIdx === -1) { factIndex++; continue; }
-    injected.push({ start_time: t, end_time: t + CARD_DURATION, visual_type: "interrupt_card", display_style: "fullscreen", search_query: "", subtitle_words: [], interrupt_data: { fact: facts[factIndex], label: "Did you know?" } });
-    factIndex++;
+    if (endTime > startTime + 0.3) {
+      sentences.push({
+        text: sentence,
+        start: parseFloat(startTime.toFixed(2)),
+        end: parseFloat(endTime.toFixed(2)),
+        duration: parseFloat((endTime - startTime).toFixed(2)),
+        wordCount: sentenceWords.length,
+      });
+    }
+
+    wordIdx = endWordIdx + 1;
   }
-  return injected;
+
+  // Fill any gaps between sentences and ensure coverage to totalDuration
+  const filled = [];
+  for (let i = 0; i < sentences.length; i++) {
+    const curr = sentences[i];
+    const next = sentences[i + 1];
+    filled.push(curr);
+    // If there's a gap > 0.5s between sentences, extend current or add bridge
+    if (next && next.start - curr.end > 0.5) {
+      filled[filled.length - 1] = { ...curr, end: next.start };
+    }
+  }
+
+  return filled;
 }
 
-function extractFacts(scriptText) {
-  const sentences = scriptText.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 20 && s.length < 120);
-  const withNumbers = sentences.filter(s => /\d+|percent|million|billion|thousand/.test(s));
-  const pool = withNumbers.length >= 3 ? withNumbers : sentences;
-  const step = Math.floor(pool.length / 5) || 1;
-  const facts = [];
-  for (let i = 0; i < pool.length && facts.length < 5; i += step) facts.push(pool[i]);
-  return facts;
+// ─── GROUP SENTENCES INTO CLIPS ───────────────────────────────────────────────
+// Short sentences get merged, very long ones get split
+// This gives Claude "clip windows" of 2-8 seconds
+function groupSentencesIntoClips(sentences, minDur = 2.0, maxDur = 8.0) {
+  const clips = [];
+  let buffer = null;
+
+  for (const sent of sentences) {
+    if (!buffer) {
+      buffer = { ...sent, sentences: [sent.text] };
+      continue;
+    }
+
+    const merged = buffer.end - buffer.start + (sent.end - sent.start);
+
+    if (merged <= maxDur && buffer.end - buffer.start < minDur) {
+      // Merge short sentence into buffer
+      buffer = {
+        ...buffer,
+        end: sent.end,
+        text: buffer.text + " " + sent.text,
+        sentences: [...buffer.sentences, sent.text],
+        wordCount: buffer.wordCount + sent.wordCount,
+      };
+    } else {
+      clips.push(buffer);
+      buffer = { ...sent, sentences: [sent.text] };
+    }
+  }
+  if (buffer) clips.push(buffer);
+
+  // Enforce max duration by splitting
+  const result = [];
+  for (const clip of clips) {
+    if (clip.end - clip.start <= maxDur) {
+      result.push(clip);
+    } else {
+      // Split at midpoint
+      const mid = clip.start + (clip.end - clip.start) / 2;
+      result.push({ ...clip, end: mid });
+      result.push({ ...clip, start: mid });
+    }
+  }
+
+  return result;
 }
 
-function injectQuotePulls(clips, scriptText) {
-  const sectionBreaks = clips.filter(c => c.visual_type === "section_break");
-  if (!sectionBreaks.length) return clips;
-  const powerSentences = extractPowerSentences(scriptText);
-  if (!powerSentences.length) return clips;
-  const injected = [...clips];
-  sectionBreaks.forEach((breakClip, idx) => {
-    if (idx >= powerSentences.length) return;
-    const afterBreakIdx = injected.findIndex(c => c.start_time >= breakClip.end_time && (c.visual_type === "stock" || c.visual_type === "ai_image"));
-    if (afterBreakIdx === -1) return;
-    const afterClip = injected[afterBreakIdx];
-    if (afterClip.end_time - afterClip.start_time < 6) return;
-    const quoteDuration = 4.5;
-    injected.push({ start_time: afterClip.start_time, end_time: afterClip.start_time + quoteDuration, visual_type: "quote_pull", display_style: "fullscreen", search_query: "", subtitle_words: [], quote_data: { quote: powerSentences[idx], attribution: "" } });
-    afterClip.start_time += quoteDuration;
-  });
-  return injected;
-}
-
-function extractPowerSentences(scriptText) {
-  const sentences = scriptText.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 30 && s.length < 150);
-  const dramatic = sentences.filter(s => /never|always|most|every|secret|truth|real|nobody|everybody|worst|best|only|first|last/i.test(s));
-  const pool = dramatic.length >= 2 ? dramatic : sentences;
-  const step = Math.floor(pool.length / 5) || 1;
-  const picks = [];
-  for (let i = 0; i < pool.length && picks.length < 5; i += step) picks.push(pool[i]);
-  return picks;
-}
-
-function detectListVideo(scriptText) {
-  return /\b(top \d+|the \d+ best|the \d+ worst|\d+ reasons why|\d+ ways to|\d+ things (you|that)|ranked:)\b/i.test(scriptText);
-}
-
-function injectCountdownHooks(clips) {
-  const sectionBreaks = clips.filter(c => c.visual_type === "section_break");
-  if (sectionBreaks.length < 2) return clips;
-  const total = sectionBreaks.length;
-  const injected = [...clips];
-  sectionBreaks.forEach((breakClip, idx) => {
-    breakClip.countdown_data = { current: idx + 1, total };
-    injected.push({ start_time: breakClip.end_time, end_time: breakClip.end_time + 4, visual_type: "countdown_corner", display_style: "fullscreen", search_query: "", subtitle_words: [], countdown_data: { current: idx + 1, total } });
-  });
-  return injected;
-}
-
+// ─── DETECT NICHE ─────────────────────────────────────────────────────────────
 function detectNiche(topic, scriptText) {
   const text = (topic + " " + scriptText.slice(0, 500)).toLowerCase();
   if (/horror|scary|creepy|haunted|ghost|demon|paranormal|murder|serial killer|nightmare|terror/.test(text))
-    return { niche: "horror", imageStyle: "dark atmospheric, eerie, suspenseful, horror" };
+    return { niche: "horror", imageStyle: "dark atmospheric, eerie, suspenseful" };
   if (/true crime|crime|detective|investigation|cold case/.test(text))
-    return { niche: "true_crime", imageStyle: "detective work, investigation, crime scene evidence, courtroom" };
+    return { niche: "true_crime", imageStyle: "detective work, investigation, crime scene evidence" };
   if (/side hustle|passive income|make money|freelance|entrepreneur|ecommerce|dropship|affiliate/.test(text))
-    return { niche: "business", imageStyle: "entrepreneur laptop success, professional workspace, confident businessperson, startup office, freelancer working" };
+    return { niche: "business", imageStyle: "entrepreneur success, professional workspace, confident businessperson" };
   if (/invest|stock|dividend|portfolio|finance|wealth|market|trading|crypto/.test(text))
-    return { niche: "finance", imageStyle: "financial charts growth, professional investor, business district, wealth success, confident executive" };
+    return { niche: "finance", imageStyle: "financial charts, professional investor, business district, wealth" };
   if (/travel|destination|country|tourism|adventure|vacation|beach|island/.test(text))
-    return { niche: "travel", imageStyle: "beautiful destination, scenic landscape, cultural experience, travel adventure, landmark photography" };
+    return { niche: "travel", imageStyle: "beautiful destination, scenic landscape, cultural experience" };
   if (/health|fitness|gym|workout|diet|nutrition|body|exercise/.test(text))
-    return { niche: "health", imageStyle: "gym workout, healthy food, active lifestyle, sports performance, fit person exercising" };
+    return { niche: "health", imageStyle: "gym workout, healthy food, active lifestyle, sports" };
   if (/history|ancient|medieval|empire|war|civilization/.test(text))
-    return { niche: "history", imageStyle: "historical ruins, ancient artifact, period architecture, museum piece, historical scene" };
+    return { niche: "history", imageStyle: "historical ruins, ancient artifact, period architecture" };
   if (/personal brand|youtube|content creator|social media|influencer|audience/.test(text))
-    return { niche: "creator", imageStyle: "content creator studio, YouTube setup, camera recording, social media phone, online audience" };
-  return { niche: "general", imageStyle: "professional modern, clean aspirational, person thinking, city skyline, team collaboration" };
+    return { niche: "creator", imageStyle: "content creator studio, camera recording, social media" };
+  return { niche: "general", imageStyle: "professional modern, aspirational, person thinking, city skyline" };
 }
 
-// Which animation types feel right for each theme personality
 function getThemeAnimationHints(theme) {
   const hints = {
-    // Tech / data themes → glitchy, data-driven, digital
-    green_matrix:    { prefer: ["glitch_text","stock_ticker","typewriter_reveal","neon_sign","word_scatter"], avoid: ["polaroid_stack","lightbulb_moment","reaction_face"] },
-    blue_tech:       { prefer: ["stock_ticker","typewriter_reveal","count_up","trend_arrow","glitch_text"], avoid: ["polaroid_stack","neon_sign","reaction_face"] },
-    cyber_purple:    { prefer: ["neon_sign","glitch_text","stock_ticker","word_scatter","kinetic_text"], avoid: ["polaroid_stack","lightbulb_moment"] },
-    // Luxury / elegant themes → smooth, sleek, cinematic
-    gold_luxury:     { prefer: ["quote_overlay","spotlight_stat","money_counter","compare_reveal","overlay_caption"], avoid: ["glitch_text","neon_sign","reaction_face","stock_ticker"] },
-    dark_minimal:    { prefer: ["quote_overlay","kinetic_text","spotlight_stat","overlay_caption","neon_sign"], avoid: ["reaction_face","polaroid_stack","lightbulb_moment"] },
-    // Energetic / bold themes → fast, impact, emoji
-    orange_fire:     { prefer: ["kinetic_text","rocket_launch","reaction_face","warning_siren","trend_arrow","count_up"], avoid: ["quote_overlay","polaroid_stack"] },
-    red_impact:      { prefer: ["warning_siren","kinetic_text","reaction_face","news_breaking","spotlight_stat"], avoid: ["polaroid_stack","lightbulb_moment","phone_screen"] },
-    // Friendly / warm themes → emojis, personality, approachable
-    warm_sunset:     { prefer: ["reaction_face","lightbulb_moment","thumbs_up","checkmark_build","highlight_build"], avoid: ["warning_siren","glitch_text","stock_ticker"] },
-    blue_minimal:    { prefer: ["highlight_build","checkmark_build","count_up","compare_reveal","typewriter_reveal"], avoid: ["warning_siren","glitch_text","neon_sign"] },
-    // Social / creator themes → phone, tweet, social, youtube
-    creator_pink:    { prefer: ["phone_screen","tweet_card","social_counter","youtube_progress","reaction_face","polaroid_stack"], avoid: ["stock_ticker","glitch_text"] },
-    // Default fallback
-    default:         { prefer: ["kinetic_text","spotlight_stat","highlight_build","count_up","checkmark_build"], avoid: [] },
+    green_matrix:   { prefer: ["glitch_text", "stock_ticker", "typewriter_reveal", "neon_sign", "money_counter"], avoid: ["polaroid_stack", "reaction_face"] },
+    blue_tech:      { prefer: ["stock_ticker", "typewriter_reveal", "count_up", "trend_arrow"], avoid: ["polaroid_stack", "reaction_face"] },
+    cyber_purple:   { prefer: ["neon_sign", "glitch_text", "word_scatter", "kinetic_text"], avoid: ["polaroid_stack"] },
+    gold_luxury:    { prefer: ["quote_overlay", "spotlight_stat", "money_counter", "overlay_caption"], avoid: ["glitch_text", "neon_sign", "reaction_face"] },
+    dark_minimal:   { prefer: ["quote_overlay", "kinetic_text", "spotlight_stat", "neon_sign"], avoid: ["reaction_face", "polaroid_stack"] },
+    orange_fire:    { prefer: ["kinetic_text", "rocket_launch", "reaction_face", "warning_siren", "count_up"], avoid: ["polaroid_stack"] },
+    red_impact:     { prefer: ["warning_siren", "kinetic_text", "reaction_face", "news_breaking"], avoid: ["polaroid_stack"] },
+    warm_sunset:    { prefer: ["reaction_face", "lightbulb_moment", "thumbs_up", "checkmark_build"], avoid: ["warning_siren", "glitch_text"] },
+    blue_minimal:   { prefer: ["highlight_build", "checkmark_build", "count_up", "typewriter_reveal"], avoid: ["warning_siren", "glitch_text"] },
+    creator_pink:   { prefer: ["phone_screen", "tweet_card", "social_counter", "youtube_progress", "reaction_face"], avoid: ["glitch_text"] },
+    default:        { prefer: ["kinetic_text", "spotlight_stat", "count_up", "checkmark_build"], avoid: [] },
   };
   return hints[theme] || hints.default;
 }
 
-async function processChunk(scriptText, chunkWords, startTime, endTime, chunkIndex, totalChunks, contentMode, topic, theme = "blue_grid") {
-  const wordRef = chunkWords.map((w) => {
-    const idx = w.originalIndex !== undefined ? w.originalIndex : chunkWords.indexOf(w);
-    return `[${idx}] "${w.word}" ${w.start.toFixed(2)}s`;
-  }).join("\n");
+// ─── MAIN EXPORT ─────────────────────────────────────────────────────────────
+export async function createStoryboard(scriptText, wordTimestamps, totalDuration, contentMode = "visual", topic = "", theme = "blue_grid") {
 
-  const duration = endTime - startTime;
-  const isFirstChunk = chunkIndex === 0;
-  const isLastChunk = chunkIndex === totalChunks - 1;
   const nicheInfo = detectNiche(topic, scriptText);
-  const isHorror = nicheInfo.niche === "horror" || nicheInfo.niche === "true_crime";
   const themeHints = getThemeAnimationHints(theme);
+  const isHorror = nicheInfo.niche === "horror" || nicheInfo.niche === "true_crime";
 
-  // Determine niche-aware infographic budget
-  const nicheBudgets = {
-    finance:    { maxPct: 50, label: "data-heavy — charts and numbers tell the story" },
-    business:   { maxPct: 30, label: "motivational — mix of inspiration and key stats only" },
-    health:     { maxPct: 35, label: "mix of lifestyle imagery and key health stats" },
-    horror:     { maxPct: 5,  label: "almost no infographics — pure atmosphere and imagery" },
-    true_crime: { maxPct: 10, label: "minimal infographics — storytelling through images" },
-    travel:     { maxPct: 10, label: "almost no infographics — scenery and culture" },
-    history:    { maxPct: 20, label: "mostly imagery with occasional timeline/dates" },
-    creator:    { maxPct: 15, label: "social-native — phone screens, tweet cards, youtube stats" },
-    general:    { maxPct: 25, label: "light mix — use infographics sparingly" },
-  };
-  const budget = nicheBudgets[nicheInfo.niche] || nicheBudgets.general;
+  // Build sentence windows from actual word timestamps
+  const sentences = buildSentenceWindows(wordTimestamps, scriptText, totalDuration);
+  const clipWindows = groupSentencesIntoClips(sentences, 2.0, 7.5);
+
+  console.log(chalk.gray(`  Built ${clipWindows.length} clip windows from ${sentences.length} sentences`));
+
+  // Process in chunks of ~40 clips to stay within token limits
+  const CHUNK_SIZE = 40;
+  const allClips = [];
+
+  for (let ci = 0; ci < clipWindows.length; ci += CHUNK_SIZE) {
+    const windowChunk = clipWindows.slice(ci, ci + CHUNK_SIZE);
+    const isFirst = ci === 0;
+    const isLast = ci + CHUNK_SIZE >= clipWindows.length;
+
+    console.log(chalk.gray(`  Directing clips ${ci + 1}-${Math.min(ci + CHUNK_SIZE, clipWindows.length)} of ${clipWindows.length}...`));
+
+    const chunkClips = await directClipWindows(
+      windowChunk, scriptText, isFirst, isLast,
+      nicheInfo, themeHints, contentMode, topic, theme, isHorror
+    );
+    allClips.push(...chunkClips);
+  }
+
+  // Post-processing
+  let finalClips = applyPostProcessing(allClips, totalDuration, contentMode, scriptText, nicheInfo);
+
+  console.log(chalk.gray(`  Storyboard: ${finalClips.length} clips`));
+  return finalClips;
+}
+
+// ─── DIRECT A BATCH OF CLIP WINDOWS ──────────────────────────────────────────
+async function directClipWindows(windows, scriptText, isFirst, isLast, nicheInfo, themeHints, contentMode, topic, theme, isHorror) {
+
+  // Build the window reference - each window shows exactly what's being said
+  const windowRef = windows.map((w, i) => {
+    const dur = (w.end - w.start).toFixed(1);
+    return `[${i}] ${w.start.toFixed(2)}s-${w.end.toFixed(2)}s (${dur}s) | "${w.text}"`;
+  }).join("\n");
 
   const response = await axios.post(
     "https://api.anthropic.com/v1/messages",
@@ -281,158 +236,110 @@ async function processChunk(scriptText, chunkWords, startTime, endTime, chunkInd
       max_tokens: 16000,
       messages: [{
         role: "user",
-        content: `You are an award-winning creative director for YouTube. You have complete creative control.
-
-VIDEO TOPIC: "${topic}"
-NICHE: ${nicheInfo.niche}
-IMAGE STYLE: ${nicheInfo.imageStyle}
-CONTENT MODE: ${contentMode.toUpperCase()}
-VISUAL THEME: "${theme}"
-SEGMENT: ${startTime.toFixed(1)}s to ${endTime.toFixed(1)}s (${duration.toFixed(0)}s total)
-
-═══ THEME PERSONALITY — MATCH ANIMATIONS TO THIS ═══
-The video uses the "${theme}" visual theme. Pick animations that match its personality.
-PREFERRED for this theme: ${themeHints.prefer.join(", ")}
-AVOID for this theme: ${themeHints.avoid.join(", ")}
-All animation colors auto-match the theme — you just pick the right TYPE for the mood.
-
-═══ INFOGRAPHIC BUDGET ═══
-This is a ${nicheInfo.niche} video: ${budget.label}
-Maximum infographics: ${budget.maxPct}% of clips (≈${Math.round(duration/4 * budget.maxPct/100)} clips max)
-The rest MUST be stock images, creative animations, or text_flash.
-
-═══ YOUR JOB ═══
-Read what the narrator is saying at each moment. Choose visuals that REINFORCE that exact moment.
-
-CRITICAL RULES:
-1. Images match the SPECIFIC MOMENT — not just the topic
-2. ${isHorror ? "Dark imagery is appropriate for this niche." : "NEVER horror/dark/violent imagery. Use: " + nicheInfo.imageStyle}
-3. search_query describes EMOTION + SPECIFIC MOMENT, not just the topic
-4. Vary pacing: shocking moment = 5-7s, transition = 2-3s, animation = 3-6s
-5. PREFER framed layout over fullscreen — max ${Math.ceil(duration/60*4)} fullscreen clips for this ${duration.toFixed(0)}s segment
-6. NO same visual_type twice in a row
-
-WORD TIMESTAMPS:
-${wordRef}
-
-SCRIPT:
-${scriptText.slice(0, 4000)}
-
-═══ CREATIVE ANIMATIONS — use SPARINGLY for high-impact moments only ═══
-CRITICAL: Animations should appear MAX 1 every 30-40 seconds. Most clips should be stock images.
-Only use an animation when the narrator makes a KEY STATEMENT — a shocking fact, a pivotal insight, a call to action.
-If the narrator is just telling a story or giving context, use a stock image instead.
-The animation text MUST be pulled DIRECTLY from what the narrator says at that exact moment.
-WRONG: narrator says "Sarah from Portland made $4,000" → animation_data: {text:"CREATE FROM NOTHING"} — this is invented
-RIGHT: narrator says "Sarah from Portland made $4,000" → animation_data: {text:"$4,000 MONTH ONE"} — this is what was said
-
-TEXT/WORD ANIMATIONS:
-"kinetic_text": animation_data: {lines:["WORD1","WORD2","WORD3"], style:"impact|stack|typewriter"} — words slam onto screen dramatically. Best for: hook moments, key revelations, transitions. 3-5s.
-"typewriter_reveal": animation_data: {text:"FULL PHRASE HERE", subtitle:"optional context"} — text types out character by character. Best for: builds, reveals, quotes. 4-6s.
-"highlight_build": animation_data: {lines:["Key Phrase","Second Point","Third Point"], delay:0.35} — phrases appear with highlighter swipe. Best for: lists of benefits, key takeaways. 5-8s.
-"glitch_text": animation_data: {text:"SHOCKING CLAIM", subtitle:"optional"} — digital glitch effect. Best for: tech topics, shocking stats, green_matrix/cyber themes. 3-5s.
-"neon_sign": animation_data: {text:"THE TRUTH", subtitle:"nobody talks about"} — glowing neon text, smooth pulse. Best for: dramatic reveals, bold statements. Never set flicker:true. 4-6s.
-"word_scatter": animation_data: {words:["word1","word2","word3","word4","word5"]} — words fly in from random directions. Best for: listing many concepts, brainstorm moments. 4-6s.
-
-STAT/DATA ANIMATIONS:
-"spotlight_stat": animation_data: {value:"92%", label:"never take action", context:"Don't be a statistic"} — single dramatic stat with spotlight. Best for: shocking numbers. 4-6s.
-"count_up": animation_data: {value:10000000, prefix:"$", suffix:"", label:"in revenue", decimals:0, duration:2.5} — number counts up in a glowing ring. Best for: any numeric stat. 4-6s.
-"money_counter": animation_data: {amount:50000, currency:"$", label:"average salary", duration:2} — dollar amount spinning up. Best for: finance/money moments. 4-6s.
-"trend_arrow": animation_data: {direction:"up|down", value:"340%", label:"growth in 12 months", context:"optional"} — animated arrow showing direction. Best for: growth/decline stats. 4-6s.
-"percent_fill": animation_data: {percent:73, label:"of people fail", color:"#ef4444"} — circle fills to percentage. Best for: proportion stats. 4-6s.
-"before_after": animation_data: {before:"$2,000/mo", after:"$12,000/mo", label:"income transformation", duration:12} — before/after reveal. Best for: transformations, results. 5-7s.
-"compare_reveal": animation_data: {items:[{label:"Option A",value:"$500"},{label:"Option B",value:"$5,000"}], title:"The Difference"} — side by side comparison. Best for: contrasts. 5-7s.
-"side_by_side": animation_data: {left:"BEFORE", right:"AFTER", leftSub:"2020", rightSub:"2024", vs:true, leftColor:"#ef4444", rightColor:"#22c55e"} — two concepts side by side. Best for: comparisons, then/now. 5-7s.
-
-CHARACTER/REACTION ANIMATIONS:
-"icon_burst": animation_data: {icons:["🚀","💰","🎯","⚡","🔥"], label:"What you'll learn", style:"burst|grid|orbit"} — icons burst onto screen. Best for: list reveals, benefits. 4-6s.
-"reaction_face": animation_data: {emoji:"🤯", label:"Mind = Blown", style:"slam|bounce|spin|float"} — large emoji reacts dramatically. Best for: shocking moments, humor, emotional beats. 3-5s.
-"lightbulb_moment": animation_data: {headline:"The Key Insight", subtext:"optional supporting text"} — lightbulb flickers on. Best for: ideas, aha moments, tips. 4-6s.
-"thumbs_up": animation_data: {type:"up|down|both", items:["it works","it's fast"], verdict:"DO THIS"} — thumbs up/down with verdict. Best for: pros/cons, recommendations. 5-7s.
-"checkmark_build": animation_data: {items:["Step one","Step two","Step three"], title:"optional"} — checkmarks appear one by one. Best for: lists, steps, how-tos. 5-8s.
-"rocket_launch": animation_data: {headline:"GROWTH", subtext:"optional", stage:"launch|orbit"} — rocket launches for growth moments. Best for: growth, success, momentum topics. 4-6s.
-"warning_siren": animation_data: {headline:"WARNING", body:"90% of people make this mistake", icon:"⚠️", color:"#ef4444"} — flashing alert card. Best for: dangers, mistakes, shocking negatives. 4-6s.
-
-SOCIAL/PLATFORM ANIMATIONS:
-"tweet_card": animation_data: {handle:"@realexample", text:"This strategy made me $50k in 90 days", likes:"24.3K", retweets:"8.1K"} — tweet-style card. Best for: social proof, quotes, creator topics. 4-6s.
-"phone_screen": animation_data: {app:"instagram|youtube|tiktok|messages", notification:"You have 10,000 new followers", metric:"10.2K"} — phone with app notification. Best for: creator/social topics. 4-6s.
-"social_counter": animation_data: {platform:"YouTube", metric:"subscribers", value:1000000, duration:2.5} — follower count spinning up. Best for: growth milestones, social proof. 4-6s.
-"youtube_progress": animation_data: {views:"10.2M", subs:"500K", title:"This video changed everything", views_bar:0.82, revenue:"$8,400"} — YouTube analytics card. Best for: creator topics, YouTube growth. 5-7s.
-"news_breaking": animation_data: {headline:"LOCAL MAN MAKES $50K", subtext:"from laptop in bedroom", ticker:"MARKETS RESPOND • STORY DEVELOPING"} — breaking news card. Best for: dramatic reveals, shocking facts. 4-6s.
-
-SCENE OVERLAYS — these REQUIRE a search_query (they render text/animation ON TOP of a fetched image):
-"quote_overlay": search_query:"REQUIRED — cinematic background image", animation_data: {quote:"The greatest risk is not taking one.", attribution:"—Mark Zuckerberg"} — quote overlaid on an image. Best for: inspirational moments. 4-6s.
-"overlay_caption": search_query:"REQUIRED — dramatic scene matching the caption mood", animation_data: {caption:"This changes everything", position:"bottom|top|center", style:"bold|subtitle"} — bold caption on a full image, documentary style. 4-7s.
-"polaroid_stack": search_query:"REQUIRED — lifestyle scene", search_queries:["scene1","scene2","scene3"], animation_data: {captions:["caption1","caption2","caption3"]} — b-roll images displayed as falling polaroids. Best for: personal brand, lifestyle, story. 5-7s.
-"stock_ticker": animation_data: {items:[{symbol:"HUSTLE",price:"$247.50",change:"+18.4%"},{symbol:"EFFORT",price:"$891.20",change:"+12.1%"}], title:"optional"} — scrolling stock ticker. Best for: finance, business, ironic emphasis. 5-7s.
-
-LEGACY INFOGRAPHICS — only when data genuinely needs visualizing:
-"number_reveal": number_data: {value: NUMBER only, prefix: "$", suffix: "%", label: "short label", style: "counter|gauge|bars|spotlight|ticker|impact"}
-"line_chart": chart_data: {title, points:[{label,value}], suffix, color}
-"donut_chart": chart_data: {title, centerLabel, segments:[{label,value,color}]}
-"progress_bar": chart_data: {title, bars:[{label,value,suffix,color}]}
-"timeline": chart_data: {title, events:[{year,label}]}
-"leaderboard": chart_data: {title, items:[{label,value,suffix}]}
-"stat_card": chart_data: {title, stats:[{value,label,prefix,change,changeColor}]} — value must be clean number or short string
-"checklist": chart_data: {title, items:[...], checked:true}
-"horizontal_bar": chart_data: {title, items:[{label,value,color}], suffix} — value must be NUMBER
-"comparison": comparison_data: {items:[{label,value,display,color}]} — value must be NUMBER
-"section_break": section_data: {number:"#1", title:"TITLE", hook_line:"Most provocative sentence from NEXT section"}
-"text_flash": text_flash_text: "2-4 WORDS" — words narrator is literally saying right now
-"quote_card": chart_data: {quote:"exact quote", attribution:"", style:"bold"}
-
-IMAGES — your primary tool:
-"stock": search_query = specific emotion/moment RIGHT NOW
-  display_style:
-    "framed" — DEFAULT. Image in cinematic moving frame, animated background visible. Use 60%+ of the time.
-    "split_left" or "split_right" — image one side, content other. 20-30% of clips.
-    "fullscreen" — ONLY opening hook or max ${Math.ceil(duration/60*4)} total for this segment.
-    "fullscreen_zoom" — same restriction.
-  search_query: ALWAYS set this — the primary image.
-  search_queries: REQUIRED for any stock clip 5 seconds or longer. Give 2-3 DIFFERENT queries so the clip crossfades between images instead of one static photo sitting there. Each query = a different visual angle on the same moment. Example for "making money online" (7s clip): search_queries: ["entrepreneur working laptop cafe", "person celebrating income milestone", "freelancer productive home office"]. Short clips under 5s: leave search_queries null.
-  transition_speed: "fast"|"slow"
-  panel_text: DO NOT USE. Leave null always. Text on split panels looks wrong and never matches.
-  panel_type: "icon" or "clean" only — never "words"
-  panel_icon: single emoji matching what narrator says RIGHT NOW. Only set if you have a genuinely fitting emoji. Otherwise leave null and use panel_type:"clean".
-"ai_image": ai_prompt: 20-40 words ultra-specific cinematic
-"web_image": ONLY for famous real people (Elon Musk, Jeff Bezos etc) or iconic landmarks. NEVER for company logos, app screenshots, or brand photos — these look wrong and unprofessional.
-
-${isFirstChunk ? `HOOK — first 5 seconds:
-Clip 1 (0-1.5s): number_reveal OR kinetic_text — shocking opening stat or bold hook words, style "impact"
-Clip 2 (1.5-3.5s): stock — emotional reality of that stat, display_style "framed"
-Clip 3 (3.5-5s): reaction_face OR text_flash — emotional reaction or 2-3 words narrator is saying` : ""}
-${isLastChunk ? "CLOSE: end with checklist, quote_card, or thumbs_up." : ""}
-
-═══ STRICT RULES ═══
-- DISPLAY STYLE: "framed" for 60%+ of stock clips. Max ${Math.ceil(duration/60*4)} fullscreen for this segment.
-- INFOGRAPHIC BUDGET: max ${budget.maxPct}% of clips
-- NEVER same visual_type twice in a row
-- B-ROLL: any stock clip 5s or longer MUST have search_queries with 2-3 different queries. Single static photo for 5+ seconds looks amateurish.
-- PANEL TEXT: always null. Never set panel_text. Use panel_icon with an emoji or panel_type:"clean".
-- WEB IMAGE: only for famous real people or iconic landmarks. NEVER company logos, app screenshots, branded products.
-- NEVER stat_card more than 2 times total
-- NEVER any infographic type more than 2 times total
-- After every infographic, next clip MUST be stock, animation, or text_flash
-- stat_card and number_reveal values must be clean numbers — never ranges like "$1K-$5K"
-- Cover ${startTime.toFixed(1)}s to ${endTime.toFixed(1)}s with no gaps
-- BANNED in search_query: baby,infant,child,toddler,kid,subscribe,button,logo${isHorror ? "" : ",knife,weapon,mask,ghost,monster,blood,horror,scary,creepy,ghostface,scream,killer"}
-
-Return ONLY valid JSON array, no markdown:
-[{"start_time":${startTime.toFixed(1)},"end_time":0,"visual_type":"","display_style":"framed","search_query":"","search_queries":null,"ai_prompt":"","panel_text":null,"panel_type":"clean","panel_icon":null,"subtitle_words":[],"number_data":null,"comparison_data":null,"section_data":null,"text_flash_text":null,"chart_data":null,"animation_data":null,"transition_speed":"fast","interrupt_data":null,"quote_data":null,"countdown_data":null}]`
-      }]
+        content: buildDirectorPrompt(windowRef, windows, scriptText, isFirst, isLast, nicheInfo, themeHints, contentMode, topic, theme, isHorror),
+      }],
     },
-    { headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" }, timeout: 120000 }
+    {
+      headers: {
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      timeout: 120000,
+    }
   );
 
   const content = response.data.content[0].text;
   let clips = parseClipsJSON(content);
-  clips = validateClips(clips, startTime, endTime, nicheInfo);
+  clips = validateAndSyncClips(clips, windows, nicheInfo);
   return clips;
 }
 
+// ─── THE DIRECTOR PROMPT ─────────────────────────────────────────────────────
+function buildDirectorPrompt(windowRef, windows, scriptText, isFirst, isLast, nicheInfo, themeHints, contentMode, topic, theme, isHorror) {
+  const totalDur = windows[windows.length - 1]?.end - windows[0]?.start || 0;
+
+  return `You are a creative director for YouTube videos. You will assign ONE visual to each clip window below.
+
+VIDEO TOPIC: "${topic}"
+NICHE: ${nicheInfo.niche} | THEME: "${theme}"
+IMAGE STYLE: ${nicheInfo.imageStyle}
+THEME PREFERRED ANIMATIONS: ${themeHints.prefer.join(", ")}
+THEME AVOID: ${themeHints.avoid.join(", ")}
+
+═══ YOUR JOB ═══
+Each line below is a CLIP WINDOW — the exact time and words the narrator speaks.
+You must assign ONE visual per window. The start_time and end_time are FIXED — do not change them.
+Your only decision is WHAT appears on screen during those seconds.
+
+CLIP WINDOWS (${windows.length} total):
+${windowRef}
+
+FULL SCRIPT CONTEXT:
+${scriptText.slice(0, 3000)}
+
+═══ PACING RULES ═══
+- Most clips (70%+) should be stock images — that's what real YouTube videos use
+- Animations only for KEY MOMENTS: shocking stats, pivotal insights, calls to action
+- Max 1 animation per 30 seconds of video
+- When you use a text animation, the text MUST be the EXACT WORDS being spoken (not a paraphrase)
+- Never invent phrases. If narrator says "you can make $4,000 in month one" → animation text is "$4,000 MONTH ONE" not "CREATE WEALTH"
+
+═══ VISUAL TYPES ═══
+
+IMAGES (use for 70%+ of clips):
+"stock" — search for a photo matching what's being said RIGHT NOW
+  display_style: "framed" (default, shows theme background) | "split_left" | "split_right" | "fullscreen" (rarely)
+  search_query: specific scene matching narrator's words — emotion + subject
+  search_queries: for clips 5s+, add 2-3 different angles as array for crossfade variety
+  panel_type: "icon" or "clean" — NEVER "words"
+  panel_icon: one emoji if it genuinely fits the moment (🚀💰🧠🔥⚡🎯💡📈🏆✅😤)
+
+"web_image" — ONLY for famous real people or iconic landmarks. NEVER brand logos or apps.
+
+TEXT ANIMATIONS (use sparingly — key moments only):
+"kinetic_text" — animation_data: {lines:["WORD1","WORD2"], style:"impact"} — exact spoken words slam in
+"spotlight_stat" — animation_data: {value:"$4,000", label:"in month one", context:"Her first result"} — dramatic stat
+"count_up" — animation_data: {value:10000, prefix:"$", label:"first month income", decimals:0}
+"money_counter" — animation_data: {amount:4000, currency:"$", label:"month one income"}
+"neon_sign" — animation_data: {text:"THE TRUTH"} — bold statement, smooth glow, no flicker
+"typewriter_reveal" — animation_data: {text:"exact phrase narrator says", subtitle:"context"}
+"glitch_text" — animation_data: {text:"SHOCKING FACT"} — good for ${theme.includes("matrix") || theme.includes("cyber") || theme.includes("tech") ? "this tech theme" : "tech themes only"}
+"warning_siren" — animation_data: {headline:"WARNING", body:"the mistake most people make", icon:"⚠️"}
+"reaction_face" — animation_data: {emoji:"🤯", label:"exact words narrator says", style:"slam"}
+"before_after" — animation_data: {before:"$2,000/mo", after:"$12,000/mo", label:"the transformation"}
+"checkmark_build" — animation_data: {items:["Step one from script","Step two from script","Step three"]}
+"highlight_build" — animation_data: {lines:["Key phrase","Second phrase","Third phrase"]}
+"news_breaking" — animation_data: {headline:"SHOCKING FACT FROM SCRIPT", subtext:"context", ticker:"MORE DEVELOPING"}
+"tweet_card" — animation_data: {handle:"@narrator", text:"exact quote from script", likes:"24.3K"}
+
+OVERLAY (needs search_query for background image):
+"quote_overlay" — search_query:"scene", animation_data: {quote:"exact spoken quote", attribution:""}
+"overlay_caption" — search_query:"scene", animation_data: {caption:"exact words", position:"bottom", style:"bold"}
+
+${isFirst ? `OPENING (first clip must be dramatic):
+- Use kinetic_text with the most shocking/intriguing words from the first sentence
+- Or a fullscreen stock image if the opening is storytelling` : ""}
+${isLast ? "CLOSING: end with checkmark_build, thumbs_up, or a strong quote_overlay" : ""}
+
+═══ STRICT RULES ═══
+- start_time and end_time MUST match the window exactly — do not change them
+- NEVER invent text — all animation text comes directly from what narrator says in that window
+- NEVER set panel_text — always null
+- NEVER use web_image for brand logos, apps, or company screenshots
+- BANNED search terms: baby,infant,child,toddler,kid,subscribe,logo,brand${isHorror ? "" : ",knife,weapon,ghost,monster,blood,horror,killer"}
+- For split layouts: panel_type is "icon" or "clean" only
+
+Return ONLY a valid JSON array, no markdown. One object per clip window, in order:
+[{"start_time":${windows[0]?.start || 0},"end_time":${windows[0]?.end || 2},"visual_type":"stock","display_style":"framed","search_query":"","search_queries":null,"panel_text":null,"panel_type":"clean","panel_icon":null,"ai_prompt":"","number_data":null,"comparison_data":null,"section_data":null,"text_flash_text":null,"chart_data":null,"animation_data":null,"transition_speed":"fast","interrupt_data":null,"quote_data":null,"countdown_data":null,"subtitle_words":[]}]`;
+}
+
+// ─── PARSE JSON ───────────────────────────────────────────────────────────────
 function parseClipsJSON(content) {
-  let str = content.trim();
-  str = str.replace(/^```(?:json)?\s*/gm, "").replace(/```\s*$/gm, "").trim();
+  let str = content.trim()
+    .replace(/^```(?:json)?\s*/gm, "")
+    .replace(/```\s*$/gm, "")
+    .trim();
   try { return JSON.parse(str); } catch {}
   const m = str.match(/\[\s*\{[\s\S]*\}\s*\]/);
   if (m) { try { return JSON.parse(m[0]); } catch {} }
@@ -447,190 +354,284 @@ function parseClipsJSON(content) {
   throw new Error("Could not parse director storyboard JSON");
 }
 
-function validateClips(clips, startTime, endTime, nicheInfo) {
-  if (!Array.isArray(clips) || !clips.length) throw new Error("Empty storyboard");
+// ─── VALIDATE AND SYNC CLIPS TO WINDOWS ──────────────────────────────────────
+function validateAndSyncClips(clips, windows, nicheInfo) {
+  if (!Array.isArray(clips)) return windows.map(w => makeStockClip(w, nicheInfo));
 
   const isHorror = nicheInfo?.niche === "horror" || nicheInfo?.niche === "true_crime";
-  const banned = ["baby","infant","child","toddler","kid","kids","children","subscribe","button","icon","logo","brand","app store","google play","coursera","udemy","fiverr","upwork","amazon","facebook","instagram","tiktok"];
-  const bannedVisuals = isHorror ? [] : ["knife","weapon","mask","ghost","monster","blood","horror","scary","creepy","death","murder","serial","killer","ghostface","scream","terror","haunted","demon","paranormal"];
 
-  const validStyles = ["fullscreen","framed","fullscreen_zoom","split_left","split_right"];
-
-  // All valid visual types including batch2 + batch3
   const validTypes = [
-    "stock","number_reveal","comparison","section_break","text_flash","ai_image","web_image","web_screenshot",
-    "line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","stat_card","quote_card",
-    "checklist","horizontal_bar","vertical_bar","scale_comparison","map_highlight","body_diagram","funnel_chart",
-    "growth_curve","ranking_cards","split_comparison","icon_grid","flow_diagram",
-    "interrupt_card","quote_pull","countdown_corner",
-    // batch1
-    "kinetic_text","spotlight_stat","icon_burst",
-    // batch2
-    "typewriter_reveal","money_counter","glitch_text","checkmark_build","trend_arrow","stock_ticker",
-    "phone_screen","tweet_card","word_scatter","social_counter","before_after","lightbulb_moment",
-    "rocket_launch","news_breaking","percent_fill","quote_overlay","compare_reveal",
-    // batch3
-    "highlight_build","count_up","neon_sign","reaction_face","thumbs_up","side_by_side",
-    "youtube_progress","polaroid_stack","warning_siren","overlay_caption",
+    "stock","ai_image","web_image",
+    "number_reveal","comparison","section_break","text_flash","line_chart","donut_chart",
+    "progress_bar","timeline","leaderboard","process_flow","stat_card","quote_card",
+    "checklist","horizontal_bar","vertical_bar","scale_comparison","map_highlight",
+    "body_diagram","funnel_chart","growth_curve","ranking_cards","split_comparison",
+    "icon_grid","flow_diagram","interrupt_card","quote_pull","countdown_corner",
+    "kinetic_text","spotlight_stat","icon_burst","typewriter_reveal","money_counter",
+    "glitch_text","checkmark_build","trend_arrow","stock_ticker","phone_screen",
+    "tweet_card","word_scatter","social_counter","before_after","lightbulb_moment",
+    "rocket_launch","news_breaking","percent_fill","compare_reveal","highlight_build",
+    "count_up","neon_sign","reaction_face","thumbs_up","side_by_side","youtube_progress",
+    "warning_siren","quote_overlay","overlay_caption","polaroid_stack",
   ];
 
-  // Graphic-only types (no imagePath needed)
-  const graphicTypes = [
-    "number_reveal","section_break","comparison","text_flash","line_chart","donut_chart","progress_bar",
-    "timeline","leaderboard","process_flow","stat_card","quote_card","checklist","horizontal_bar",
-    "vertical_bar","scale_comparison","map_highlight","body_diagram","funnel_chart","growth_curve",
-    "ranking_cards","split_comparison","icon_grid","flow_diagram","interrupt_card","quote_pull",
-    "countdown_corner",
-    "kinetic_text","spotlight_stat","icon_burst",
-    "typewriter_reveal","money_counter","glitch_text","checkmark_build","trend_arrow","stock_ticker",
-    "phone_screen","tweet_card","word_scatter","social_counter","before_after","lightbulb_moment",
-    "rocket_launch","news_breaking","percent_fill","compare_reveal",
-    "highlight_build","count_up","neon_sign","reaction_face","thumbs_up","side_by_side",
-    "youtube_progress","warning_siren",
-    // NOTE: quote_overlay, overlay_caption, polaroid_stack CAN use imagePath — don't include them here
-  ];
+  const graphicTypes = new Set([
+    "number_reveal","section_break","comparison","text_flash","line_chart","donut_chart",
+    "progress_bar","timeline","leaderboard","process_flow","stat_card","quote_card",
+    "checklist","horizontal_bar","vertical_bar","scale_comparison","map_highlight",
+    "body_diagram","funnel_chart","growth_curve","ranking_cards","split_comparison",
+    "icon_grid","flow_diagram","interrupt_card","quote_pull","countdown_corner",
+    "kinetic_text","spotlight_stat","icon_burst","typewriter_reveal","money_counter",
+    "glitch_text","checkmark_build","trend_arrow","stock_ticker","phone_screen",
+    "tweet_card","word_scatter","social_counter","before_after","lightbulb_moment",
+    "rocket_launch","news_breaking","percent_fill","compare_reveal","highlight_build",
+    "count_up","neon_sign","reaction_face","thumbs_up","side_by_side","youtube_progress",
+    "warning_siren",
+  ]);
 
-  // Minimum durations for each type
-  const minDurations = {
-    number_reveal: 5, line_chart: 5, donut_chart: 5, progress_bar: 5, timeline: 5,
-    leaderboard: 5, process_flow: 5, stat_card: 5, checklist: 5, horizontal_bar: 5,
-    vertical_bar: 5, scale_comparison: 5, growth_curve: 5, ranking_cards: 5,
-    split_comparison: 5, kinetic_text: 3, spotlight_stat: 4, icon_burst: 4,
-    typewriter_reveal: 4, money_counter: 4, glitch_text: 3, checkmark_build: 5,
-    trend_arrow: 4, stock_ticker: 5, phone_screen: 4, tweet_card: 4, word_scatter: 4,
-    social_counter: 4, before_after: 5, lightbulb_moment: 4, rocket_launch: 4,
-    news_breaking: 4, percent_fill: 4, quote_overlay: 4, compare_reveal: 5,
-    highlight_build: 5, count_up: 4, neon_sign: 4, reaction_face: 3, thumbs_up: 5,
-    side_by_side: 5, youtube_progress: 5, polaroid_stack: 5, warning_siren: 4,
-    overlay_caption: 4, section_break: 2, quote_pull: 4.5, interrupt_card: 5,
-    countdown_corner: 4,
-  };
+  const banned = ["baby","infant","child","toddler","kid","kids","children","subscribe","button","icon","logo","brand","coursera","udemy","fiverr","upwork","amazon","facebook","instagram","tiktok"];
+  const bannedVisuals = isHorror ? [] : ["knife","weapon","mask","ghost","monster","blood","horror","scary","creepy","ghostface","scream","killer"];
 
   const nicheSafeQueries = {
-    business: ["entrepreneur success laptop","professional workspace modern","business confidence achievement","freelancer productive","startup team collaboration"],
-    finance: ["financial growth chart","confident investor professional","business district modern","wealth success lifestyle","stock market professional"],
-    health: ["gym fitness workout","healthy lifestyle nutrition","active sports performance","wellness outdoor exercise","fit person training"],
-    travel: ["scenic destination landscape","travel adventure culture","beautiful nature photography","landmark tourism","travel exploration"],
-    horror: ["dark atmospheric night","mysterious shadowy scene","abandoned building eerie","foggy forest dark","suspenseful shadow"],
-    true_crime: ["detective investigation office","evidence forensic analysis","courtroom justice","newspaper crime headline","investigation board"],
-    history: ["ancient ruins architecture","historical artifact museum","medieval castle","period scene historical","civilization ancient"],
-    creator: ["content creator studio setup","youtube filming camera","social media phone screen","online audience engagement","creator workspace desk"],
-    general: ["professional modern office","person thoughtful planning","city skyline panoramic","nature peaceful landscape","team working together"],
+    business: ["entrepreneur success workspace","confident professional achieving","startup team modern office","freelancer productive focused","business growth momentum"],
+    finance: ["financial growth chart professional","investor confident modern","wealth success lifestyle","stock market professional","business executive confident"],
+    health: ["gym fitness workout motivated","healthy lifestyle active","sports performance athletic","wellness outdoor nature","fit person exercising"],
+    travel: ["scenic destination landscape","travel adventure culture","beautiful nature photography","landmark iconic","travel exploration freedom"],
+    horror: ["dark atmospheric night","mysterious shadowy","abandoned eerie","foggy dark","suspenseful shadow"],
+    true_crime: ["detective investigation","evidence analysis","courtroom justice","newspaper headline","investigation board"],
+    history: ["ancient ruins architecture","historical artifact","medieval castle","period historical","ancient civilization"],
+    creator: ["content creator studio","filming camera","social media engagement","online audience","creator workspace desk"],
+    general: ["professional modern aspirational","person thoughtful confident","city skyline panoramic","nature peaceful","team collaboration success"],
   };
 
-  let lastStyle = "";
-  let lastNumberStyle = "";
-  let lastType = "";
-  const usedQueries = new Map();
+  const result = [];
 
-  clips.forEach((clip) => {
+  // Match Claude's output to windows by index, not by time
+  for (let i = 0; i < windows.length; i++) {
+    const window = windows[i];
+    const clip = clips[i];
+
+    if (!clip) {
+      result.push(makeStockClip(window, nicheInfo));
+      continue;
+    }
+
+    // FORCE start_time and end_time to match the window exactly
+    clip.start_time = window.start;
+    clip.end_time = window.end;
     clip.subtitle_words = [];
 
+    // Validate visual type
     if (!validTypes.includes(clip.visual_type)) clip.visual_type = "stock";
-    if (!clip.display_style || !validStyles.includes(clip.display_style)) clip.display_style = "framed";
-    if (!clip.search_query) clip.search_query = "professional scene";
 
-    // If an animation type has no animation_data, convert to stock so it doesn't render blank
-    const animationTypes = [
-      "kinetic_text","spotlight_stat","icon_burst",
-      "typewriter_reveal","money_counter","glitch_text","checkmark_build","trend_arrow",
-      "stock_ticker","phone_screen","tweet_card","word_scatter","social_counter","before_after",
-      "lightbulb_moment","rocket_launch","news_breaking","percent_fill","compare_reveal",
-      "highlight_build","count_up","neon_sign","reaction_face","thumbs_up","side_by_side",
-      "youtube_progress","warning_siren","quote_overlay","overlay_caption","polaroid_stack",
-    ];
-    if (animationTypes.includes(clip.visual_type) && !clip.animation_data) {
+    // Animation types need animation_data
+    const animTypes = new Set(["kinetic_text","spotlight_stat","icon_burst","typewriter_reveal","money_counter","glitch_text","checkmark_build","trend_arrow","stock_ticker","phone_screen","tweet_card","word_scatter","social_counter","before_after","lightbulb_moment","rocket_launch","news_breaking","percent_fill","compare_reveal","highlight_build","count_up","neon_sign","reaction_face","thumbs_up","side_by_side","youtube_progress","warning_siren","quote_overlay","overlay_caption","polaroid_stack"]);
+    if (animTypes.has(clip.visual_type) && !clip.animation_data) {
       clip.visual_type = "stock";
       clip.display_style = "framed";
     }
 
-    // Enforce no same visual_type twice in a row — convert duplicate to stock
-    // Exception: stock can repeat (it's the default fallback type)
+    // Validate display style
+    const validStyles = ["fullscreen","framed","fullscreen_zoom","split_left","split_right"];
+    if (!clip.display_style || !validStyles.includes(clip.display_style)) clip.display_style = "framed";
+
+    // Remove panel_text always
+    clip.panel_text = null;
+    if (clip.panel_type === "words") clip.panel_type = "clean";
+
+    // Clean search query
+    let q = (clip.search_query || "").toLowerCase();
+    banned.forEach(b => { q = q.replace(new RegExp(`\\b${b}\\b`, "gi"), "").trim(); });
+    if (bannedVisuals.some(b => q.includes(b))) {
+      const niche = nicheInfo?.niche || "general";
+      q = (nicheSafeQueries[niche] || nicheSafeQueries.general)[Math.floor(Math.random() * 5)];
+    }
+    if (q.length < 3) {
+      const niche = nicheInfo?.niche || "general";
+      q = (nicheSafeQueries[niche] || nicheSafeQueries.general)[i % 5];
+    }
+    clip.search_query = q;
+
+    // Clean search_queries array
+    if (clip.search_queries && Array.isArray(clip.search_queries)) {
+      clip.search_queries = clip.search_queries
+        .map(sq => {
+          let c = (sq || "").toLowerCase();
+          banned.forEach(b => { c = c.replace(new RegExp(`\\b${b}\\b`, "gi"), "").trim(); });
+          if (bannedVisuals.some(b => c.includes(b))) {
+            const niche = nicheInfo?.niche || "general";
+            c = (nicheSafeQueries[niche] || nicheSafeQueries.general)[0];
+          }
+          return c.length >= 3 ? c : null;
+        })
+        .filter(Boolean);
+      if (clip.search_queries.length === 0) clip.search_queries = null;
+    }
+
+    // Null imagePath for graphic types
+    if (graphicTypes.has(clip.visual_type)) {
+      clip.imagePath = null;
+      clip.isCutout = false;
+    }
+
+    if (!clip.transition_speed) clip.transition_speed = "fast";
+
+    result.push(clip);
+  }
+
+  return result;
+}
+
+function makeStockClip(window, nicheInfo) {
+  const niche = nicheInfo?.niche || "general";
+  const fallbacks = {
+    business: "confident entrepreneur professional workspace",
+    finance: "financial growth professional business",
+    health: "fitness active healthy lifestyle",
+    travel: "scenic destination landscape travel",
+    horror: "dark atmospheric mysterious",
+    true_crime: "detective investigation professional",
+    history: "ancient ruins historical",
+    creator: "content creator studio camera",
+    general: "professional aspirational confident person",
+  };
+  return {
+    start_time: window.start,
+    end_time: window.end,
+    visual_type: "stock",
+    display_style: "framed",
+    search_query: fallbacks[niche] || fallbacks.general,
+    search_queries: null,
+    panel_text: null,
+    panel_type: "clean",
+    panel_icon: null,
+    animation_data: null,
+    chart_data: null,
+    transition_speed: "fast",
+    subtitle_words: [],
+  };
+}
+
+// ─── POST-PROCESSING ──────────────────────────────────────────────────────────
+function applyPostProcessing(allClips, totalDuration, contentMode, scriptText, nicheInfo) {
+  const isHorror = nicheInfo?.niche === "horror" || nicheInfo?.niche === "true_crime";
+
+  // Sort by start time
+  allClips.sort((a, b) => a.start_time - b.start_time);
+
+  // Fill any gaps at start
+  if (allClips.length > 0 && allClips[0].start_time > 0.5) {
+    allClips.unshift(makeStockClip({ start: 0, end: allClips[0].start_time }, nicheInfo));
+  }
+
+  // Fill any gaps at end
+  if (allClips.length > 0) {
+    const last = allClips[allClips.length - 1];
+    if (totalDuration - last.end > 0.5) {
+      last.end_time = totalDuration;
+    }
+  }
+
+  // Fix overlaps
+  for (let i = 1; i < allClips.length; i++) {
+    if (allClips[i].start_time < allClips[i - 1].end_time) {
+      allClips[i].start_time = allClips[i - 1].end_time;
+    }
+    if (allClips[i].end_time <= allClips[i].start_time) {
+      allClips[i].end_time = allClips[i].start_time + 1.5;
+    }
+  }
+
+  // Fullscreen cap: max 4 per minute
+  const maxFullscreen = Math.max(2, Math.ceil((totalDuration / 60) * 4));
+  let fullscreenCount = 0;
+  allClips.forEach(clip => {
+    if (clip.display_style === "fullscreen" || clip.display_style === "fullscreen_zoom") {
+      fullscreenCount++;
+      if (fullscreenCount > maxFullscreen) clip.display_style = "framed";
+    }
+  });
+
+  // Combined non-image cap: max 40% animations+infographics
+  const nonImageTypes = new Set([
+    "number_reveal","section_break","comparison","text_flash","line_chart","donut_chart",
+    "progress_bar","timeline","leaderboard","process_flow","stat_card","quote_card",
+    "checklist","horizontal_bar","vertical_bar","scale_comparison","map_highlight",
+    "body_diagram","funnel_chart","growth_curve","ranking_cards","split_comparison",
+    "icon_grid","flow_diagram","kinetic_text","spotlight_stat","icon_burst",
+    "typewriter_reveal","money_counter","glitch_text","checkmark_build","trend_arrow",
+    "stock_ticker","phone_screen","tweet_card","word_scatter","social_counter",
+    "before_after","lightbulb_moment","rocket_launch","news_breaking","percent_fill",
+    "compare_reveal","highlight_build","count_up","neon_sign","reaction_face",
+    "thumbs_up","side_by_side","youtube_progress","warning_siren",
+  ]);
+
+  const maxNonImage = Math.ceil(allClips.length * 0.40);
+  let nonImageCount = 0;
+  allClips.forEach(clip => {
+    if (nonImageTypes.has(clip.visual_type)) {
+      nonImageCount++;
+      if (nonImageCount > maxNonImage) {
+        clip.visual_type = "stock";
+        clip.display_style = "framed";
+      }
+    }
+  });
+
+  // No same type twice in a row
+  let lastType = "";
+  allClips.forEach(clip => {
     if (clip.visual_type !== "stock" && clip.visual_type === lastType) {
       clip.visual_type = "stock";
       clip.display_style = "framed";
     }
     lastType = clip.visual_type;
-
-    let q = (clip.search_query || "").toLowerCase();
-    banned.forEach(b => { q = q.replace(new RegExp(`\\b${b}\\b`, "gi"), "").trim(); });
-
-    const hasBanned = bannedVisuals.some(b => q.includes(b));
-    if (hasBanned) {
-      const niche = nicheInfo?.niche || "general";
-      const fallbacks = nicheSafeQueries[niche] || nicheSafeQueries.general;
-      q = fallbacks[Math.floor(Math.random() * fallbacks.length)];
-    }
-
-    if (q.length < 3) {
-      const niche = nicheInfo?.niche || "general";
-      const fallbacks = nicheSafeQueries[niche] || nicheSafeQueries.general;
-      q = fallbacks[usedQueries.size % fallbacks.length];
-    }
-
-    // Clean search_queries array
-    if (clip.search_queries && Array.isArray(clip.search_queries)) {
-      clip.search_queries = clip.search_queries.map(sq => {
-        let cleaned = (sq || "").toLowerCase();
-        banned.forEach(b => { cleaned = cleaned.replace(new RegExp(`\\b${b}\\b`, "gi"), "").trim(); });
-        const hasBannedInSq = bannedVisuals.some(b => cleaned.includes(b));
-        if (hasBannedInSq) {
-          const niche = nicheInfo?.niche || "general";
-          const fallbacks = nicheSafeQueries[niche] || nicheSafeQueries.general;
-          cleaned = fallbacks[Math.floor(Math.random() * fallbacks.length)];
-        }
-        return cleaned.length >= 3 ? cleaned : null;
-      }).filter(Boolean);
-      if (clip.search_queries.length === 0) clip.search_queries = null;
-    }
-
-    // Variety — avoid repeating same search keywords
-    if (clip.visual_type === "stock" || clip.visual_type === "ai_image" || clip.visual_type === "web_image") {
-      const primaryWord = q.split(/\s+/).find(w => w.length > 3) || q.split(/\s+/)[0];
-      const keyCount = usedQueries.get(primaryWord) || 0;
-      if (keyCount >= 2) {
-        const niche = nicheInfo?.niche || "general";
-        const fallbacks = nicheSafeQueries[niche] || nicheSafeQueries.general;
-        q = fallbacks[usedQueries.size % fallbacks.length];
-      }
-      for (const word of q.split(/\s+/)) {
-        if (word.length > 3) usedQueries.set(word, (usedQueries.get(word) || 0) + 1);
-      }
-    }
-
-    clip.search_query = q;
-
-    if (clip.start_time === undefined || clip.start_time === null) clip.start_time = startTime;
-    if (!clip.end_time) clip.end_time = clip.start_time + 4;
-    clip.start_time = Math.max(clip.start_time, startTime);
-    clip.end_time = Math.min(clip.end_time, endTime);
-
-    // Apply minimum durations
-    const minDur = minDurations[clip.visual_type] ?? 1.5;
-    if (clip.end_time - clip.start_time < minDur) clip.end_time = clip.start_time + minDur;
-
-    if (graphicTypes.includes(clip.visual_type)) { clip.imagePath = null; clip.isCutout = false; }
-
-    if (clip.visual_type === "number_reveal" && clip.number_data) {
-      const numStyles = ["counter","gauge","bars","spotlight","ticker","impact"];
-      if (!clip.number_data.style || !numStyles.includes(clip.number_data.style)) clip.number_data.style = "counter";
-      if (clip.number_data.style === lastNumberStyle) {
-        const alts = numStyles.filter(s => s !== lastNumberStyle);
-        clip.number_data.style = alts[Math.floor(Math.random() * alts.length)];
-      }
-      lastNumberStyle = clip.number_data.style;
-    }
-
-    if (clip.visual_type === "stock" || clip.visual_type === "ai_image" || clip.visual_type === "web_image" || clip.visual_type === "web_screenshot") {
-      if (clip.display_style === lastStyle) {
-        const alts = validStyles.filter(v => v !== lastStyle && v !== "fullscreen" && v !== "fullscreen_zoom");
-        clip.display_style = alts[Math.floor(Math.random() * alts.length)] || "framed";
-      }
-      lastStyle = clip.display_style;
-    }
-
-    if (!clip.transition_speed) clip.transition_speed = "fast";
   });
 
-  return clips;
+  // Hook protection: no infographics in first 5s
+  const infraTypes = new Set(["number_reveal","line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","stat_card","horizontal_bar","vertical_bar","growth_curve","ranking_cards","split_comparison","scale_comparison","funnel_chart","body_diagram","map_highlight","icon_grid","flow_diagram","checklist","quote_card"]);
+  allClips.forEach(clip => {
+    if (clip.start_time < 5 && infraTypes.has(clip.visual_type)) {
+      clip.visual_type = "stock";
+      clip.display_style = clip.start_time < 2 ? "fullscreen" : "framed";
+      clip.search_query = clip.search_query || "dramatic cinematic opening";
+    }
+  });
+
+  // Inject one interrupt card per 90s if script has numbers
+  const facts = extractFacts(scriptText);
+  if (facts.length > 0) {
+    for (let t = 90; t < totalDuration - 15; t += 90) {
+      const host = allClips.find(c =>
+        c.start_time <= t && c.end_time > t + 5 &&
+        (c.visual_type === "stock" || c.visual_type === "ai_image")
+      );
+      if (host) {
+        const factIdx = Math.floor(t / 90) - 1;
+        if (factIdx < facts.length) {
+          allClips.push({
+            start_time: t, end_time: t + 5,
+            visual_type: "interrupt_card", display_style: "framed",
+            search_query: "", subtitle_words: [],
+            interrupt_data: { fact: facts[factIdx], label: "Did you know?" },
+            panel_text: null, panel_type: "clean", animation_data: null,
+            chart_data: null, transition_speed: "fast",
+          });
+        }
+      }
+    }
+    allClips.sort((a, b) => a.start_time - b.start_time);
+  }
+
+  return allClips;
+}
+
+function extractFacts(scriptText) {
+  const sentences = scriptText.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 20 && s.length < 120);
+  const withNumbers = sentences.filter(s => /\d+|percent|million|billion|thousand/.test(s));
+  const pool = withNumbers.length >= 3 ? withNumbers : sentences;
+  const step = Math.floor(pool.length / 4) || 1;
+  const facts = [];
+  for (let i = 0; i < pool.length && facts.length < 4; i += step) facts.push(pool[i]);
+  return facts;
 }
