@@ -427,10 +427,35 @@ function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, ani
   return { clips: result, animIdx: animRotationIdx, infraIdx: infraRotationIdx };
 }
 
+// Parse written-out numbers like "sixty-eight" → 68, "four" → 4
+function parseWordNumbers(sentence) {
+  const map = { zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90,hundred:100,thousand:1000,million:1000000,billion:1000000000 };
+  const words = sentence.toLowerCase().replace(/-/g, " ").split(/\s+/);
+  const found = [];
+  for (let i = 0; i < words.length; i++) {
+    if (map[words[i]] !== undefined) {
+      let val = map[words[i]];
+      if (i + 1 < words.length && map[words[i+1]] !== undefined && map[words[i+1]] < val) {
+        val += map[words[i+1]]; i++;
+      }
+      found.push(val);
+    }
+  }
+  return found;
+}
+
+function getNumbers(sentence) {
+  // First try digit numbers, then word numbers
+  const digits = sentence.match(/\d+(\.\d+)?/g)?.map(Number) || [];
+  const words = parseWordNumbers(sentence);
+  return [...new Set([...digits, ...words])];
+}
+
+
 function generateAnimationData(type, sentence) {
   const words = sentence.replace(/[^a-zA-Z0-9\s%$]/g, " ").split(/\s+/).filter(w => w.length > 2);
-  const numbers = sentence.match(/\d+(\.\d+)?/g) || [];
-  const pct = sentence.match(/(\d+)\s*%/);
+  const numbers = getNumbers(sentence); // parses both "68%" and "sixty-eight percent"
+  const pct = sentence.match(/(\d+)\s*%/) || (numbers.length && sentence.toLowerCase().includes("percent") ? [null, String(numbers[0])] : null);
   const money = sentence.match(/\$[\d,]+/);
   const stop = new Set(["the","and","but","for","with","this","that","have","from","they","their","your","you","was","are","were","has","had","not","can","will","would","could","should","what","when","where","how","why","who","which","been","being","than","then","into","just","more","most","some","such","even","also","very"]);
   const key = words.filter(w => !stop.has(w.toLowerCase())).map(w => w.toUpperCase());
@@ -491,11 +516,11 @@ function generateAnimationData(type, sentence) {
 }
 
 function generateInfographicData(type, sentence, scriptText) {
-  const numbers = sentence.match(/\d+(\.\d+)?/g) || [];
+  const numbers = getNumbers(sentence); // parses both digits and written numbers
   const words = sentence.replace(/[^a-zA-Z0-9\s]/g, " ").split(/\s+/).filter(w => w.length > 2);
   const stop = new Set(["the","and","but","for","with","this","that","have","from","they","their","your","you","was","are","were","has","had","not","can","will","would","could","should","just","also","more","very"]);
   const key = words.filter(w => !stop.has(w.toLowerCase())).slice(0, 6);
-  const pct = sentence.match(/(\d+)\s*%/);
+  const pct = sentence.match(/(\d+)\s*%/) || (numbers.length && sentence.toLowerCase().includes("percent") ? [null, String(numbers[0])] : null);
   const title = key.slice(0, 3).join(" ");
 
   // Pull nearby sentences from script for list-type infographics
