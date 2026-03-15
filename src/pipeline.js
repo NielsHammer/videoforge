@@ -242,7 +242,9 @@ export async function generateVideo(scriptPath, options) {
     // Batch 3 animations (no image needed)
     "highlight_build","count_up","neon_sign","reaction_face",
     "thumbs_up","side_by_side","youtube_progress","warning_siren",
-    // NOTE: quote_overlay, overlay_caption, polaroid_stack are NOT here
+      // batch4 — pure graphic components, no image needed
+  "pull_quote","stat_comparison","bullet_list","myth_fact","step_reveal","pro_con","score_card","person_profile","reddit_post","google_search","three_points","stacked_bar","countdown_timer","vote_bar","map_callout","news_headline","instagram_post","youtube_card","quiz_card","portfolio_breakdown","roi_calculator","timelapse_bar","speed_meter","candlestick_chart","conversation_bubble","loading_bar","wealth_ladder","rule_card","alert_banner","big_number","mindset_shift",
+  // NOTE: quote_overlay, overlay_caption, polaroid_stack are NOT here
     // — they render over fetched images and need the pipeline to fetch them
   ];
 

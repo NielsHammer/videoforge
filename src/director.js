@@ -673,6 +673,82 @@ function generateAnimationData(type, sentence) {
       // Only for finance/business topics with quantifiable concepts
       if (!/invest|stock|market|fund|portfolio|asset|return|profit|loss|dividend|wealth/.test(sentence.toLowerCase())) return null;
       return { items: key.slice(0, 3).map((w, i) => ({ symbol: w.toUpperCase().slice(0, 6), price: `$${(Math.random() * 500 + 50).toFixed(2)}`, change: i === 0 ? `+${(Math.random() * 20).toFixed(1)}%` : `-${(Math.random() * 10).toFixed(1)}%` })), title: "" };
+
+    // ─── BATCH 4 TYPES ────────────────────────────────────────────────────────
+    case "pull_quote":
+      if (sentence.length < 15) return null;
+      return { quote: sentence.slice(0, 120), attribution: "" };
+    case "big_number":
+      if (!numbers[0] || numbers[0] < 5) return null;
+      return { value: pct ? pct[1] + "%" : (money ? money[0] : String(numbers[0])), label: key.slice(0, 4).join(" ").toLowerCase(), context: "", prefix: "", suffix: "" };
+    case "stat_comparison": {
+      if (numbers.length < 1) return null;
+      const v1 = pct ? pct[1] + "%" : String(numbers[0]);
+      const v2 = numbers[1] ? String(100 - parseInt(numbers[0])) + "%" : "High";
+      return { left: { value: v1, label: key.slice(0, 2).join(" ").toLowerCase(), color: "#ef4444" }, right: { value: v2, label: key.slice(2, 4).join(" ").toLowerCase(), color: "#22c55e" }, title: key.slice(4, 7).join(" ") || "The Gap" };
+    }
+    case "bullet_list": {
+      const parts = sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 8).slice(0, 5);
+      if (parts.length < 2) return null;
+      return { title: key.slice(0, 2).join(" "), items: parts, icon: "▶" };
+    }
+    case "myth_fact": {
+      if (!/think|believe|wrong|myth|actually|truth|real|but|however/.test(sentence.toLowerCase())) return null;
+      const halves = sentence.split(/but|however|actually|in reality/i);
+      return { myth: (halves[0] || sentence.slice(0, 50)).trim(), fact: (halves[1] || sentence.slice(50, 100)).trim(), label: "MYTH BUSTED" };
+    }
+    case "step_reveal": {
+      const parts = sentence.split(/[,;]|first|second|third|then|next|finally/i).map(s => s.trim()).filter(s => s.length > 8).slice(0, 4);
+      if (parts.length < 2) return null;
+      return { title: key.slice(0, 2).join(" "), steps: parts, active: 0 };
+    }
+    case "pro_con": {
+      const halves = sentence.split(/but|however|although|while|whereas|yet/i);
+      if (halves.length < 2) return null;
+      return { title: "The Trade-off", pros: [halves[0].trim().slice(0, 60)], cons: [halves[1].trim().slice(0, 60)] };
+    }
+    case "score_card": {
+      const grades = { good: "A", great: "B", average: "C", bad: "D", terrible: "F", failing: "F", worst: "F" };
+      const match = Object.keys(grades).find(k => sentence.toLowerCase().includes(k));
+      return { grade: match ? grades[match] : "F", label: key.slice(0, 3).join(" "), subtitle: sentence.slice(0, 50), color: match && grades[match] <= "B" ? "#22c55e" : "#ef4444" };
+    }
+    case "mindset_shift": {
+      const halves = sentence.split(/but|instead|rather|however|not.*but/i);
+      if (halves.length < 2) return null;
+      return { old: halves[0].trim().slice(0, 60), new: halves[1].trim().slice(0, 60), label: "THE SHIFT" };
+    }
+    case "alert_banner":
+      if (!/warn|danger|risk|mistake|wrong|avoid|never|critical|important/.test(sentence.toLowerCase())) return null;
+      return { type: "danger", title: "CRITICAL MISTAKE", body: sentence.slice(0, 80), stat: "", icon: "🚨" };
+    case "three_points": {
+      const parts = sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 8).slice(0, 3);
+      if (parts.length < 3) return null;
+      const icons = ["💰","⏰","🎯"];
+      return { title: key.slice(0, 3).join(" "), points: parts.map((p, i) => ({ icon: icons[i], label: p.split(" ").slice(0, 2).join(" ").toUpperCase(), desc: p })) };
+    }
+    case "rule_card":
+      if (!/rule|law|principle|step|tip|key|secret/.test(sentence.toLowerCase())) return null;
+      return { number: "Key Rule", name: key.slice(0, 2).join(" "), description: sentence.slice(0, 80), icon: "💡" };
+    case "loading_bar":
+      if (!pct && !numbers[0]) return null;
+      return { label: key.slice(0, 5).join(" ").toLowerCase(), value: parseInt(pct?.[1]) || numbers[0] || 73, suffix: "%", color: "#ef4444", subtitle: "" };
+    case "vote_bar":
+      if (!pct && !numbers[0]) return null;
+      return { question: sentence.slice(0, 80), options: [{ label: "Yes", pct: parseInt(pct?.[1]) || numbers[0] || 73, winner: true }, { label: "No", pct: 100 - (parseInt(pct?.[1]) || numbers[0] || 73) }] };
+    case "news_headline":
+      if (!numbers[0] && !/reveal|shocking|truth|secret|discover/.test(sentence.toLowerCase())) return null;
+      return { outlet: "BREAKING NEWS", headline: sentence.slice(0, 70), subtext: key.slice(0, 4).join(" "), date: String(new Date().getFullYear()) };
+    case "conversation_bubble": {
+      const halves = sentence.split(/but|while|whereas|vs|versus/i);
+      if (halves.length < 2) return null;
+      return { exchanges: [{ speaker: "Most People", text: halves[0].trim().slice(0, 60), side: "left" }, { speaker: "The Wealthy", text: halves[1].trim().slice(0, 60), side: "right" }] };
+    }
+    case "stacked_bar":
+      if (numbers.length < 2) return null;
+      return { title: key.slice(0, 3).join(" "), segments: key.slice(0, 4).map((k, i) => ({ label: k, value: parseInt(numbers[i]) || Math.round(100 / key.slice(0, 4).length), color: ["#ef4444","#f97316","#eab308","#22c55e"][i] })) };
+    case "countdown_timer":
+      if (!numbers[0] || numbers[0] < 2) return null;
+      return { from: Math.min(parseInt(numbers[0]), 10), label: key.slice(0, 3).join(" ").toLowerCase(), subtitle: "", urgent: true };
     default: return { lines: key.slice(0, 2).filter(Boolean), style: "impact" };
   }
 }

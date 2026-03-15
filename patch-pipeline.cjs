@@ -1,31 +1,36 @@
+#!/usr/bin/env node
+// patch-pipeline.cjs — adds batch4 types to graphicTypes in pipeline.js
 const fs = require("fs");
-let c = fs.readFileSync("src/pipeline.js", "utf-8");
+const path = require("path");
 
-// 1. Add import
-if (!c.includes("generateThumbnail")) {
-  c = c.replace(
-    'import axios from "axios";',
-    'import axios from "axios";\nimport { generateThumbnail } from "./thumbnail.js";'
-  );
+const target = path.join(__dirname, "src", "pipeline.js");
+let code = fs.readFileSync(target, "utf8");
+
+const batch4 = [
+  "pull_quote","stat_comparison","bullet_list","myth_fact","step_reveal",
+  "pro_con","score_card","person_profile","reddit_post","google_search",
+  "three_points","stacked_bar","countdown_timer","vote_bar","map_callout",
+  "news_headline","instagram_post","youtube_card","quiz_card",
+  "portfolio_breakdown","roi_calculator","timelapse_bar","speed_meter",
+  "candlestick_chart","conversation_bubble","loading_bar","wealth_ladder",
+  "rule_card","alert_banner","big_number","mindset_shift",
+];
+
+// Find the NOTE comment that marks end of graphicTypes
+const marker = "// NOTE: quote_overlay, overlay_caption, polaroid_stack are NOT here";
+if (!code.includes(marker)) {
+  console.error("Could not find marker in pipeline.js");
+  process.exit(1);
 }
 
-// 2. Add thumbnail step before "Video complete"
-const marker = 'console.log(chalk.green.bold("\\n\\u2705 Video complete!"));';
-const replacement = `// --- STEP 6: Generate Thumbnail ---
-  console.log(chalk.blue("\\n\\ud83d\\uddbc  Generating thumbnail...\\n"));
-  try {
-    const thumbTitle = scriptText.split("\\n")[0].replace(/^#\\s*/, "").trim() || projectName;
-    await generateThumbnail(outputDir, thumbTitle, theme.replace(/_/g, " "));
-    console.log(chalk.green("  \\u2705 Thumbnail saved"));
-  } catch (thumbErr) {
-    console.log(chalk.yellow("  \\u26a0\\ufe0f  Thumbnail skipped: " + thumbErr.message));
-  }
-
-  console.log(chalk.green.bold("\\n\\u2705 Video complete!"));`;
-
-if (!c.includes("Generate Thumbnail")) {
-  c = c.replace(marker, replacement);
+// Check if already patched
+if (code.includes("pull_quote")) {
+  console.log("Already patched — skipping");
+  process.exit(0);
 }
 
-fs.writeFileSync("src/pipeline.js", c);
-console.log("Done! Thumbnail integration added to pipeline.js");
+const batch4str = `  // batch4 — pure graphic components, no image needed\n  ${batch4.map(t => `"${t}"`).join(",")},\n  `;
+code = code.replace(marker, batch4str + marker);
+
+fs.writeFileSync(target, code, "utf8");
+console.log("✅ pipeline.js patched — added", batch4.length, "batch4 types to graphicTypes");
