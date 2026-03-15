@@ -479,74 +479,114 @@ function generateAnimationData(type, sentence) {
       if (money) return { value: money[0], label: key.slice(0, 3).join(" ").toLowerCase(), context: "" };
       if (numbers[0]) return { value: sentence.toLowerCase().includes("percent") ? numbers[0] + "%" : String(numbers[0]), label: key.slice(0, 3).join(" ").toLowerCase(), context: "" };
       return { value: key[0] || "FACT", label: sentence.slice(0, 40), context: "" };
-    case "count_up": return { value: parseFloat(numbers[0]) || 73, prefix: money ? "$" : "", suffix: pct ? "%" : "", label: key.slice(0, 3).join(" ").toLowerCase(), decimals: 0 };
-    case "money_counter": return { amount: parseFloat(numbers[0]) || 1000, currency: "$", label: key.slice(0, 3).join(" ").toLowerCase() };
-    case "reaction_face": return { emoji: /warn|danger|bad|problem|addict|shock|crazy/.test(sentence.toLowerCase()) ? "😱" : "🤯", label: key.slice(0, 2).join(" ") || "SHOCKING", style: "slam" };
-    case "warning_siren": return { headline: "WARNING", body: sentence.slice(0, 60), icon: "⚠️", color: "#ef4444" };
+    case "count_up":
+      // Only for sentences with actual numbers
+      if (!numbers[0]) return null;
+      return { value: parseFloat(numbers[0]) || 73, prefix: money ? "$" : "", suffix: pct ? "%" : "", label: key.slice(0, 3).join(" ").toLowerCase(), decimals: 0 };
+    case "money_counter":
+      // Only for sentences with money amounts
+      if (!money && !numbers[0]) return null;
+      return { amount: parseFloat(numbers[0]) || 1000, currency: "$", label: key.slice(0, 3).join(" ").toLowerCase() };
+    case "reaction_face":
+      return { emoji: /warn|danger|bad|problem|addict|shock|crazy|wild|insane|unbeliev/.test(sentence.toLowerCase()) ? "😱" : "🤯", label: key.slice(0, 2).join(" ") || "SHOCKING", style: "slam" };
+    case "warning_siren":
+      // Only for danger/mistake/warning sentences
+      if (!/warn|danger|risk|mistake|wrong|avoid|never|stop|careful|trap|lie|myth|broke/.test(sentence.toLowerCase())) return null;
+      return { headline: "WARNING", body: sentence.slice(0, 60), icon: "⚠️", color: "#ef4444" };
     case "neon_sign": return { text: key.slice(0, 2).join(" ") || "THE TRUTH", subtitle: key[2] || "" };
     case "typewriter_reveal": return { text: sentence.slice(0, 60), subtitle: "" };
     case "glitch_text": return { text: key.slice(0, 2).join(" ") || "HACKED", subtitle: "" };
-    case "news_breaking": return { headline: sentence.slice(0, 50).toUpperCase(), subtext: sentence.slice(50, 90), ticker: "DEVELOPING STORY • MORE TO COME" };
+    case "news_breaking":
+      // Only for dramatic reveals or shocking stats
+      if (!numbers[0] && !/reveal|shocking|truth|secret|discover|expose|hidden/.test(sentence.toLowerCase())) return null;
+      return { headline: sentence.slice(0, 50).toUpperCase(), subtext: sentence.slice(50, 90), ticker: "DEVELOPING STORY • MORE TO COME" };
     case "highlight_build": {
-      const parts = sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 5).slice(0, 3);
-      return { lines: parts.length >= 2 ? parts : [key.slice(0, 3).join(" "), key.slice(3, 6).join(" ")].filter(Boolean), delay: 0.3 };
+      // Only for sentences with 2+ comma-separated items or list structure
+      const parts = sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 8);
+      if (parts.length < 2) return null;
+      return { lines: parts.slice(0, 3), delay: 0.3 };
     }
     case "checkmark_build": {
-      const parts = sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 5).slice(0, 3);
-      return { items: parts.length >= 2 ? parts : [sentence.slice(0, 35), sentence.slice(35, 70)].filter(s => s.trim()), title: "" };
+      // Only for steps/lists (comma-separated or "first... second... third")
+      const hasList = /first|second|third|step|,/.test(sentence.toLowerCase());
+      if (!hasList) return null;
+      const parts = sentence.split(/[,;]|first|second|third/).map(s => s.trim()).filter(s => s.length > 8).slice(0, 4);
+      if (parts.length < 2) return null;
+      return { items: parts, title: "" };
     }
     case "before_after": {
+      // Only for transformation sentences
+      const s = sentence.toLowerCase();
+      if (!/from.*to|was.*now|before.*after|used to|instead|switch|changed|transform/.test(s)) return null;
       const fromMatch = sentence.match(/from\s+([^,]+)\s+to\s+([^,.]+)/i);
       return fromMatch
         ? { before: fromMatch[1].trim().slice(0, 20), after: fromMatch[2].trim().slice(0, 20), label: key.slice(0, 3).join(" ").toLowerCase() }
         : { before: key[0] || "Before", after: key[1] || "After", label: key.slice(2, 5).join(" ").toLowerCase() };
     }
-    case "percent_fill": return { percent: parseInt(pct?.[1]) || 73, label: key.slice(0, 4).join(" ").toLowerCase() };
-    case "trend_arrow": return { direction: /decreas|drop|down|fall|less|lower|shrink/.test(sentence.toLowerCase()) ? "down" : "up", value: (numbers[0] || "73") + (pct ? "%" : ""), label: key.slice(0, 4).join(" ").toLowerCase() };
+    case "percent_fill":
+      // Only when sentence has a percentage
+      if (!pct && !sentence.toLowerCase().includes("percent")) return null;
+      return { percent: parseInt(pct?.[1]) || numbers[0] || 73, label: key.slice(0, 4).join(" ").toLowerCase() };
+    case "trend_arrow":
+      // Only for sentences describing change/direction
+      if (!/increas|decreas|grow|rise|fall|drop|up|down|more|less|gain|lose|higher|lower/.test(sentence.toLowerCase())) return null;
+      return { direction: /decreas|drop|down|fall|less|lower|shrink/.test(sentence.toLowerCase()) ? "down" : "up", value: (numbers[0] || "73") + (pct ? "%" : ""), label: key.slice(0, 4).join(" ").toLowerCase() };
     case "compare_reveal": {
-      // Only generate compare_reveal when sentence has a genuine comparison structure
       const s = sentence.toLowerCase();
       const hasComparison = /vs\.?|versus|compared to|while|whereas|average.*millionaire|poor.*rich|before.*after|old.*new|then.*now/.test(s);
-      if (!hasComparison) {
-        // No real comparison - fall back to a better type
-        return null;
-      }
-      // Try to extract two sides of the comparison
+      if (!hasComparison) return null;
       let labelA = "AVERAGE", labelB = "WEALTHY", scoreA = "Low", scoreB = "High";
       if (/average.*millionaire|poor.*rich|broke.*wealthy/.test(s)) {
         labelA = "AVERAGE"; labelB = "MILLIONAIRE";
-        // Extract % or $ values
         if (pct) { scoreA = (parseInt(pct[1]) < 50 ? pct[1] : 100 - parseInt(pct[1])) + "%"; scoreB = pct[1] + "%"; }
         else if (numbers[0]) { scoreA = String(numbers[0]); scoreB = numbers[1] ? String(numbers[1]) : "10x"; }
       } else if (/before.*after|old.*new|then.*now|was.*now/.test(s)) {
         labelA = "BEFORE"; labelB = "AFTER";
         if (numbers[0] && numbers[1]) { scoreA = String(numbers[0]); scoreB = String(numbers[1]); }
       } else {
-        // Generic - use first two key words as labels
         labelA = key[0] || "OPTION A"; labelB = key[1] || "OPTION B";
         if (numbers[0]) { scoreA = String(numbers[0]); scoreB = numbers[1] ? String(numbers[1]) : "—"; }
       }
-      return {
-        items: [
-          { label: labelA, score: scoreA, description: sentence.slice(0, 30), icon: "❌" },
-          { label: labelB, score: scoreB, description: sentence.slice(30, 60), icon: "✅" },
-        ],
-        title: key.slice(2, 5).join(" ") || "The Difference",
-        winner: 1,
-      };
+      return { items: [{ label: labelA, score: scoreA, description: sentence.slice(0, 30), icon: "❌" }, { label: labelB, score: scoreB, description: sentence.slice(30, 60), icon: "✅" }], title: key.slice(2, 5).join(" ") || "The Difference", winner: 1 };
     }
-    case "side_by_side": return { left: key[0] || "BEFORE", right: key[1] || "AFTER", leftSub: numbers[0] || sentence.slice(0, 20), rightSub: numbers[1] || sentence.slice(20, 40), vs: true, leftColor: "#ef4444", rightColor: "#22c55e" };
+    case "side_by_side": {
+      // Only for clear two-sided comparisons
+      if (!/vs|versus|compared|while|or|either/.test(sentence.toLowerCase())) return null;
+      return { left: key[0] || "BEFORE", right: key[1] || "AFTER", leftSub: numbers[0] ? String(numbers[0]) : sentence.slice(0, 20), rightSub: numbers[1] ? String(numbers[1]) : sentence.slice(20, 40), vs: true, leftColor: "#ef4444", rightColor: "#22c55e" };
+    }
     case "icon_burst": {
-      const icons = ["💰","📈","🧠","⚡","🎯","🔥","🏆","💡","✅","🚀"].slice(0, Math.max(3, key.length));
+      if (key.length < 3) return null;
+      const icons = ["💰","📈","🧠","⚡","🎯","🔥","🏆","💡","✅","🚀"].slice(0, Math.max(3, Math.min(key.length, 6)));
       return { icons, label: key.slice(0, 3).join(" "), style: "burst" };
     }
-    case "lightbulb_moment": return { text: sentence.slice(0, 50), subtext: key.slice(0, 3).join(" ") };
-    case "rocket_launch": return { headline: key.slice(0, 2).join(" ").toUpperCase() || "GROWTH", subtext: key.slice(2, 4).join(" ") || "", stage: "launch" };
-    case "tweet_card": return { handle: "@viewer", text: sentence.slice(0, 100), likes: `${Math.floor(Math.random() * 90 + 10)}.${Math.floor(Math.random() * 9)}K`, retweets: `${Math.floor(Math.random() * 20 + 5)}.${Math.floor(Math.random() * 9)}K` };
-    case "phone_screen": return { app: "instagram", notification: sentence.slice(0, 50), metric: numbers[0] ? `${numbers[0]}K` : "10.2K" };
-    case "word_scatter": return { words: key.slice(0, 7).filter(Boolean), centerWord: key[0] || "" };
-    case "thumbs_up": return { type: /don't|avoid|mistake|wrong|bad|never/.test(sentence.toLowerCase()) ? "down" : "up", items: key.slice(0, 3), verdict: key.slice(0, 2).join(" ").toUpperCase() };
-    case "stock_ticker": return { items: key.slice(0, 3).map((w, i) => ({ symbol: w.toUpperCase().slice(0, 6), price: `$${(Math.random() * 500 + 50).toFixed(2)}`, change: i === 0 ? `+${(Math.random() * 20).toFixed(1)}%` : `-${(Math.random() * 10).toFixed(1)}%` })), title: "" };
+    case "lightbulb_moment":
+      // Only for insight/idea/tip sentences
+      if (!/tip|insight|key|secret|trick|truth|real|actually|important|crucial|realize|discover/.test(sentence.toLowerCase())) return null;
+      return { text: sentence.slice(0, 50), subtext: key.slice(0, 3).join(" ") };
+    case "rocket_launch":
+      // Only for growth/success/momentum sentences
+      if (!/grow|rise|launch|build|start|success|momentum|explode|scale|compound|wealth|rich/.test(sentence.toLowerCase())) return null;
+      return { headline: key.slice(0, 2).join(" ").toUpperCase() || "GROWTH", subtext: key.slice(2, 4).join(" ") || "", stage: "launch" };
+    case "tweet_card":
+      // Only for quotable claims (short, punchy sentences)
+      if (sentence.length > 120 || sentence.length < 20) return null;
+      return { handle: "@viewer", text: sentence.slice(0, 100), likes: `${Math.floor(Math.random() * 90 + 10)}.${Math.floor(Math.random() * 9)}K`, retweets: `${Math.floor(Math.random() * 20 + 5)}.${Math.floor(Math.random() * 9)}K` };
+    case "phone_screen":
+      // Only for social/creator topics
+      if (!/social|follow|subscriber|view|post|content|platform|app|notification|viral/.test(sentence.toLowerCase())) return null;
+      return { app: "instagram", notification: sentence.slice(0, 50), metric: numbers[0] ? `${numbers[0]}K` : "10.2K" };
+    case "word_scatter":
+      // Works for most sentences with enough key words
+      if (key.length < 4) return null;
+      return { words: key.slice(0, 7).filter(Boolean), centerWord: key[0] || "" };
+    case "thumbs_up":
+      // Only for recommendation/verdict sentences
+      if (!/do|don't|should|avoid|recommend|best|worst|right|wrong|good|bad|try|never|always/.test(sentence.toLowerCase())) return null;
+      return { type: /don't|avoid|mistake|wrong|bad|never|stop/.test(sentence.toLowerCase()) ? "down" : "up", items: key.slice(0, 3), verdict: key.slice(0, 2).join(" ").toUpperCase() };
+    case "stock_ticker":
+      // Only for finance/business topics with quantifiable concepts
+      if (!/invest|stock|market|fund|portfolio|asset|return|profit|loss|dividend|wealth/.test(sentence.toLowerCase())) return null;
+      return { items: key.slice(0, 3).map((w, i) => ({ symbol: w.toUpperCase().slice(0, 6), price: `$${(Math.random() * 500 + 50).toFixed(2)}`, change: i === 0 ? `+${(Math.random() * 20).toFixed(1)}%` : `-${(Math.random() * 10).toFixed(1)}%` })), title: "" };
     default: return { lines: key.slice(0, 2).filter(Boolean), style: "impact" };
   }
 }
@@ -566,37 +606,53 @@ function generateInfographicData(type, sentence, scriptText) {
 
   switch (type) {
     case "number_reveal":
-      return { number_data: { value: parseFloat(numbers[0]) || 73, prefix: sentence.includes("$") ? "$" : "", suffix: pct ? "%" : "", label: key.slice(0, 3).join(" "), style: "counter" } };
+      // Only when sentence has an actual number
+      if (!numbers[0]) return {};
+      return { number_data: { value: parseFloat(numbers[0]), prefix: sentence.includes("$") ? "$" : "", suffix: pct ? "%" : "", label: key.slice(0, 3).join(" "), style: "counter" } };
 
     case "stat_card":
-      return { chart_data: { title, stats: [{ value: numbers[0] || "73%", label: sentence.slice(0, 40) }, numbers[1] ? { value: numbers[1], label: key.slice(3, 6).join(" ") } : null].filter(Boolean) } };
+      // Only when sentence has at least one number or stat
+      if (!numbers[0] && !pct) return {};
+      return { chart_data: { title, stats: [{ value: pct ? pct[1] + "%" : String(numbers[0]), label: sentence.slice(0, 40) }, numbers[1] ? { value: String(numbers[1]), label: key.slice(3, 6).join(" ") } : null].filter(Boolean) } };
 
-    case "checklist":
-      const items = nearby.length >= 2 ? nearby.slice(0, 4) : ["First key point", "Second key point", "Third key point"];
+    case "checklist": {
+      // Only for list-like sentences or when nearby sentences form a list
+      const hasList = /first|second|third|step|,|include|following/.test(sentence.toLowerCase());
+      const items = nearby.length >= 2 ? nearby.slice(0, 4) : hasList ? sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 8).slice(0, 4) : null;
+      if (!items || items.length < 2) return {};
       return { chart_data: { title, items, checked: true } };
+    }
 
     case "progress_bar":
+      // Only when sentence has multiple percentages or items to compare
+      if (numbers.length < 2 && !pct) return {};
       return { chart_data: { title, bars: [
         { label: key[0] || "Primary", value: parseInt(numbers[0]) || 65, suffix: "%", color: "" },
         numbers[1] ? { label: key[1] || "Secondary", value: parseInt(numbers[1]) || 35, suffix: "%", color: "" } : null,
       ].filter(Boolean) } };
 
     case "timeline":
+      // Only when sentence mentions years or a sequence
+      if (!numbers.some(n => n > 1900 && n < 2100) && !/year|decade|century|era|period|history|since|ago/.test(sentence.toLowerCase())) return {};
       return { chart_data: { title, events: [
-        { year: numbers[0] || "2000", label: nearby[0]?.slice(0, 30) || "Phase one begins" },
-        { year: numbers[1] || "2010", label: nearby[1]?.slice(0, 30) || "Turning point" },
-        { year: numbers[2] || "2024", label: nearby[2]?.slice(0, 30) || "Present day" },
+        { year: String(numbers.find(n => n > 1900 && n < 2100) || "2000"), label: nearby[0]?.slice(0, 30) || "Phase one begins" },
+        { year: String(numbers.find(n => n > 1900 && n < 2100) ? numbers[numbers.findIndex(n => n > 1900 && n < 2100) + 1] || "2010" : "2010"), label: nearby[1]?.slice(0, 30) || "Turning point" },
+        { year: "2024", label: nearby[2]?.slice(0, 30) || "Present day" },
       ] } };
 
     case "leaderboard":
+      // Only for ranking/ordering sentences
+      if (!/rank|top|best|worst|most|least|number one|first|second|third/.test(sentence.toLowerCase())) return {};
       return { chart_data: { title, items: nearby.slice(0, 5).map((s, i) => ({ label: s.slice(0, 25), value: 100 - i * 15, suffix: "%" })) } };
 
     case "horizontal_bar":
+      // Only when sentence has multiple comparable quantities
+      if (numbers.length < 2 && !nearby.some(s => /\d+%/.test(s))) return {};
       return { chart_data: { title, items: [
         { label: key[0] || "Category A", value: parseInt(numbers[0]) || 75, color: "" },
         { label: key[1] || "Category B", value: parseInt(numbers[1]) || 45, color: "" },
-        { label: key[2] || "Category C", value: parseInt(numbers[2]) || 25, color: "" },
-      ], suffix: "%" } };
+        numbers[2] ? { label: key[2] || "Category C", value: parseInt(numbers[2]) || 25, color: "" } : null,
+      ].filter(Boolean), suffix: "%" } };
 
     case "growth_curve":
       return { chart_data: { title, points: [
