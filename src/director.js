@@ -442,13 +442,21 @@ function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, ani
 // Parse written-out numbers like "sixty-eight" → 68, "four" → 4
 function parseWordNumbers(sentence) {
   const map = { zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90,hundred:100,thousand:1000,million:1000000,billion:1000000000 };
+  // Words that are too ambiguous to treat as numbers in isolation
+  const ambiguous = new Set(["one","two","three","four","five","six","seven","eight","nine"]);
   const words = sentence.toLowerCase().replace(/-/g, " ").split(/\s+/);
   const found = [];
   for (let i = 0; i < words.length; i++) {
     if (map[words[i]] !== undefined) {
       let val = map[words[i]];
-      if (i + 1 < words.length && map[words[i+1]] !== undefined && map[words[i+1]] < val) {
-        val += map[words[i+1]]; i++;
+      const nextWord = words[i+1];
+      const hasMultiplier = nextWord && (nextWord === "hundred" || nextWord === "thousand" || nextWord === "million" || nextWord === "billion" || nextWord === "percent");
+      const prevWord = i > 0 ? words[i-1] : "";
+      const hasContext = /percent|dollar|million|billion|thousand|hundred/.test(words.slice(Math.max(0,i-2), i+3).join(" "));
+      // Skip ambiguous single-digit words unless they have numeric context
+      if (ambiguous.has(words[i]) && !hasMultiplier && !hasContext) continue;
+      if (i + 1 < words.length && map[nextWord] !== undefined && map[nextWord] < val) {
+        val += map[nextWord]; i++;
       }
       found.push(val);
     }
@@ -480,12 +488,12 @@ function generateAnimationData(type, sentence) {
       if (numbers[0]) return { value: sentence.toLowerCase().includes("percent") ? numbers[0] + "%" : String(numbers[0]), label: key.slice(0, 3).join(" ").toLowerCase(), context: "" };
       return { value: key[0] || "FACT", label: sentence.slice(0, 40), context: "" };
     case "count_up":
-      // Only for sentences with actual numbers
-      if (!numbers[0]) return null;
+      // Only for sentences with actual meaningful numbers (>=5 to avoid "one of the" type sentences)
+      if (!numbers[0] || numbers[0] < 5) return null;
       return { value: parseFloat(numbers[0]) || 73, prefix: money ? "$" : "", suffix: pct ? "%" : "", label: key.slice(0, 3).join(" ").toLowerCase(), decimals: 0 };
     case "money_counter":
-      // Only for sentences with money amounts
-      if (!money && !numbers[0]) return null;
+      // Only for sentences with money amounts (>=5)
+      if (!money && (!numbers[0] || numbers[0] < 5)) return null;
       return { amount: parseFloat(numbers[0]) || 1000, currency: "$", label: key.slice(0, 3).join(" ").toLowerCase() };
     case "reaction_face":
       return { emoji: /warn|danger|bad|problem|addict|shock|crazy|wild|insane|unbeliev/.test(sentence.toLowerCase()) ? "😱" : "🤯", label: key.slice(0, 2).join(" ") || "SHOCKING", style: "slam" };
@@ -943,12 +951,12 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
     if (needsChartData.has(clip.visual_type) && !clip.chart_data) {
       const repaired = generateInfographicData(clip.visual_type, windows[i]?.text || "", "");
       if (repaired.chart_data) { clip.chart_data = repaired.chart_data; }
-      else { clip.visual_type = "spotlight_stat"; clip.animation_data = { value: "73%", label: "key insight", context: "" }; }
+      else { clip.visual_type = "spotlight_stat"; clip.animation_data = { value: key?.[0] || "KEY FACT", label: (windows[i]?.text || "").slice(0, 40), context: "" }; }
     }
     if (needsNumberData.has(clip.visual_type) && (!clip.number_data || typeof clip.number_data.value !== "number")) {
       const repaired = generateInfographicData("number_reveal", windows[i]?.text || "", "");
       if (repaired.number_data) { clip.number_data = repaired.number_data; }
-      else { clip.visual_type = "spotlight_stat"; clip.animation_data = { value: "73%", label: "key insight", context: "" }; }
+      else { clip.visual_type = "spotlight_stat"; clip.animation_data = { value: key?.[0] || "KEY FACT", label: (windows[i]?.text || "").slice(0, 40), context: "" }; }
     }
     // comparison needs comparison_data
     if (clip.visual_type === "comparison" && !clip.comparison_data) {
@@ -985,6 +993,13 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
     if (graphicTypes.has(clip.visual_type)) {
       clip.imagePath = null;
       clip.isCutout = false;
+    }
+
+    // quote_overlay and overlay_caption need a search_query for background image
+    if ((clip.visual_type === "quote_overlay" || clip.visual_type === "overlay_caption") && q.length < 3) {
+      const niche = nicheInfo?.niche || "general";
+      q = (nicheSafeQueries[niche] || nicheSafeQueries.general)[i % 5];
+      clip.search_query = q;
     }
 
     if (!clip.transition_speed) clip.transition_speed = "fast";
@@ -1026,7 +1041,9 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo) {
 
   for (let i = 1; i < allClips.length; i++) {
     if (allClips[i].start_time < allClips[i - 1].end_time) {
+      const dur = allClips[i].end_time - allClips[i].start_time; // preserve duration
       allClips[i].start_time = allClips[i - 1].end_time;
+      allClips[i].end_time = allClips[i].start_time + Math.max(dur, 1.5); // min 1.5s
     }
     if (allClips[i].end_time <= allClips[i].start_time) {
       allClips[i].end_time = allClips[i].start_time + 1.5;
@@ -1069,16 +1086,21 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo) {
     }
   });
 
-  // Inject interrupt cards every 90s
+  // Inject interrupt cards every 90s — only into stock clips, never over animations
   const facts = extractFacts(scriptText);
   if (facts.length > 0) {
     for (let t = 90; t < totalDuration - 15; t += 90) {
-      const host = allClips.find(c => c.start_time <= t && c.end_time > t + 5 && (c.visual_type === "stock" || c.visual_type === "ai_image"));
+      // Find a stock clip that fully contains this moment (start <= t, end >= t+5)
+      const host = allClips.find(c =>
+        c.start_time <= t &&
+        c.end_time >= t + 5 &&
+        c.visual_type === "stock" // only inject over stock, never over animations
+      );
       if (host) {
         const factIdx = Math.floor(t / 90) - 1;
         if (factIdx < facts.length) {
           allClips.push({
-            start_time: t, end_time: t + 5, visual_type: "interrupt_card", display_style: "framed",
+            start_time: t, end_time: t + 4, visual_type: "interrupt_card", display_style: "framed",
             search_query: "", subtitle_words: [], interrupt_data: { fact: facts[factIdx], label: "Did you know?" },
             panel_text: null, panel_type: "clean", animation_data: null, chart_data: null, transition_speed: "fast",
           });
