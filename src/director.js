@@ -124,8 +124,13 @@ function groupSentencesIntoClips(sentences, minDur = 2.0, maxDur = 7.5) {
       result.push(clip);
     } else {
       const mid = clip.start + (clip.end - clip.start) / 2;
-      result.push({ ...clip, end: mid });
-      result.push({ ...clip, start: mid });
+      // Split the text at roughly the midpoint word
+      const words = clip.text.split(/\s+/);
+      const midWord = Math.floor(words.length / 2);
+      const firstHalfText = words.slice(0, midWord).join(" ") || clip.text;
+      const secondHalfText = words.slice(midWord).join(" ") || clip.text;
+      result.push({ ...clip, end: mid, text: firstHalfText });
+      result.push({ ...clip, start: mid, text: secondHalfText });
     }
   }
   return result;
@@ -708,9 +713,12 @@ function generateAnimationData(type, sentence) {
       return { title: "The Trade-off", pros: [halves[0].trim().slice(0, 60)], cons: [halves[1].trim().slice(0, 60)] };
     }
     case "score_card": {
-      const grades = { good: "A", great: "B", average: "C", bad: "D", terrible: "F", failing: "F", worst: "F" };
-      const match = Object.keys(grades).find(k => sentence.toLowerCase().includes(k));
-      return { grade: match ? grades[match] : "F", label: key.slice(0, 3).join(" "), subtitle: sentence.slice(0, 50), color: match && grades[match] <= "B" ? "#22c55e" : "#ef4444" };
+      const gradeMap = { great: "A", good: "B", average: "C", bad: "D", terrible: "F", failing: "F", worst: "F", poor: "D", excellent: "A" };
+      const match = Object.keys(gradeMap).find(k => sentence.toLowerCase().includes(k));
+      if (!match) return null; // don't show score_card without a clear grade context
+      const grade = gradeMap[match];
+      const isGood = grade <= "B";
+      return { grade, label: key.slice(0, 3).join(" "), subtitle: sentence.slice(0, 50), color: isGood ? "#22c55e" : "#ef4444" };
     }
     case "mindset_shift": {
       const halves = sentence.split(/but|instead|rather|however|not.*but/i);
@@ -796,16 +804,25 @@ function generateInfographicData(type, sentence, scriptText) {
     case "timeline":
       // Only when sentence mentions years or a sequence
       if (!numbers.some(n => n > 1900 && n < 2100) && !/year|decade|century|era|period|history|since|ago/.test(sentence.toLowerCase())) return {};
-      return { chart_data: { title, events: [
-        { year: String(numbers.find(n => n > 1900 && n < 2100) || "2000"), label: nearby[0]?.slice(0, 30) || "Phase one begins" },
-        { year: String(numbers.find(n => n > 1900 && n < 2100) ? numbers[numbers.findIndex(n => n > 1900 && n < 2100) + 1] || "2010" : "2010"), label: nearby[1]?.slice(0, 30) || "Turning point" },
-        { year: "2024", label: nearby[2]?.slice(0, 30) || "Present day" },
-      ] } };
+      {
+        const years = numbers.filter(n => n > 1900 && n < 2100);
+        const yr1 = String(years[0] || "2000");
+        const yr2 = String(years[1] || String(parseInt(yr1) + 10));
+        const yr3 = String(years[2] || "2024");
+        return { chart_data: { title, events: [
+          { year: yr1, label: nearby[0]?.slice(0, 30) || "Phase one begins" },
+          { year: yr2, label: nearby[1]?.slice(0, 30) || "Turning point" },
+          { year: yr3, label: nearby[2]?.slice(0, 30) || "Present day" },
+        ] } };
+      }
 
     case "leaderboard":
       // Only for ranking/ordering sentences
       if (!/rank|top|best|worst|most|least|number one|first|second|third/.test(sentence.toLowerCase())) return {};
-      return { chart_data: { title, items: nearby.slice(0, 5).map((s, i) => ({ label: s.slice(0, 25), value: 100 - i * 15, suffix: "%" })) } };
+      {
+        const items = nearby.length >= 2 ? nearby.slice(0, 5) : key.slice(0, 5).map(k => k);
+        return { chart_data: { title, items: items.map((s, i) => ({ label: typeof s === 'string' ? s.slice(0, 25) : String(s), value: 100 - i * 15, suffix: "%" })) } };
+      }
 
     case "horizontal_bar":
       // Only when sentence has multiple comparable quantities
@@ -825,13 +842,19 @@ function generateInfographicData(type, sentence, scriptText) {
       ], suffix: "x" } };
 
     case "donut_chart":
-      return { chart_data: { title, centerLabel: numbers[0] ? `${numbers[0]}%` : "73%", segments: [
-        { label: key[0] || "Group A", value: parseInt(numbers[0]) || 73, color: "" },
-        { label: key[1] || "Group B", value: 100 - (parseInt(numbers[0]) || 73), color: "" },
+      return { chart_data: { title, centerLabel: pct ? pct[1] + "%" : (numbers[0] ? `${numbers[0]}%` : key[0] || "Split"), segments: [
+        { label: key[0] || "Group A", value: parseInt(pct?.[1]) || parseInt(numbers[0]) || 60, color: "" },
+        { label: key[1] || "Group B", value: 100 - (parseInt(pct?.[1]) || parseInt(numbers[0]) || 60), color: "" },
       ] } };
 
     case "ranking_cards":
       return { chart_data: { title, items: nearby.slice(0, 5).map((s, i) => ({ label: s.slice(0, 30), value: `#${i + 1}` })) } };
+
+    case "split_comparison":
+      return { chart_data: { title, left: { label: key[0] || "Option A", value: numbers[0] ? String(numbers[0]) : "Low", description: sentence.slice(0, 40) }, right: { label: key[1] || "Option B", value: numbers[1] ? String(numbers[1]) : "High", description: sentence.slice(40, 80) } } };
+
+    case "scale_comparison":
+      return { chart_data: { title, items: [{ label: key[0] || "Small", value: parseInt(numbers[0]) || 10 }, { label: key[1] || "Large", value: parseInt(numbers[1]) || 1000 }] } };
 
     case "flow_diagram":
       return { chart_data: { title, nodes: nearby.slice(0, 4).map((s, i) => ({ id: i + 1, label: s.slice(0, 20) })), edges: [] } };
@@ -849,7 +872,7 @@ function generateInfographicData(type, sentence, scriptText) {
       return { animation_data: { percent: parseInt(pct?.[1]) || 73, label: key.slice(0, 4).join(" ").toLowerCase() } };
 
     default:
-      return { chart_data: { title, stats: [{ value: numbers[0] || "73%", label: sentence.slice(0, 40) }] } };
+      return { chart_data: { title, stats: [{ value: pct ? pct[1] + "%" : (numbers[0] ? String(numbers[0]) : key[0] || "Key Stat"), label: sentence.slice(0, 40) }] } };
   }
 }
 
@@ -877,26 +900,32 @@ async function directClipWindows(windows, planChunk, scriptText, isFirst, isLast
     return `[${i}] ${w.start.toFixed(2)}s-${w.end.toFixed(2)}s (${dur}s) | PLAN: ${plan.category || "stock"}→${plan.type || "stock"} | "${w.text}"`;
   }).join("\n");
 
-  const response = await axios.post(
-    "https://api.anthropic.com/v1/messages",
-    {
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 20000,
-      messages: [{
-        role: "user",
-        content: buildAssignmentPrompt(windowRef, windows, planChunk, scriptText, isFirst, isLast, nicheInfo, themeHints, topic, theme, isHorror),
-      }],
-    },
-    {
-      headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      timeout: 120000,
-    }
-  );
+  try {
+    const response = await axios.post(
+      "https://api.anthropic.com/v1/messages",
+      {
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 20000,
+        messages: [{
+          role: "user",
+          content: buildAssignmentPrompt(windowRef, windows, planChunk, scriptText, isFirst, isLast, nicheInfo, themeHints, topic, theme, isHorror),
+        }],
+      },
+      {
+        headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        timeout: 120000,
+      }
+    );
 
-  const content = response.data.content[0].text;
-  let clips = parseClipsJSON(content);
-  clips = validateAndSyncClips(clips, windows, nicheInfo);
-  return clips;
+    const content = response.data.content[0].text;
+    let clips = parseClipsJSON(content);
+    clips = validateAndSyncClips(clips, windows, nicheInfo);
+    return clips;
+  } catch (e) {
+    console.log(chalk.yellow(`  Pass 2 chunk failed (${e.message}), using enforcePlan fallback`));
+    // Return stock clips for this chunk — enforcePlan will inject animations from the plan
+    return windows.map(w => makeStockClip(w, nicheInfo));
+  }
 }
 
 // ─── ASSIGNMENT PROMPT ───────────────────────────────────────────────────────
@@ -913,8 +942,8 @@ start_time and end_time are FIXED — do not change them.
 CLIP WINDOWS WITH PLAN:
 ${windowRef}
 
-SCRIPT CONTEXT:
-${scriptText.slice(0, 2500)}
+SCRIPT CONTEXT (full):
+${scriptText.slice(0, 5000)}
 
 ═══ HOW TO FILL EACH TYPE ═══
 
