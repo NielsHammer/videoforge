@@ -32,7 +32,7 @@ import { FlowDiagram } from "./components/FlowDiagram";
 import { InterruptCard } from "./components/InterruptCard";
 import { QuotePull } from "./components/QuotePull";
 import { CountdownCorner } from "./components/CountdownCorner";
-// batch2 components
+// batch2
 import { TypewriterReveal } from "./components/TypewriterReveal";
 import { MoneyCounter } from "./components/MoneyCounter";
 import { GlitchText } from "./components/GlitchText";
@@ -50,7 +50,7 @@ import { NewsBreaking } from "./components/NewsBreaking";
 import { PercentFill } from "./components/PercentFill";
 import { QuoteOverlay } from "./components/QuoteOverlay";
 import { CompareReveal } from "./components/CompareReveal";
-// batch3 components
+// batch3
 import { HighlightBuild } from "./components/HighlightBuild";
 import { CountUp } from "./components/CountUp";
 import { NeonSign } from "./components/NeonSign";
@@ -61,6 +61,38 @@ import { YouTubeProgress } from "./components/YouTubeProgress";
 import { PolaroidStack } from "./components/PolaroidStack";
 import { WarningSiren } from "./components/WarningSiren";
 import { OverlayCaption } from "./components/OverlayCaption";
+// batch4 — 31 new components
+import { PullQuote } from "./components/PullQuote";
+import { StatComparison } from "./components/StatComparison";
+import { BulletList } from "./components/BulletList";
+import { MythFact } from "./components/MythFact";
+import { StepReveal } from "./components/StepReveal";
+import { ProCon } from "./components/ProCon";
+import { ScoreCard } from "./components/ScoreCard";
+import { PersonProfile } from "./components/PersonProfile";
+import { RedditPost } from "./components/RedditPost";
+import { GoogleSearch } from "./components/GoogleSearch";
+import { ThreePoints } from "./components/ThreePoints";
+import { StackedBar } from "./components/StackedBar";
+import { CountdownTimer } from "./components/CountdownTimer";
+import { VoteBar } from "./components/VoteBar";
+import { MapCallout } from "./components/MapCallout";
+import { NewsHeadline } from "./components/NewsHeadline";
+import { InstagramPost } from "./components/InstagramPost";
+import { YouTubeCard } from "./components/YouTubeCard";
+import { QuizCard } from "./components/QuizCard";
+import { PortfolioBreakdown } from "./components/PortfolioBreakdown";
+import { ROICalculator } from "./components/ROICalculator";
+import { TimelapseBar } from "./components/TimelapseBar";
+import { SpeedMeter } from "./components/SpeedMeter";
+import { CandlestickChart } from "./components/CandlestickChart";
+import { ConversationBubble } from "./components/ConversationBubble";
+import { LoadingBar } from "./components/LoadingBar";
+import { WealthLadder } from "./components/WealthLadder";
+import { RuleCard } from "./components/RuleCard";
+import { AlertBanner } from "./components/AlertBanner";
+import { BigNumber } from "./components/BigNumber";
+import { MindsetShift } from "./components/MindsetShift";
 
 export const VideoComposition = ({ clips, wordTimestamps, theme }) => {
   const { fps } = useVideoConfig();
@@ -82,6 +114,7 @@ export const VideoComposition = ({ clips, wordTimestamps, theme }) => {
   );
 };
 
+// Types that don't need an image fetched — pure graphic overlays
 const GRAPHIC_TYPES = [
   // legacy infographics
   "number_reveal","section_break","comparison","text_flash",
@@ -100,67 +133,49 @@ const GRAPHIC_TYPES = [
   "news_breaking","percent_fill","compare_reveal",
   // batch3
   "highlight_build","count_up","neon_sign","reaction_face",
-  "thumbs_up","side_by_side","youtube_progress",
+  "thumbs_up","side_by_side","youtube_progress","polaroid_stack",
   "warning_siren",
-  // NOT included: quote_overlay, overlay_caption, polaroid_stack
-  // These render over fetched images — they need image fade timing, not graphic fade
+  // batch4
+  "pull_quote","stat_comparison","bullet_list","myth_fact","step_reveal",
+  "pro_con","score_card","person_profile","reddit_post","google_search",
+  "three_points","stacked_bar","countdown_timer","vote_bar","map_callout",
+  "news_headline","instagram_post","youtube_card","quiz_card",
+  "portfolio_breakdown","roi_calculator","timelapse_bar","speed_meter",
+  "candlestick_chart","conversation_bubble","loading_bar","wealth_ladder",
+  "rule_card","alert_banner","big_number","mindset_shift",
+  // NOTE: quote_overlay, overlay_caption, polaroid_stack need images — NOT listed here
 ];
 
 const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const type = clip.visual_type;
-  const style = clip.display_style || "framed";
+  const style = clip.display_style;
 
-  // B-roll image switching — disabled for split layouts (panel already uses extra images)
-  let imgPath = clip.imagePath;
-  const isSplitStyle = style === "split_left" || style === "split_right";
-  if (clip.imagePaths && clip.imagePaths.length > 1 && !isSplitStyle) {
-    const crossfadeEvery = fps * 3.5;
-    const safeFrame = Math.min(frame, durationInFrames - fps * 0.5);
-    const imgIndex = Math.floor(safeFrame / crossfadeEvery) % clip.imagePaths.length;
-    imgPath = clip.imagePaths[imgIndex] || imgPath;
-  }
-
-  // Convert to staticFile — publicDir is assetsDir so just use basename
-  let imgSrc = null;
-  if (imgPath) {
-    const basename = (imgPath.includes('/') || imgPath.includes('\\'))
-      ? imgPath.replace(/\\/g, '/').split('/').pop()
-      : imgPath;
-    if (basename) imgSrc = staticFile(basename);
-  }
-
-  const isGraphicOnly = GRAPHIC_TYPES.includes(type);
-  const isImage = type === "stock" || type === "ai_image" || type === "web_image";
-  const isSplit = style === "split_left" || style === "split_right";
+  const isImage = !GRAPHIC_TYPES.includes(type);
   const isFullscreen = style === "fullscreen" || style === "fullscreen_zoom";
-  const isFramed = style === "framed";
+  const isSplit = style === "split_left" || style === "split_right";
+  const isFramed = style === "framed" || (!isFullscreen && !isSplit);
 
-  // Zoom-to-black transition
-  const transitionSpeed = clip.transition_speed || "fast";
-  const transitionFrames = transitionSpeed === "slow" ? fps * 0.5 : fps * 0.2;
-  const zoomScale = isImage && isFullscreen
-    ? interpolate(frame, [durationInFrames - transitionFrames, durationInFrames], [1, 1.06], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.in(Easing.quad) })
-    : 1;
-  const zoomOpacity = isImage
-    ? interpolate(frame, [durationInFrames - transitionFrames, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })
+  const imgSrc = clip.imagePath ? staticFile(clip.imagePath) : null;
+  const imgPath = clip.imagePath || null;
+
+  // Zoom for fullscreen
+  const zoomScale = style === "fullscreen_zoom"
+    ? interpolate(frame, [0, durationInFrames], [1.0, 1.08], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })
     : 1;
 
   // Fade in/out
-  let fadeIn, fadeOut;
-  if (isGraphicOnly) {
-    fadeIn = interpolate(frame, [0, 2], [0, 1], { extrapolateRight: "clamp" });
-    fadeOut = interpolate(frame, [durationInFrames - 2, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  } else {
-    const fadeFrames = [fps * 0.08, fps * 0.04, fps * 0.12, fps * 0.06][clipIndex % 4];
-    fadeIn = interpolate(frame, [0, fadeFrames], [0, 1], { extrapolateRight: "clamp" });
-    fadeOut = isImage ? zoomOpacity : interpolate(frame, [durationInFrames - fps * 0.06, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  let fadeIn = 1, fadeOut = 1;
+  if (isImage) {
+    const zoomOpacity = interpolate(frame, [0, fps * 0.12], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+    fadeIn = zoomOpacity;
+    fadeOut = interpolate(frame, [durationInFrames - fps * 0.06, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   }
 
-  // B-roll crossfade — don't crossfade in last second, skip for splits (panel handles its own timing)
+  // B-roll crossfade — disable for split layouts to prevent flicker
   let imgOpacity = 1;
-  if (clip.imagePaths && clip.imagePaths.length > 1 && !isSplitStyle) {
+  if (clip.imagePaths && clip.imagePaths.length > 1 && !isSplit) {
     const crossfadeEvery = fps * 3.5;
     const posInCycle = frame % crossfadeEvery;
     const crossfadeDur = fps * 0.35;
@@ -179,12 +194,12 @@ const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {
       transformOrigin: "center center",
     }}>
 
-      {/* ═══ BATCH 1 ANIMATIONS ═══ */}
+      {/* ═══ BATCH 1 ═══ */}
       {type === "kinetic_text" && <KineticText data={ad} clipFrame={frame} theme={theme} />}
       {type === "spotlight_stat" && <SpotlightStat data={ad} clipFrame={frame} theme={theme} />}
       {type === "icon_burst" && <IconBurst data={ad} clipFrame={frame} theme={theme} />}
 
-      {/* ═══ BATCH 2 ANIMATIONS ═══ */}
+      {/* ═══ BATCH 2 ═══ */}
       {type === "typewriter_reveal" && <TypewriterReveal data={ad} clipFrame={frame} theme={theme} />}
       {type === "money_counter" && <MoneyCounter data={ad} clipFrame={frame} theme={theme} />}
       {type === "glitch_text" && <GlitchText data={ad} clipFrame={frame} theme={theme} />}
@@ -203,7 +218,7 @@ const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {
       {type === "quote_overlay" && <QuoteOverlay data={ad} imagePath={imgPath} clipFrame={frame} theme={theme} />}
       {type === "compare_reveal" && <CompareReveal data={ad} clipFrame={frame} theme={theme} />}
 
-      {/* ═══ BATCH 3 ANIMATIONS ═══ */}
+      {/* ═══ BATCH 3 ═══ */}
       {type === "highlight_build" && <HighlightBuild data={ad} clipFrame={frame} theme={theme} />}
       {type === "count_up" && <CountUp data={ad} clipFrame={frame} theme={theme} />}
       {type === "neon_sign" && <NeonSign data={ad} clipFrame={frame} theme={theme} />}
@@ -214,6 +229,39 @@ const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {
       {type === "polaroid_stack" && <PolaroidStack data={ad} imagePaths={clip.imagePaths || []} clipFrame={frame} theme={theme} />}
       {type === "warning_siren" && <WarningSiren data={ad} clipFrame={frame} theme={theme} />}
       {type === "overlay_caption" && <OverlayCaption data={ad} imagePath={imgPath} clipFrame={frame} theme={theme} />}
+
+      {/* ═══ BATCH 4 — 31 new components ═══ */}
+      {type === "pull_quote" && <PullQuote data={ad} clipFrame={frame} theme={theme} />}
+      {type === "stat_comparison" && <StatComparison data={ad} clipFrame={frame} theme={theme} />}
+      {type === "bullet_list" && <BulletList data={ad} clipFrame={frame} theme={theme} />}
+      {type === "myth_fact" && <MythFact data={ad} clipFrame={frame} theme={theme} />}
+      {type === "step_reveal" && <StepReveal data={ad} clipFrame={frame} theme={theme} />}
+      {type === "pro_con" && <ProCon data={ad} clipFrame={frame} theme={theme} />}
+      {type === "score_card" && <ScoreCard data={ad} clipFrame={frame} theme={theme} />}
+      {type === "person_profile" && <PersonProfile data={ad} clipFrame={frame} theme={theme} />}
+      {type === "reddit_post" && <RedditPost data={ad} clipFrame={frame} theme={theme} />}
+      {type === "google_search" && <GoogleSearch data={ad} clipFrame={frame} theme={theme} />}
+      {type === "three_points" && <ThreePoints data={ad} clipFrame={frame} theme={theme} />}
+      {type === "stacked_bar" && <StackedBar data={ad} clipFrame={frame} theme={theme} />}
+      {type === "countdown_timer" && <CountdownTimer data={ad} clipFrame={frame} theme={theme} />}
+      {type === "vote_bar" && <VoteBar data={ad} clipFrame={frame} theme={theme} />}
+      {type === "map_callout" && <MapCallout data={ad} clipFrame={frame} theme={theme} />}
+      {type === "news_headline" && <NewsHeadline data={ad} clipFrame={frame} theme={theme} />}
+      {type === "instagram_post" && <InstagramPost data={ad} clipFrame={frame} theme={theme} />}
+      {type === "youtube_card" && <YouTubeCard data={ad} clipFrame={frame} theme={theme} />}
+      {type === "quiz_card" && <QuizCard data={ad} clipFrame={frame} theme={theme} />}
+      {type === "portfolio_breakdown" && <PortfolioBreakdown data={ad} clipFrame={frame} theme={theme} />}
+      {type === "roi_calculator" && <ROICalculator data={ad} clipFrame={frame} theme={theme} />}
+      {type === "timelapse_bar" && <TimelapseBar data={ad} clipFrame={frame} theme={theme} />}
+      {type === "speed_meter" && <SpeedMeter data={ad} clipFrame={frame} theme={theme} />}
+      {type === "candlestick_chart" && <CandlestickChart data={ad} clipFrame={frame} theme={theme} />}
+      {type === "conversation_bubble" && <ConversationBubble data={ad} clipFrame={frame} theme={theme} />}
+      {type === "loading_bar" && <LoadingBar data={ad} clipFrame={frame} theme={theme} />}
+      {type === "wealth_ladder" && <WealthLadder data={ad} clipFrame={frame} theme={theme} />}
+      {type === "rule_card" && <RuleCard data={ad} clipFrame={frame} theme={theme} />}
+      {type === "alert_banner" && <AlertBanner data={ad} clipFrame={frame} theme={theme} />}
+      {type === "big_number" && <BigNumber data={ad} clipFrame={frame} theme={theme} />}
+      {type === "mindset_shift" && <MindsetShift data={ad} clipFrame={frame} theme={theme} />}
 
       {/* ═══ SPLIT LAYOUT ═══ */}
       {isImage && isSplit && (
@@ -229,7 +277,7 @@ const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {
         </div>
       )}
 
-      {/* ═══ FRAMED LAYOUT — shows background theme ═══ */}
+      {/* ═══ FRAMED LAYOUT ═══ */}
       {isImage && isFramed && imgSrc && (
         <div style={{ opacity: imgOpacity }}>
           <FramedScene
@@ -242,7 +290,7 @@ const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {
         </div>
       )}
 
-      {/* ═══ FULLSCREEN — used sparingly ═══ */}
+      {/* ═══ FULLSCREEN ═══ */}
       {isImage && isFullscreen && (
         <>
           <div style={{ position: "absolute", inset: 0, backgroundColor: "#060c24", zIndex: 0 }} />

@@ -188,60 +188,133 @@ async function classifyClipWindows(clipWindows, scriptText, nicheInfo, themeHint
     return `[${i}] ${w.start.toFixed(1)}s (${dur}s): "${w.text}"`;
   }).join("\n");
 
-  const prompt = `You are planning a YouTube video storyboard. Read this script and assign a visual category to each clip window.
+  const prompt = `You are planning a YouTube video storyboard. Read every sentence and assign the BEST visual type for each clip.
 
 VIDEO TOPIC: "${topic}"
 NICHE: ${nicheInfo.niche} | THEME: "${theme}"
 NICHE STYLE: ${budget.label}
-THEME ANIMATIONS TO PREFER: ${themeHints.prefer.join(", ")}
+PREFERRED ANIMATIONS FOR THIS THEME: ${themeHints.prefer.join(", ")}
 
 TARGET MIX for ${total} total clips:
-- ${stockTarget} clips → "stock" (framed images only — fullscreen BANNED except clips after position 5)
-- ${animTarget} clips → "animation" (kinetic_text, reaction_face, count_up, neon_sign, etc.)
-- ${splitTarget} clips → "split" (split_left or split_right with panel icon)
-- ${infraTarget} clips → "infographic" (number_reveal, checklist, timeline, stat_card, etc.)
+- ${stockTarget} clips → "stock" (real images only)
+- ${animTarget} clips → "animation" (text/motion graphics)
+- ${splitTarget} clips → "split" (image + panel side by side)
+- ${infraTarget} clips → "infographic" (data charts/stats)
 
 CLIP WINDOWS:
 ${windowList}
 
-CLASSIFICATION RULES:
-- "stock": narrator is telling a story, giving context, describing a scene → display: "framed" ALWAYS (no fullscreen)
-- "animation": narrator makes a KEY STATEMENT — shocking stat, pivotal insight, emotional peak, call to action
-  → Choose the BEST fitting type from this full list:
-  IMPACT TEXT: kinetic_text (punchy 2-4 words), neon_sign (bold glowing claim), glitch_text (shocking tech moment), typewriter_reveal (quote or phrase types out)
-  STATS/NUMBERS: spotlight_stat (single dramatic %), count_up (number counts up), money_counter ($ amount), percent_fill (circle fills), trend_arrow (up/down direction)
-  REACTIONS: reaction_face (emoji slam - 🤯😱), warning_siren (danger/mistake), news_breaking (dramatic reveal), lightbulb_moment (idea/insight)
-  LISTS/STEPS: checkmark_build (steps building up), highlight_build (key phrases highlighted), icon_burst (icons radiating)
-  COMPARISONS: before_after (transformation), compare_reveal (side by side), side_by_side (two concepts)
-  SOCIAL/PLATFORM: tweet_card (quote as tweet), phone_screen (phone notification), stock_ticker (financial ticker)
-  EMOTIONAL: rocket_launch (growth/momentum), thumbs_up (verdict/recommendation), word_scatter (concept cloud)
-  → From theme preferred list also consider: ${themeHints.prefer.slice(0, 4).join(", ")}
-- "split": narrator describes a person, place, or situation — good for storytelling clips → display: "split_left" or "split_right"
-- "infographic": narrator cites specific data, statistics, or a list → choose best type:
-  SINGLE STAT: number_reveal (dramatic number), spotlight_stat (% with context)
-  CARDS: stat_card (2-3 stats side by side), compare_reveal (two options compared)
-  LISTS: checklist (steps/items with checkmarks), leaderboard (ranked items), ranking_cards (top items)
-  CHARTS: progress_bar (bars showing %s), horizontal_bar (comparison bars), line_chart (trend over time), growth_curve (exponential growth), donut_chart (pie breakdown)
-  FLOWS: timeline (events in sequence), process_flow (steps in a process), flow_diagram (A→B→C)
-  OTHER: percent_fill (single % circle), trend_arrow (direction of change), icon_grid (concepts as icons)
+════════════════════════════════════════════
+ANIMATION TYPES — pick the BEST fit per sentence:
+════════════════════════════════════════════
 
-CRITICAL DISTRIBUTION RULES — these override everything:
-1. FIRST 3 CLIPS (positions 0,1,2): MUST be "animation" or "stock" with display "framed". NEVER "fullscreen". NEVER "split". The hook must hit immediately.
-2. Clip 0 MUST be "animation" — this is the hook. Pick the most dramatic animation for the opening line.
-3. SPREAD: animations and infographics must appear throughout the WHOLE video. In every group of 5 consecutive clips, at least 2 must be non-stock (animation, split, or infographic).
-4. DO NOT bunch all animations at the end. Distribute them evenly — early, middle, AND late.
-5. "fullscreen" display is only allowed for positions 4+ and max 2 times total in the entire video.
+IMPACT TEXT (use when narrator makes a bold statement):
+- kinetic_text: 2-4 punchy words slam in. USE FOR: key claims, chapter titles, rhetorical points
+- neon_sign: glowing bold phrase. USE FOR: mottos, mantras, big truths ("INVEST FIRST. ALWAYS.")
+- typewriter_reveal: text types out. USE FOR: quotes, revelations, dramatic pauses
+- glitch_text: glitchy distorted text. USE FOR: tech topics, hacking, shocking system failures
+- big_number: one massive number fills screen. USE FOR: single shocking stat deserves full emphasis
+- pull_quote: large italic quote. USE FOR: direct quotes from people, memorable phrases
 
-Example good pattern for 10 clips: animation, stock, split, stock, animation, infographic, stock, split, animation, infographic
-Example BAD pattern: stock, stock, stock, stock, stock, stock, stock, animation, infographic, infographic ← DON'T DO THIS
+STATS & NUMBERS (use when narrator cites a specific number):
+- spotlight_stat: single % or $ with label. USE FOR: "96% of Americans never reach $1M"
+- count_up: number counts up dramatically. USE FOR: numbers ≥10 counting to final value
+- money_counter: dollar amount counts up. USE FOR: monetary amounts, costs, earnings
+- percent_fill: circle fills to percentage. USE FOR: single percentage that feels like a fill-up
+- trend_arrow: arrow pointing up or down. USE FOR: change sentences ("rose 40%", "dropped 20%")
+- loading_bar: bar fills to percentage. USE FOR: alarming % like "78% live paycheck to paycheck"
+- score_card: letter grade reveal (A-F). USE FOR: grading something ("Americans get an F on savings")
 
-Return ONLY a JSON array of ${total} objects, one per clip, in order:
-[{"i":0,"category":"stock","type":"stock","display":"framed"},{"i":1,"category":"animation","type":"kinetic_text","display":"framed"},...]
+COMPARISONS (use when narrator contrasts two things):
+- before_after: transformation from X to Y. USE FOR: "went from broke to $1M", change stories
+- compare_reveal: two cards side by side with winner. USE FOR: "average vs millionaire", "old vs new"
+- side_by_side: two concepts equal weight. USE FOR: "poor mindset vs rich mindset"
+- stat_comparison: two big stats facing off. USE FOR: two contrasting statistics
+- mindset_shift: old thinking crossed out → new thinking. USE FOR: paradigm shifts, reframes
+- myth_fact: myth crossed out, reality revealed. USE FOR: debunking, "most people think X but really Y"
+- pro_con: pros and cons columns. USE FOR: weighing advantages vs disadvantages
+- conversation_bubble: chat bubbles dialogue. USE FOR: contrasting two perspectives as dialogue
+
+LISTS & STEPS (use when narrator lists items or steps):
+- checkmark_build: items build with checkmarks. USE FOR: steps, requirements, criteria lists
+- highlight_build: phrases highlight one by one. USE FOR: 2-3 key points building
+- bullet_list: clean animated bullets. USE FOR: 3-5 tips, reasons, or items
+- step_reveal: numbered steps. USE FOR: how-to processes, sequences
+- three_points: exactly 3 key points with icons. USE FOR: "3 reasons", "3 rules", "3 types"
+- rule_card: named rule/principle display. USE FOR: "Rule #1: Pay yourself first"
+- checklist_build → use "checkmark_build"
+
+REACTIONS & EMOTION (use for emotional peaks):
+- reaction_face: emoji slams in (🤯😱). USE FOR: shocking reveals, disbelief moments
+- warning_siren: red warning banner. USE FOR: danger, mistakes to avoid, traps
+- alert_banner: styled alert with stat. USE FOR: critical mistakes with supporting statistic
+- lightbulb_moment: insight reveal. USE FOR: "here's the key insight", "the real reason is..."
+- news_breaking: news ticker style. USE FOR: shocking statistics, dramatic revelations
+- news_headline: newspaper headline. USE FOR: when fact sounds like a headline
+- rocket_launch: rocket launches. USE FOR: growth, momentum, "this is where it compounds"
+- quiz_card: question with answer reveal. USE FOR: rhetorical questions "what % do you think..."
+
+SOCIAL / PLATFORM (use for creator topics or viral moments):
+- tweet_card: tweet-style card. USE FOR: quotable 1-liner, viral-worthy statement (20-100 chars)
+- reddit_post: Reddit post card. USE FOR: relatable community story, forum reference
+- instagram_post: Instagram card. USE FOR: social media topics, creator economy
+- youtube_card: YouTube video card. USE FOR: YouTube references, creator topics
+- google_search: Google search results. USE FOR: "if you search X you'll find..." moments
+- phone_screen: phone notification. USE FOR: social media topics, app references
+
+FINANCE SPECIFIC (use for finance/investment topics):
+- stock_ticker: scrolling stock prices. USE FOR: market topics, investment discussions
+- portfolio_breakdown: allocation bars. USE FOR: describing how wealthy people invest
+- candlestick_chart: price chart. USE FOR: stock market, crashes, recoveries
+- roi_calculator: shows investment growing. USE FOR: compound interest, "invest $X get $Y"
+- wealth_ladder: tier visualization. USE FOR: wealth levels, income classes
+
+DATA CHARTS (use when narrator cites multiple data points):
+- stacked_bar: composition breakdown. USE FOR: "budget breaks down as X% housing, Y% food"
+- vote_bar: poll results. USE FOR: survey data, "78% of people say..."
+- speed_meter: gauge/dial. USE FOR: rating something on a scale
+- timelapse_bar: timeline progress. USE FOR: life stages, time windows, deadlines
+- map_callout: location + stat. USE FOR: country/city specific statistics
+
+PEOPLE & STORIES (use when narrator talks about a specific person):
+- person_profile: person stats card. USE FOR: real person with specific details
+- pro_con: also for evaluating a decision involving people
+
+════════════════════════════════════════════
+INFOGRAPHIC TYPES (data-heavy, need chart_data):
+════════════════════════════════════════════
+- number_reveal: single big number animation. USE WHEN: sentence has one key number ≥10
+- stat_card: 2-3 stats in cards. USE WHEN: sentence has multiple statistics
+- checklist: checkmark list from script. USE WHEN: sentence introduces a list of items
+- progress_bar: horizontal bars. USE WHEN: sentence compares multiple percentages
+- timeline: events on a timeline. USE WHEN: sentence mentions years or historical sequence
+- leaderboard: ranked list. USE WHEN: sentence ranks or orders things
+- horizontal_bar: comparison bars. USE WHEN: sentence has 2-3 comparable quantities
+- growth_curve: exponential growth line. USE WHEN: compound interest, exponential growth
+- donut_chart: pie breakdown. USE WHEN: proportions that add to 100%
+- flow_diagram: A→B→C flow. USE WHEN: process or sequence of causes/effects
+
+NICHE-SPECIFIC RULES:
+${nicheInfo.niche === "horror" || nicheInfo.niche === "true_crime" ? "- HORROR/TRUE CRIME: NO infographics. Use: reaction_face, warning_siren, glitch_text, neon_sign, news_breaking, news_headline, typewriter_reveal only." : ""}
+${nicheInfo.niche === "creator" ? "- CREATOR: Prioritize tweet_card, phone_screen, instagram_post, youtube_card, reddit_post, google_search, social_counter." : ""}
+${nicheInfo.niche === "finance" ? "- FINANCE: Prioritize stock_ticker, roi_calculator, portfolio_breakdown, candlestick_chart, wealth_ladder, money_counter, count_up, spotlight_stat." : ""}
+${nicheInfo.niche === "history" ? "- HISTORY: Prioritize timeline, timelapse_bar, news_headline, person_profile, map_callout, typewriter_reveal." : ""}
+${nicheInfo.niche === "health" ? "- HEALTH: Prioritize score_card, loading_bar, percent_fill, vote_bar, bullet_list, three_points, step_reveal." : ""}
+${nicheInfo.niche === "travel" ? "- TRAVEL: Prioritize map_callout, person_profile, split layouts, pull_quote." : ""}
+
+CRITICAL DISTRIBUTION RULES:
+1. Clip 0 MUST be "animation" — most dramatic type for opening line
+2. First 3 clips: NEVER "fullscreen", NEVER "split"
+3. Every 5 consecutive clips must have at least 2 non-stock
+4. NEVER bunch animations at the end — spread throughout
+5. "fullscreen" display: max 2 times total, only after position 4
+6. Choose animation type based on what the SENTENCE IS ACTUALLY SAYING — don't pick money_counter for a sentence with no money, don't pick before_after for a sentence with no transformation
+
+Return ONLY a JSON array of ${total} objects:
+[{"i":0,"category":"animation","type":"spotlight_stat","display":"framed"},...]
 
 Categories: "stock", "animation", "split", "infographic"
-Display options: "framed", "fullscreen", "split_left", "split_right"
-For split category use display "split_left" or "split_right".
-For stock category use "framed" (default) or "fullscreen" (hook only, max 2 total).`;
+Display: "framed", "fullscreen", "split_left", "split_right"`;
 
   try {
     const response = await axios.post(
@@ -344,6 +417,11 @@ function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, ani
     "percent_fill","trend_arrow","before_after","compare_reveal","highlight_build",
     "checkmark_build","icon_burst","lightbulb_moment","rocket_launch","tweet_card",
     "phone_screen","word_scatter","side_by_side","thumbs_up","stock_ticker",
+    // batch4
+    "pull_quote","stat_comparison","bullet_list","myth_fact","step_reveal",
+    "pro_con","score_card","mindset_shift","big_number","alert_banner",
+    "three_points","rule_card","loading_bar","vote_bar","news_headline",
+    "conversation_bubble","stacked_bar","countdown_timer",
   ];
   const infraRotation = [
     "stat_card","number_reveal","checklist","progress_bar","timeline",
@@ -770,58 +848,99 @@ STOCK (category: stock):
 - display_style: use the PLAN display ("framed", "fullscreen", "split_left", "split_right")
 - panel_icon: for split layouts — one emoji matching the moment (🚀💰🧠🔥⚡🎯💡📈🏆✅😤🎭💪😱) or null
 
-ANIMATION (category: animation) — use the PLAN type:
-- "kinetic_text" → animation_data: {lines:["SHORT","PUNCH"], style:"impact"} — MAX 2 lines, MAX 4 words each. Extract the most impactful 2-4 words from the sentence. NOT full sentences. WRONG: ["CAN'T STOP SCROLLING","SOCIAL MEDIA WAS USING HER"] — too long. RIGHT: ["SOCIAL MEDIA","USING YOU"] — punchy.
-- "count_up" → animation_data: {value:NUMBER, prefix:"$", suffix:"", label:"what it is", decimals:0}
-- "money_counter" → animation_data: {amount:NUMBER, currency:"$", label:"what the money is"}
-- "spotlight_stat" → animation_data: {value:"92%", label:"exact stat description", context:"one sentence context"}
-- "reaction_face" → animation_data: {emoji:"🤯", label:"exact words narrator says here", style:"slam"}
-- "neon_sign" → animation_data: {text:"EXACT PHRASE", subtitle:"optional context"}
-- "warning_siren" → animation_data: {headline:"WARNING", body:"the specific mistake/danger from script", icon:"⚠️"}
-- "checkmark_build" → animation_data: {items:["step from script","step from script","step from script"], title:"optional"}
-- "before_after" → animation_data: {before:"situation before", after:"situation after", label:"the transformation"}
-- "news_breaking" → animation_data: {headline:"DRAMATIC FACT FROM SCRIPT", subtext:"one line context", ticker:"DEVELOPING"}
-- "highlight_build" → animation_data: {lines:["key phrase","second phrase","third phrase"], delay:0.3}
-- "typewriter_reveal" → animation_data: {text:"exact phrase narrator says", subtitle:"context"}
-- "glitch_text" → animation_data: {text:"SHOCKING CLAIM FROM SCRIPT"}
-- "trend_arrow" → animation_data: {direction:"up", value:"340%", label:"what is growing/declining"}
-- "percent_fill" → animation_data: {percent:73, label:"what the percentage represents"}
-- "tweet_card" → animation_data: {handle:"@relevant", text:"quote from script", likes:"24.3K", retweets:"8.1K"}
-- "phone_screen" → animation_data: {app:"instagram", notification:"notification matching script", metric:"10.2K"}
+ANIMATION (category: animation) — use the PLAN type, fill in animation_data from the exact sentence:
+- "kinetic_text" → {lines:["SHORT","PUNCH"], style:"impact"} — MAX 2 lines, MAX 4 words each, EXACT words narrator says
+- "count_up" → {value:NUMBER, prefix:"$", suffix:"", label:"what it is", decimals:0} — only if sentence has number ≥10
+- "money_counter" → {amount:NUMBER, currency:"$", label:"what the money is"}
+- "spotlight_stat" → {value:"96%", label:"exact stat description", context:"one sentence context"}
+- "reaction_face" → {emoji:"🤯", label:"exact words narrator says here", style:"slam"}
+- "neon_sign" → {text:"EXACT PHRASE MAX 4 WORDS", subtitle:"optional context"}
+- "warning_siren" → {headline:"WARNING", body:"the specific mistake/danger from script", icon:"⚠️", color:"#ef4444"}
+- "alert_banner" → {type:"danger", title:"CRITICAL MISTAKE", body:"what the mistake is", stat:"X% of people", icon:"🚨"}
+- "checkmark_build" → {items:["step from script","step from script","step from script"], title:"optional"}
+- "before_after" → {before:"situation before (short)", after:"situation after (short)", label:"the transformation"}
+- "news_breaking" → {headline:"DRAMATIC FACT FROM SCRIPT", subtext:"one line context", ticker:"DEVELOPING"}
+- "news_headline" → {outlet:"BREAKING NEWS", headline:"headline from script fact", subtext:"supporting detail", date:"year if mentioned"}
+- "highlight_build" → {lines:["key phrase from script","second phrase","third phrase"], delay:0.3}
+- "typewriter_reveal" → {text:"exact phrase narrator says", subtitle:"context"}
+- "glitch_text" → {text:"SHOCKING CLAIM MAX 4 WORDS"}
+- "trend_arrow" → {direction:"up", value:"340%", label:"what is growing/declining"}
+- "percent_fill" → {percent:73, label:"what the percentage represents"}
+- "loading_bar" → {label:"what the % represents", value:78, suffix:"%", color:"#ef4444", subtitle:"source or context"}
+- "tweet_card" → {handle:"@relevant", text:"quote from script under 100 chars", likes:"24.3K", retweets:"8.1K"}
+- "phone_screen" → {app:"instagram", notification:"notification matching script", metric:"10.2K"}
+- "reddit_post" → {subreddit:"r/relevant", username:"u/throwaway", title:"post title from script topic", upvotes:"5.2K", comments:"203"}
+- "instagram_post" → {username:"relevantaccount", caption:"caption from script topic", likes:"12.4K", verified:true}
+- "youtube_card" → {title:"video title matching script topic", channel:"relevant channel", views:"4.2M views", duration:"14:32", badge:"TRENDING"}
+- "google_search" → {query:"search query matching what narrator asks", results:[{title:"result 1",source:"Forbes"},{title:"result 2",source:"Inc.com"}]}
+- "stock_ticker" → {items:[{symbol:"WEALTH",price:"$340K",change:"+34%"},...], title:""}
+- "lightbulb_moment" → {text:"the insight from script (max 50 chars)", subtext:"context words"}
+- "rocket_launch" → {headline:"GROWTH CONCEPT IN CAPS", subtext:"supporting phrase", stage:"launch"}
+- "thumbs_up" → {type:"up" or "down", items:["key word","key word","key word"], verdict:"VERDICT IN CAPS"}
+- "word_scatter" → {words:["KEY","WORDS","FROM","SENTENCE","HERE"], centerWord:"MAIN CONCEPT"}
+- "compare_reveal" → {items:[{label:"OPTION A",score:"Low",description:"brief",icon:"❌"},{label:"OPTION B",score:"High",description:"brief",icon:"✅"}], title:"Compare Title", winner:1}
+- "stat_comparison" → {left:{value:"96%",label:"never reach $1M",color:"#ef4444"}, right:{value:"4%",label:"achieve wealth",color:"#22c55e"}, title:"The Gap"}
+- "side_by_side" → {left:"LEFT CONCEPT", right:"RIGHT CONCEPT", leftSub:"supporting stat", rightSub:"supporting stat", vs:true}
+- "mindset_shift" → {old:"wrong thinking from script", new:"right thinking from script", label:"THE SHIFT"}
+- "myth_fact" → {myth:"what people believe from script", fact:"the truth from script", label:"MYTH BUSTED"}
+- "pro_con" → {title:"The Trade-off", pros:["benefit from script","benefit 2"], cons:["downside from script","downside 2"]}
+- "conversation_bubble" → {exchanges:[{speaker:"Most People",text:"what average person thinks",side:"left"},{speaker:"The 1%",text:"what wealthy person does",side:"right"}]}
+- "pull_quote" → {quote:"memorable exact phrase from script", attribution:"source if mentioned"}
+- "bullet_list" → {title:"List Title", items:["item from script","item 2","item 3","item 4"], icon:"▶"}
+- "step_reveal" → {title:"How To", steps:["step from script","step 2","step 3"], active:0}
+- "three_points" → {title:"3 Key Points", points:[{icon:"💰",label:"LABEL",desc:"desc from script"},{icon:"⏰",label:"LABEL",desc:"desc"},{icon:"🎯",label:"LABEL",desc:"desc"}]}
+- "rule_card" → {number:"Rule #1", name:"Rule Name", description:"exact rule from script", icon:"💰"}
+- "score_card" → {grade:"F", label:"Financial Literacy", subtitle:"context from script", color:"#ef4444"}
+- "quiz_card" → {question:"question from script", options:["A","B","C","D"], answer:INDEX, explanation:"answer explanation"}
+- "portfolio_breakdown" → {title:"Portfolio Type", total:"$X", allocations:[{label:"Stocks",pct:60,color:"#22c55e"},...]}
+- "roi_calculator" → {invested:"$10K", returned:"$340K", years:30, rate:"10%", label:"S&P 500 average"}
+- "candlestick_chart" → {title:"Market Title", candles:[{open:100,close:150,high:160,low:90},...], labels:["year1","year2",...]}
+- "wealth_ladder" → {title:"The Wealth Ladder", rungs:[{label:"Broke",desc:"paycheck to paycheck",pct:40},{label:"Stable",pct:30},{label:"Wealthy",pct:20},{label:"Rich",pct:8},{label:"Ultra Rich",pct:2}]}
+- "timelapse_bar" → {start:"Age 20", end:"Age 65", current:"Age 35", label:"Your Window", currentPos:0.33, events:[{pos:0.1,label:"Start investing"},...]}
+- "countdown_timer" → {from:10, label:"years until retirement", subtitle:"if you start today", urgent:true}
+- "vote_bar" → {question:"survey question from script", options:[{label:"Yes",pct:78,winner:true},{label:"No",pct:22}]}
+- "loading_bar" → already shown above
+- "map_callout" → {location:"Country/City from script", stat:"96%", statLabel:"never reach $1M", subtitle:"population studied", emoji:"🇺🇸"}
+- "stacked_bar" → {title:"Budget Breakdown", segments:[{label:"Housing",value:35,color:"#ef4444"},{label:"Food",value:15,color:"#f97316"},...]}
+- "speed_meter" → {value:73, max:100, label:"Wealth Growth Rate", unit:"%", zone:"danger"}
+- "big_number" → {value:"$8,400", label:"Average American Savings", context:"That's it. That's all.", prefix:"", suffix:""}
+- "person_profile" → {name:"Person Name from script", role:"their role/location", stats:[{value:"$0",label:"Savings"},{value:"$23K",label:"Debt"}], outcome:"what happened to them"}
 
 SPLIT (category: split):
 - visual_type: "stock"
-- display_style: "split_left" or "split_right" (use from plan)
-- search_query: main image matching what narrator is saying (this goes on the big side)
-- search_queries: REQUIRED for splits — always provide 3 different queries. The extra images fill the right panel as smaller frames appearing one at a time. Make each query a different visual angle on the same moment. Example: ["woman scrolling phone bedroom night", "close up phone screen social media feed", "tired person blue screen glow dark room"]
-- panel_type: "stat" if narrator mentions a number/fact right now, "icon" otherwise
-- panel_stat: if narrator says a number → {value: "3 hours", label: "average daily scroll"} — exact from script
-- panel_icon: if no number → one emoji matching the moment (🚀💰🧠🔥⚡🎯💡📈🏆✅😤🎭💪😱)
+- display_style: from plan ("split_left" or "split_right")
+- search_query: main image matching narrator's topic
+- search_queries: REQUIRED — 3 different angles ["query1","query2","query3"]
+- panel_type: "stat" if narrator mentions number, "icon" otherwise
+- panel_stat: if number → {value:"3 hours", label:"average daily scroll"} from script
+- panel_icon: emoji matching moment 🚀💰🧠🔥⚡🎯💡📈🏆✅😤🎭💪😱
 
-INFOGRAPHIC (category: infographic) — CRITICAL: you MUST fill in the data field or it renders blank.
-- "number_reveal" → set number_data field: {"value":2,"prefix":"","suffix":" hours","label":"average daily scroll","style":"counter"} — value must be a NUMBER
-- "stat_card" → set chart_data field: {"title":"Screen Time Reality","stats":[{"value":"2.5 hours","label":"average daily use"},{"value":"87%","label":"check phone first thing"}]}
-- "timeline" → set chart_data field: {"title":"How It Started","events":[{"year":"2004","label":"Facebook launched"},{"year":"2010","label":"Instagram created"},{"year":"2016","label":"TikTok born"}]}
-- "checklist" → set chart_data field: {"title":"Signs You're Addicted","items":["Check phone within 5 minutes of waking","Scroll during conversations","Feel anxious without it"],"checked":true}
-- "progress_bar" → set chart_data field: {"title":"Where Your Time Goes","bars":[{"label":"Social Media","value":35,"suffix":"%","color":""},{"label":"Sleep","value":33,"suffix":"%","color":""},{"label":"Work","value":25,"suffix":"%","color":""}]}
-- "trend_arrow" → set animation_data field: {"direction":"up","value":"73%","label":"increase in anxiety since 2010"}
-- "percent_fill" → set animation_data field: {"percent":73,"label":"of teens feel worse after using social media"}
+INFOGRAPHIC (category: infographic) — MUST fill data or renders blank:
+- "number_reveal" → number_data: {value:NUMBER, prefix:"$" or "", suffix:"%" or " hours" etc, label:"what it is", style:"counter"}
+- "stat_card" → chart_data: {title:"Title", stats:[{value:"96%",label:"never reach $1M"},{value:"4%",label:"achieve wealth"}]}
+- "checklist" → chart_data: {title:"Title", items:["item from script","item 2","item 3"], checked:true}
+- "progress_bar" → chart_data: {title:"Title", bars:[{label:"Category",value:65,suffix:"%",color:""},...]}
+- "timeline" → chart_data: {title:"Title", events:[{year:"2004",label:"event"},{year:"2010",label:"event"},...]}
+- "leaderboard" → chart_data: {title:"Title", items:[{label:"item",value:100,suffix:"%"},...]}
+- "horizontal_bar" → chart_data: {title:"Title", items:[{label:"A",value:75,color:""},{label:"B",value:45,color:""}], suffix:"%"}
+- "growth_curve" → chart_data: {title:"Title", points:[{x:0,y:10},{x:1,y:12},{x:5,y:50},{x:10,y:200},{x:20,y:1000}]}
+- "donut_chart" → chart_data: {title:"Title", segments:[{label:"A",value:60,color:""},{label:"B",value:40,color:""}]}
+- "flow_diagram" → chart_data: {title:"Title", steps:["Step 1","Step 2","Step 3","Step 4"]}
 
-IMPORTANT: Use real numbers from the script when available. If the script doesn't mention a specific number, invent a plausible one that matches the topic — the point is to VISUALIZE the idea, not quote precisely.
+IMPORTANT: Use real numbers from script. If not mentioned, invent plausible ones.
 
-${isFirst ? `FIRST 15 SECONDS — HOOK (critical, audience decides here whether to keep watching):
-- Clip 0: MUST be an animation — kinetic_text, reaction_face, neon_sign, or spotlight_stat using the most shocking words from the first sentence. NO fullscreen. NO stock image.
-- Clips 1-4: alternate between framed stock and animations/splits. NO fullscreen at all in first 15 seconds.` : ""}
-${isLast ? `LAST CLIP: end with checkmark_build, thumbs_up, or quote_overlay — something memorable.` : ""}
+${isFirst ? `HOOK RULES (first chunk):
+- Clip 0: MUST be animation — most dramatic type for opening words. NO fullscreen. NO stock.
+- Clips 1-4: NO fullscreen at all. Alternate stock/animation/split.` : ""}
+${isLast ? `ENDING: last clip should be checkmark_build, thumbs_up, rule_card, or pull_quote.` : ""}
 
-═══ RULES ═══
+RULES:
 - NEVER change start_time or end_time
-- NEVER invent animation text — only use exact words narrator speaks in that window
+- Only use exact words narrator says — never invent quotes
 - NEVER set panel_text — always null
-- NEVER web_image for logos, apps, brands
-- BANNED in search_query: baby,infant,child,toddler,kid,subscribe,logo,brand${isHorror ? "" : ",knife,weapon,ghost,monster,blood,horror,killer"}
+- BANNED in search_query: baby,infant,child,subscribe,logo,brand${isHorror ? "" : ",knife,weapon,ghost,monster,blood,horror,killer"}
 
-Return ONLY valid JSON array, one object per clip in order:
+Return ONLY valid JSON array:
 [{"start_time":${windows[0]?.start||0},"end_time":${windows[0]?.end||2},"visual_type":"stock","display_style":"framed","search_query":"","search_queries":null,"panel_text":null,"panel_type":"clean","panel_icon":null,"ai_prompt":"","number_data":null,"comparison_data":null,"section_data":null,"text_flash_text":null,"chart_data":null,"animation_data":null,"transition_speed":"fast","interrupt_data":null,"quote_data":null,"countdown_data":null,"subtitle_words":[]}]`;
 }
 
@@ -862,6 +981,14 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
     "rocket_launch","news_breaking","percent_fill","compare_reveal","highlight_build",
     "count_up","neon_sign","reaction_face","thumbs_up","side_by_side","youtube_progress",
     "warning_siren","quote_overlay","overlay_caption","polaroid_stack",
+    // batch4
+    "pull_quote","stat_comparison","bullet_list","myth_fact","step_reveal",
+    "pro_con","score_card","person_profile","reddit_post","google_search",
+    "three_points","stacked_bar","countdown_timer","vote_bar","map_callout",
+    "news_headline","instagram_post","youtube_card","quiz_card",
+    "portfolio_breakdown","roi_calculator","timelapse_bar","speed_meter",
+    "candlestick_chart","conversation_bubble","loading_bar","wealth_ladder",
+    "rule_card","alert_banner","big_number","mindset_shift",
   ];
 
   const graphicTypes = new Set([
@@ -876,6 +1003,14 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
     "rocket_launch","news_breaking","percent_fill","compare_reveal","highlight_build",
     "count_up","neon_sign","reaction_face","thumbs_up","side_by_side","youtube_progress",
     "warning_siren",
+    // batch4 — all pure graphic, no image needed
+    "pull_quote","stat_comparison","bullet_list","myth_fact","step_reveal",
+    "pro_con","score_card","person_profile","reddit_post","google_search",
+    "three_points","stacked_bar","countdown_timer","vote_bar","map_callout",
+    "news_headline","instagram_post","youtube_card","quiz_card",
+    "portfolio_breakdown","roi_calculator","timelapse_bar","speed_meter",
+    "candlestick_chart","conversation_bubble","loading_bar","wealth_ladder",
+    "rule_card","alert_banner","big_number","mindset_shift",
   ]);
 
   const banned = ["baby","infant","child","toddler","kid","kids","children","subscribe","button","icon","logo","brand","coursera","udemy","fiverr","upwork","amazon","facebook","instagram","tiktok"];
@@ -912,23 +1047,69 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
     if (!validTypes.includes(clip.visual_type)) clip.visual_type = "stock";
 
     // Animation needs animation_data — validate schema, regenerate if missing or wrong shape
-    const animTypes = new Set(["kinetic_text","spotlight_stat","icon_burst","typewriter_reveal","money_counter","glitch_text","checkmark_build","trend_arrow","stock_ticker","phone_screen","tweet_card","word_scatter","social_counter","before_after","lightbulb_moment","rocket_launch","news_breaking","percent_fill","compare_reveal","highlight_build","count_up","neon_sign","reaction_face","thumbs_up","side_by_side","youtube_progress","warning_siren","quote_overlay","overlay_caption","polaroid_stack"]);
+    const animTypes = new Set([
+      "kinetic_text","spotlight_stat","icon_burst","typewriter_reveal","money_counter",
+      "glitch_text","checkmark_build","trend_arrow","stock_ticker","phone_screen",
+      "tweet_card","word_scatter","social_counter","before_after","lightbulb_moment",
+      "rocket_launch","news_breaking","percent_fill","compare_reveal","highlight_build",
+      "count_up","neon_sign","reaction_face","thumbs_up","side_by_side","youtube_progress",
+      "warning_siren","quote_overlay","overlay_caption","polaroid_stack",
+      // batch4
+      "pull_quote","stat_comparison","bullet_list","myth_fact","step_reveal",
+      "pro_con","score_card","person_profile","reddit_post","google_search",
+      "three_points","stacked_bar","countdown_timer","vote_bar","map_callout",
+      "news_headline","instagram_post","youtube_card","quiz_card",
+      "portfolio_breakdown","roi_calculator","timelapse_bar","speed_meter",
+      "candlestick_chart","conversation_bubble","loading_bar","wealth_ladder",
+      "rule_card","alert_banner","big_number","mindset_shift",
+    ]);
 
-    // Per-type schema checks — catches wrong-format data that renders blank
+    // Per-type schema checks
     const schemaOk = (type, d) => {
       if (!d) return false;
       switch(type) {
-        case "compare_reveal": return Array.isArray(d.items) && d.items.length >= 2 && d.items[0]?.label;
-        case "icon_burst":     return Array.isArray(d.icons) && d.icons.length >= 2;
-        case "word_scatter":   return Array.isArray(d.words) && d.words.length >= 2;
-        case "stock_ticker":   return Array.isArray(d.items) && d.items.length >= 1;
-        case "checkmark_build": return Array.isArray(d.items) && d.items.length >= 1;
-        case "highlight_build": return Array.isArray(d.lines) && d.lines.length >= 1;
-        case "kinetic_text":   return Array.isArray(d.lines) && d.lines.length >= 1;
-        case "before_after":   return d.before !== undefined && d.after !== undefined;
-        case "side_by_side":   return d.left !== undefined;
-        case "warning_siren":  return d.headline !== undefined;
-        case "spotlight_stat": return d.value !== undefined;
+        case "compare_reveal":    return Array.isArray(d.items) && d.items.length >= 2 && d.items[0]?.label;
+        case "stat_comparison":   return d.left?.value !== undefined && d.right?.value !== undefined;
+        case "icon_burst":        return Array.isArray(d.icons) && d.icons.length >= 2;
+        case "word_scatter":      return Array.isArray(d.words) && d.words.length >= 2;
+        case "stock_ticker":      return Array.isArray(d.items) && d.items.length >= 1;
+        case "checkmark_build":   return Array.isArray(d.items) && d.items.length >= 1;
+        case "highlight_build":   return Array.isArray(d.lines) && d.lines.length >= 1;
+        case "kinetic_text":      return Array.isArray(d.lines) && d.lines.length >= 1;
+        case "before_after":      return d.before !== undefined && d.after !== undefined;
+        case "mindset_shift":     return d.old !== undefined && d.new !== undefined;
+        case "myth_fact":         return d.myth !== undefined && d.fact !== undefined;
+        case "pro_con":           return Array.isArray(d.pros) || Array.isArray(d.cons);
+        case "side_by_side":      return d.left !== undefined;
+        case "warning_siren":     return d.headline !== undefined;
+        case "alert_banner":      return d.title !== undefined;
+        case "spotlight_stat":    return d.value !== undefined;
+        case "big_number":        return d.value !== undefined;
+        case "pull_quote":        return d.quote !== undefined;
+        case "bullet_list":       return Array.isArray(d.items) && d.items.length >= 1;
+        case "step_reveal":       return Array.isArray(d.steps) && d.steps.length >= 1;
+        case "three_points":      return Array.isArray(d.points) && d.points.length >= 1;
+        case "vote_bar":          return Array.isArray(d.options) && d.options.length >= 1;
+        case "stacked_bar":       return Array.isArray(d.segments) && d.segments.length >= 1;
+        case "candlestick_chart": return Array.isArray(d.candles) && d.candles.length >= 1;
+        case "portfolio_breakdown": return Array.isArray(d.allocations) && d.allocations.length >= 1;
+        case "wealth_ladder":     return Array.isArray(d.rungs) && d.rungs.length >= 1;
+        case "conversation_bubble": return Array.isArray(d.exchanges) && d.exchanges.length >= 1;
+        case "score_card":        return d.grade !== undefined;
+        case "roi_calculator":    return d.invested !== undefined;
+        case "map_callout":       return d.location !== undefined;
+        case "news_headline":     return d.headline !== undefined;
+        case "loading_bar":       return d.value !== undefined;
+        case "countdown_timer":   return d.from !== undefined;
+        case "timelapse_bar":     return d.start !== undefined;
+        case "speed_meter":       return d.value !== undefined;
+        case "person_profile":    return d.name !== undefined;
+        case "reddit_post":       return d.title !== undefined;
+        case "google_search":     return d.query !== undefined;
+        case "instagram_post":    return d.caption !== undefined;
+        case "youtube_card":      return d.title !== undefined;
+        case "quiz_card":         return d.question !== undefined;
+        case "rule_card":         return d.name !== undefined;
         default: return true;
       }
     };
