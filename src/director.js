@@ -242,7 +242,6 @@ LISTS & STEPS (use when narrator lists items or steps):
 - step_reveal: numbered steps. USE FOR: how-to processes, sequences
 - three_points: exactly 3 key points with icons. USE FOR: "3 reasons", "3 rules", "3 types"
 - rule_card: named rule/principle display. USE FOR: "Rule #1: Pay yourself first"
-- checklist_build → use "checkmark_build"
 
 REACTIONS & EMOTION (use for emotional peaks):
 - reaction_face: emoji slams in (🤯😱). USE FOR: shocking reveals, disbelief moments
@@ -298,6 +297,7 @@ NICHE-SPECIFIC RULES:
 ${nicheInfo.niche === "horror" || nicheInfo.niche === "true_crime" ? "- HORROR/TRUE CRIME: NO infographics. Use: reaction_face, warning_siren, glitch_text, neon_sign, news_breaking, news_headline, typewriter_reveal only." : ""}
 ${nicheInfo.niche === "creator" ? "- CREATOR: Prioritize tweet_card, phone_screen, instagram_post, youtube_card, reddit_post, google_search, social_counter." : ""}
 ${nicheInfo.niche === "finance" ? "- FINANCE: Prioritize stock_ticker, roi_calculator, portfolio_breakdown, candlestick_chart, wealth_ladder, money_counter, count_up, spotlight_stat." : ""}
+${nicheInfo.niche === "business" ? "- BUSINESS: Prioritize rule_card, mindset_shift, three_points, step_reveal, bullet_list, compare_reveal, rocket_launch, lightbulb_moment." : ""}
 ${nicheInfo.niche === "history" ? "- HISTORY: Prioritize timeline, timelapse_bar, news_headline, person_profile, map_callout, typewriter_reveal." : ""}
 ${nicheInfo.niche === "health" ? "- HEALTH: Prioritize score_card, loading_bar, percent_fill, vote_bar, bullet_list, three_points, step_reveal." : ""}
 ${nicheInfo.niche === "travel" ? "- TRAVEL: Prioritize map_callout, person_profile, split layouts, pull_quote." : ""}
@@ -321,7 +321,7 @@ Display: "framed", "fullscreen", "split_left", "split_right"`;
       "https://api.anthropic.com/v1/messages",
       {
         model: "claude-sonnet-4-20250514",
-        max_tokens: 4000,
+        max_tokens: 8000,
         messages: [{ role: "user", content: prompt }],
       },
       {
@@ -426,7 +426,7 @@ function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, ani
   const infraRotation = [
     "stat_card","number_reveal","checklist","progress_bar","timeline",
     "leaderboard","horizontal_bar","growth_curve","donut_chart","ranking_cards",
-    "percent_fill","trend_arrow","flow_diagram","process_flow","icon_grid",
+    "flow_diagram","process_flow","icon_grid","split_comparison","scale_comparison",
   ];
   // animRotationIdx and infraRotationIdx come from function params (persistent across chunks)
 
@@ -745,7 +745,7 @@ function generateAnimationData(type, sentence) {
     }
     case "stacked_bar":
       if (numbers.length < 2) return null;
-      return { title: key.slice(0, 3).join(" "), segments: key.slice(0, 4).map((k, i) => ({ label: k, value: parseInt(numbers[i]) || Math.round(100 / key.slice(0, 4).length), color: ["#ef4444","#f97316","#eab308","#22c55e"][i] })) };
+      return { title: key.slice(0, 3).join(" "), segments: key.slice(0, 4).map((k, i) => ({ label: k, value: parseInt(numbers[i]) || Math.round(100 / Math.max(key.slice(0, 4).length, 1)), color: ["#ef4444","#f97316","#eab308","#22c55e"][i] })) };
     case "countdown_timer":
       if (!numbers[0] || numbers[0] < 2) return null;
       return { from: Math.min(parseInt(numbers[0]), 10), label: key.slice(0, 3).join(" ").toLowerCase(), subtitle: "", urgent: true };
@@ -881,7 +881,7 @@ async function directClipWindows(windows, planChunk, scriptText, isFirst, isLast
     "https://api.anthropic.com/v1/messages",
     {
       model: "claude-sonnet-4-20250514",
-      max_tokens: 16000,
+      max_tokens: 20000,
       messages: [{
         role: "user",
         content: buildAssignmentPrompt(windowRef, windows, planChunk, scriptText, isFirst, isLast, nicheInfo, themeHints, topic, theme, isHorror),
@@ -1208,12 +1208,12 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
     if (needsChartData.has(clip.visual_type) && !clip.chart_data) {
       const repaired = generateInfographicData(clip.visual_type, windows[i]?.text || "", "");
       if (repaired.chart_data) { clip.chart_data = repaired.chart_data; }
-      else { clip.visual_type = "spotlight_stat"; clip.animation_data = { value: key?.[0] || "KEY FACT", label: (windows[i]?.text || "").slice(0, 40), context: "" }; }
+      else { clip.visual_type = "spotlight_stat"; clip.animation_data = { value: "KEY FACT", label: (windows[i]?.text || "").slice(0, 40), context: "" }; }
     }
     if (needsNumberData.has(clip.visual_type) && (!clip.number_data || typeof clip.number_data.value !== "number")) {
       const repaired = generateInfographicData("number_reveal", windows[i]?.text || "", "");
       if (repaired.number_data) { clip.number_data = repaired.number_data; }
-      else { clip.visual_type = "spotlight_stat"; clip.animation_data = { value: key?.[0] || "KEY FACT", label: (windows[i]?.text || "").slice(0, 40), context: "" }; }
+      else { clip.visual_type = "spotlight_stat"; clip.animation_data = { value: "KEY FACT", label: (windows[i]?.text || "").slice(0, 40), context: "" }; }
     }
     // comparison needs comparison_data
     if (clip.visual_type === "comparison" && !clip.comparison_data) {
