@@ -397,6 +397,18 @@ function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, ani
       if (animData) {
         return { ...clip, visual_type: type, display_style: "framed", animation_data: animData, search_query: "" };
       }
+      // generateAnimationData returned null (e.g. compare_reveal with no comparison) — try next type
+      for (let r = 0; r < animRotation.length; r++) {
+        const alt = animRotation[(animRotationIdx + r) % animRotation.length];
+        if ((typeCounts[alt] || 0) < maxPerType) {
+          const altData = generateAnimationData(alt, sentence);
+          if (altData) {
+            typeCounts[alt] = (typeCounts[alt] || 0) + 1;
+            animRotationIdx = (animRotationIdx + r + 1) % animRotation.length;
+            return { ...clip, visual_type: alt, display_style: "framed", animation_data: altData, search_query: "" };
+          }
+        }
+      }
     }
 
     if (plan.category === "infographic") {
@@ -491,14 +503,38 @@ function generateAnimationData(type, sentence) {
     }
     case "percent_fill": return { percent: parseInt(pct?.[1]) || 73, label: key.slice(0, 4).join(" ").toLowerCase() };
     case "trend_arrow": return { direction: /decreas|drop|down|fall|less|lower|shrink/.test(sentence.toLowerCase()) ? "down" : "up", value: (numbers[0] || "73") + (pct ? "%" : ""), label: key.slice(0, 4).join(" ").toLowerCase() };
-    case "compare_reveal": return {
-      items: [
-        { label: key[0] || "Option A", score: numbers[0] || "Low", description: sentence.slice(0, 30), icon: "❌" },
-        { label: key[1] || "Option B", score: numbers[1] || "High", description: sentence.slice(30, 60), icon: "✅" },
-      ],
-      title: key.slice(2, 5).join(" ") || "Compare",
-      winner: 1,
-    };
+    case "compare_reveal": {
+      // Only generate compare_reveal when sentence has a genuine comparison structure
+      const s = sentence.toLowerCase();
+      const hasComparison = /vs\.?|versus|compared to|while|whereas|average.*millionaire|poor.*rich|before.*after|old.*new|then.*now/.test(s);
+      if (!hasComparison) {
+        // No real comparison - fall back to a better type
+        return null;
+      }
+      // Try to extract two sides of the comparison
+      let labelA = "AVERAGE", labelB = "WEALTHY", scoreA = "Low", scoreB = "High";
+      if (/average.*millionaire|poor.*rich|broke.*wealthy/.test(s)) {
+        labelA = "AVERAGE"; labelB = "MILLIONAIRE";
+        // Extract % or $ values
+        if (pct) { scoreA = (parseInt(pct[1]) < 50 ? pct[1] : 100 - parseInt(pct[1])) + "%"; scoreB = pct[1] + "%"; }
+        else if (numbers[0]) { scoreA = String(numbers[0]); scoreB = numbers[1] ? String(numbers[1]) : "10x"; }
+      } else if (/before.*after|old.*new|then.*now|was.*now/.test(s)) {
+        labelA = "BEFORE"; labelB = "AFTER";
+        if (numbers[0] && numbers[1]) { scoreA = String(numbers[0]); scoreB = String(numbers[1]); }
+      } else {
+        // Generic - use first two key words as labels
+        labelA = key[0] || "OPTION A"; labelB = key[1] || "OPTION B";
+        if (numbers[0]) { scoreA = String(numbers[0]); scoreB = numbers[1] ? String(numbers[1]) : "—"; }
+      }
+      return {
+        items: [
+          { label: labelA, score: scoreA, description: sentence.slice(0, 30), icon: "❌" },
+          { label: labelB, score: scoreB, description: sentence.slice(30, 60), icon: "✅" },
+        ],
+        title: key.slice(2, 5).join(" ") || "The Difference",
+        winner: 1,
+      };
+    }
     case "side_by_side": return { left: key[0] || "BEFORE", right: key[1] || "AFTER", leftSub: numbers[0] || sentence.slice(0, 20), rightSub: numbers[1] || sentence.slice(20, 40), vs: true, leftColor: "#ef4444", rightColor: "#22c55e" };
     case "icon_burst": {
       const icons = ["💰","📈","🧠","⚡","🎯","🔥","🏆","💡","✅","🚀"].slice(0, Math.max(3, key.length));
