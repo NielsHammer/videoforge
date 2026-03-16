@@ -1250,8 +1250,58 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
       if (!clip.search_query || clip.search_query.length < 3) clip.search_query = stockQuery;
     };
 
+    // If animation_data is missing/invalid, attempt minimal rescue before falling to stock
+    // Only truly unrescuable types fall to stock
     if (animTypes.has(clip.visual_type) && !schemaOk(clip.visual_type, clip.animation_data)) {
-      stockFallback();
+      const sentence = windows[i]?.text || "";
+      const words = sentence.replace(/[^a-zA-Z0-9\s]/g," ").split(/\s+/)
+        .filter(w => w.length > 3 && !/^(the|and|but|for|with|this|that|from|they|your|you|was|are|were|has|had|not|can|will|would|could|should|what|when|where|how|why|just|also|more|very)$/i.test(w));
+      const type = clip.visual_type;
+
+      // Rescue: fill minimal valid data from sentence rather than dropping to stock
+      let rescued = null;
+      if (["kinetic_text","glitch_text","neon_sign"].includes(type) && words.length >= 1) {
+        rescued = { lines: words.slice(0, 2).map(w => w.toUpperCase()), style: "impact" };
+      } else if (["typewriter_reveal","pull_quote"].includes(type) && sentence.length > 10) {
+        rescued = type === "pull_quote" ? { quote: sentence.slice(0, 120), attribution: "" } : { text: sentence.slice(0, 60), subtitle: "" };
+      } else if (["reaction_face"].includes(type)) {
+        rescued = { emoji: "🤯", label: words.slice(0,2).join(" ") || "SHOCKING", style: "slam" };
+      } else if (["spotlight_stat","big_number"].includes(type)) {
+        const numMatch = sentence.match(/\d+/);
+        if (numMatch) rescued = { value: numMatch[0], label: words.slice(0,3).join(" ").toLowerCase(), context: "" };
+      } else if (["money_counter","count_up"].includes(type)) {
+        const numMatch = sentence.match(/\d+/);
+        if (numMatch && parseInt(numMatch[0]) >= 5) {
+          rescued = type === "money_counter"
+            ? { amount: parseInt(numMatch[0]), currency: "$", label: words.slice(0,3).join(" ").toLowerCase() }
+            : { value: parseInt(numMatch[0]), prefix: "", suffix: "", label: words.slice(0,3).join(" ").toLowerCase(), decimals: 0 };
+        }
+      } else if (["lightbulb_moment"].includes(type) && sentence.length > 10) {
+        rescued = { text: sentence.slice(0, 50), subtext: words.slice(0,3).join(" ") };
+      } else if (["word_scatter","icon_burst"].includes(type) && words.length >= 3) {
+        rescued = type === "word_scatter"
+          ? { words: words.slice(0,6), centerWord: words[0] || "" }
+          : { icons: ["💰","📈","🧠","⚡","🎯"], label: words.slice(0,2).join(" "), style: "burst" };
+      } else if (["warning_siren","alert_banner"].includes(type) && sentence.length > 10) {
+        rescued = type === "warning_siren"
+          ? { headline: "WARNING", body: sentence.slice(0, 60), icon: "⚠️", color: "#ef4444" }
+          : { type: "danger", title: "CRITICAL MISTAKE", body: sentence.slice(0, 80), stat: "", icon: "🚨" };
+      } else if (["tweet_card"].includes(type) && sentence.length >= 15 && sentence.length <= 120) {
+        rescued = { handle: "@viewer", text: sentence.slice(0, 100), likes: "12.4K", retweets: "3.1K" };
+      } else if (["myth_fact"].includes(type) && sentence.length > 10) {
+        const halves = sentence.split(/but|however|actually/i);
+        rescued = { myth: halves[0].trim().slice(0,60), fact: (halves[1]||sentence).trim().slice(0,60), label: "MYTH BUSTED" };
+      } else if (["mindset_shift"].includes(type) && sentence.length > 10) {
+        const halves = sentence.split(/but|instead|rather|however/i);
+        rescued = { old: halves[0].trim().slice(0,60), new: (halves[1]||sentence).trim().slice(0,60), label: "THE SHIFT" };
+      }
+
+      if (rescued && schemaOk(type, rescued)) {
+        clip.animation_data = rescued;
+        // Don't fall to stock — we rescued it
+      } else {
+        stockFallback();
+      }
     }
 
     const needsChartData = new Set(["stat_card","line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","quote_card","checklist","horizontal_bar","vertical_bar","growth_curve","ranking_cards","split_comparison","scale_comparison","funnel_chart","body_diagram","map_highlight","icon_grid","flow_diagram"]);
