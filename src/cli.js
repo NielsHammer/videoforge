@@ -62,6 +62,11 @@ program
   .option('--skip-voice', 'Reuse existing voiceover files')
   .option('--voice-only', 'Generate voiceover only, skip visuals and render')
   .option('--theme <template>', 'Visual template')
+  .option('--brief-file <path>', 'Path to order brief JSON (written by worker)')
+  .option('--niche <niche>', 'Channel niche: finance, business, health, travel, horror, general')
+  .option('--tone <tone>', 'Tone override: engaging, serious, dramatic, motivational')
+  .option('--key-points <text>', 'Key points or angles to cover')
+  .option('--cta <text>', 'Call to action text')
   .action(async (scriptPath, options) => {
     console.log(chalk.blue.bold('\n🎬 VideoForge v23\n'));
     try {

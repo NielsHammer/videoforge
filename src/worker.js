@@ -213,7 +213,7 @@ async function regenerateThumbnail(order) {
 async function processOrder(order) {
   const {
     id: orderId, topic, script_upload, tone, voice_id, admin_notes, video_length,
-    key_points, cta_text, background_theme  // Features 3, 4, 5
+    key_points, cta_text, background_theme, channel_niche  // order form fields
   } = order;
 
   log(`Processing order ${orderId}: "${topic}"`);
@@ -304,14 +304,38 @@ async function processOrder(order) {
 
     const topicEscaped = topic.replace(/"/g, '\\"');
 
-    // Feature 5: pass --theme flag if customer chose a background style.
-    // cli.js generate already has --theme <template> built in, so no cli.js change needed.
     const themeFlag = background_theme ? ` --theme ${background_theme}` : '';
 
-    execSync(
-      `node src/cli.js generate "${scriptPath}"${voice_id ? ` --voice ${voice_id}` : ''}${skipVoiceFlag} --order-id ${orderId} --topic "${topicEscaped}"${themeFlag}`,
-      { cwd: VIDEOFORGE_DIR, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024, timeout: 7200000 }
-    );
+    // Write full order brief to sidecar JSON — avoids shell-escaping issues with
+    // key_points/cta_text which can contain quotes, newlines, special chars
+    const briefPath = path.join(VIDEOFORGE_DIR, 'scripts', `order-${orderId}-brief.json`);
+    const orderBriefData = {
+      topic:           topic           || '',
+      niche:           channel_niche   || '',
+      tone:            tone            || '',
+      keyPoints:       key_points      || '',
+      callToAction:    cta_text        || '',
+      narrator:        voice_id        || '',
+      videoLength:     video_length    || '',
+      backgroundStyle: background_theme|| '',
+    };
+    fs.mkdirSync(path.dirname(briefPath), { recursive: true });
+    fs.writeFileSync(briefPath, JSON.stringify(orderBriefData));
+    log(`  Brief: niche=${orderBriefData.niche || 'auto'}, tone=${orderBriefData.tone || 'auto'}, keyPoints=${orderBriefData.keyPoints ? 'yes' : 'no'}, cta=${orderBriefData.callToAction ? 'yes' : 'no'}`);
+
+    let generateError = null;
+    try {
+      execSync(
+        `node src/cli.js generate "${scriptPath}"${voice_id ? ` --voice ${voice_id}` : ''}${skipVoiceFlag} --order-id ${orderId} --topic "${topicEscaped}"${themeFlag} --brief-file "${briefPath}"`,
+        { cwd: VIDEOFORGE_DIR, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024, timeout: 7200000 }
+      );
+    } catch (e) {
+      generateError = e;
+    } finally {
+      // Always clean up brief file
+      if (fs.existsSync(briefPath)) fs.unlinkSync(briefPath);
+    }
+    if (generateError) throw generateError;
 
     const outputDirName = `order-${orderId}`;
     if (!fs.existsSync(path.join(OUTPUT_BASE, outputDirName, 'final.mp4'))) {

@@ -191,8 +191,9 @@ export async function generateVideo(scriptPath, options) {
   // Use enhancedScript for sentence matching — must match ElevenLabs timestamps exactly
   const storyboardScript = cachedEnhanced || scriptText;
 
-  // Full order brief — Claude sees everything from the order form
-  const orderBrief = {
+  // Full order brief — read from --brief-file if provided (worker.js path),
+  // or fall back to individual CLI options / env vars (manual/local use)
+  let orderBrief = {
     topic:           options.topic          || "",
     niche:           options.niche          || process.env.ORDER_NICHE      || "",
     tone:            options.tone           || process.env.ORDER_TONE       || "",
@@ -202,6 +203,16 @@ export async function generateVideo(scriptPath, options) {
     videoLength:     options.videoLength    || process.env.ORDER_LENGTH     || "",
     backgroundStyle: options.backgroundStyle|| process.env.ORDER_BG_STYLE  || "",
   };
+  if (options.briefFile && fs.existsSync(options.briefFile)) {
+    try {
+      const briefData = JSON.parse(fs.readFileSync(options.briefFile, "utf-8"));
+      // Merge: briefFile values override defaults but don't overwrite explicit CLI flags
+      orderBrief = { ...orderBrief, ...briefData };
+      console.log(chalk.gray(`  Order brief loaded: niche=${orderBrief.niche||"auto"}, tone=${orderBrief.tone||"auto"}`));
+    } catch (e) {
+      console.log(chalk.yellow(`  ⚠️ Could not read brief file: ${e.message}`));
+    }
+  }
 
   const clips = await createStoryboard(storyboardScript, wordTimestamps, totalDuration, contentMode, options.topic || "", options.theme || "blue_grid", orderBrief);
 
