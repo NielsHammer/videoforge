@@ -2,43 +2,87 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 import { getTheme } from "../../themes.js";
 
-// StepReveal — Numbered steps that appear one by one
-// data: { title: "How To Do It", steps: ["Step one from script", "Step two", "Step three"], active: 0 }
-// USE WHEN: narrator explains a process, how-to, or sequence of actions
-export const StepReveal = ({ data, clipFrame = 0, theme = "blue_grid" }) => {
+export const StepReveal = ({ data = {}, clipFrame = 0, theme = "blue_grid" }) => {
   const { fps } = useVideoConfig();
   const th = getTheme(theme);
   const accent = th.subtitle?.accent || "#3b82f6";
-  if (!data?.steps?.length) return null;
+  const bg = th.subtitle?.bg || "rgba(6,12,36,0.92)";
 
-  const steps = data.steps.slice(0, 5);
-  const title = data.title || "";
-  const delayPerStep = fps * 0.45;
-  const titleOp = interpolate(clipFrame, [0, fps * 0.3], [0, 1], { extrapolateRight: "clamp" });
+  const title = data.title || "How To";
+  const steps = data.steps || [];
+  const active = data.active || 0; // which step is highlighted
+
+  const titleOp = interpolate(clipFrame, [0, fps * 0.2], [0, 1], { extrapolateRight: "clamp" });
 
   return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: "40px 70px", gap: 4 }}>
-      {title && (
-        <div style={{ fontSize: 20, fontWeight: 700, color: accent, letterSpacing: 4, textTransform: "uppercase", fontFamily: "Arial, sans-serif", marginBottom: 24, opacity: titleOp }}>
-          {title}
-        </div>
-      )}
-      {steps.map((step, i) => {
-        const delay = i * delayPerStep + fps * 0.1;
-        const op = interpolate(clipFrame, [delay, delay + fps * 0.35], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-        const x = interpolate(clipFrame, [delay, delay + fps * 0.35], [-40, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
-        const isActive = data.active === i;
-        return (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 20, padding: "16px 20px", borderRadius: 12, background: isActive ? `${accent}15` : "rgba(255,255,255,0.02)", border: `1px solid ${isActive ? accent + "40" : "rgba(255,255,255,0.06)"}`, opacity: op, transform: `translateX(${x}px)`, marginBottom: 8 }}>
-            <div style={{ width: 40, height: 40, borderRadius: "50%", background: isActive ? accent : "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 900, color: isActive ? "white" : accent, fontFamily: "Arial Black, Arial, sans-serif", flexShrink: 0 }}>
-              {i + 1}
+    <div style={{
+      position: "absolute", inset: 0,
+      display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      background: bg, padding: "50px 100px",
+    }}>
+      {/* Title */}
+      <div style={{
+        opacity: titleOp, marginBottom: 36,
+        fontFamily: "sans-serif", fontWeight: 800,
+        fontSize: 30, color: accent,
+        textTransform: "uppercase", letterSpacing: 4,
+      }}>{title}</div>
+
+      {/* Steps */}
+      <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 16 }}>
+        {steps.slice(0, 5).map((step, i) => {
+          const delay = fps * (0.1 + i * 0.2);
+          const op = interpolate(clipFrame, [delay, delay + fps * 0.25], [0, 1], {
+            extrapolateLeft: "clamp", extrapolateRight: "clamp",
+          });
+          const x = interpolate(clipFrame, [delay, delay + fps * 0.3], [-80, 0], {
+            extrapolateLeft: "clamp", extrapolateRight: "clamp",
+            easing: Easing.out(Easing.cubic),
+          });
+          const isActive = i === active;
+
+          return (
+            <div key={i} style={{
+              display: "flex", alignItems: "center", gap: 24,
+              transform: `translateX(${x}px)`, opacity: op,
+              padding: "18px 28px",
+              background: isActive ? `${accent}22` : `${accent}0a`,
+              border: `1.5px solid ${isActive ? accent : accent + "30"}`,
+              borderRadius: 10,
+            }}>
+              {/* Step number */}
+              <div style={{
+                width: 48, height: 48, borderRadius: "50%",
+                background: isActive ? accent : `${accent}30`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0,
+                boxShadow: isActive ? `0 0 20px ${accent}66` : "none",
+              }}>
+                <span style={{
+                  fontFamily: "sans-serif", fontWeight: 900,
+                  fontSize: 22, color: isActive ? "#000" : accent,
+                }}>{i + 1}</span>
+              </div>
+
+              {/* Step text */}
+              <span style={{
+                fontFamily: "sans-serif",
+                fontWeight: isActive ? 700 : 500,
+                fontSize: 26, color: isActive ? "#fff" : "rgba(255,255,255,0.8)",
+                lineHeight: 1.3,
+              }}>{typeof step === "string" ? step : step.label || step}</span>
+
+              {/* Active indicator */}
+              {isActive && (
+                <span style={{
+                  marginLeft: "auto", fontSize: 24, color: accent,
+                }}>◀</span>
+              )}
             </div>
-            <div style={{ fontSize: 20, fontWeight: 600, color: isActive ? "white" : "rgba(255,255,255,0.75)", fontFamily: "Arial, sans-serif", lineHeight: 1.3 }}>
-              {step}
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 };

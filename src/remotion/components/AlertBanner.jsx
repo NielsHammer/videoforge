@@ -2,43 +2,102 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 import { getTheme } from "../../themes.js";
 
-// AlertBanner — High-impact urgent alert / warning banner
-// data: { type: "warning"|"danger"|"info", title: "CRITICAL MISTAKE", body: "Most people do this and it costs them decades of wealth building", stat: "87% of people", icon: "🚨" }
-// USE WHEN: narrator warns about a critical mistake, danger, or important alert — more urgent than warning_siren
-export const AlertBanner = ({ data, clipFrame = 0, theme = "blue_grid" }) => {
+export const AlertBanner = ({ data = {}, clipFrame = 0, theme = "blue_grid" }) => {
   const { fps } = useVideoConfig();
   const th = getTheme(theme);
   const accent = th.subtitle?.accent || "#3b82f6";
-  if (!data?.title) return null;
 
-  const typeColors = { warning: "#f59e0b", danger: "#ef4444", info: accent };
-  const color = typeColors[data.type] || "#ef4444";
+  const type = data.type || "danger"; // danger | warning | info
+  const title = data.title || "CRITICAL MISTAKE";
+  const body = data.body || "";
+  const stat = data.stat || "";
+  const icon = data.icon || "🚨";
 
-  const slideY = interpolate(clipFrame, [0, fps * 0.35], [-60, 0], { extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
-  const bodyOp = interpolate(clipFrame, [fps * 0.4, fps * 0.7], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const statOp = interpolate(clipFrame, [fps * 0.7, fps * 1.0], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const pulse = 0.7 + Math.sin(clipFrame * 0.15) * 0.3;
+  const colors = {
+    danger: { main: "#ef4444", bg: "rgba(239,68,68,0.12)", border: "#ef4444" },
+    warning: { main: "#f59e0b", bg: "rgba(245,158,11,0.12)", border: "#f59e0b" },
+    info: { main: accent, bg: `${accent}20`, border: accent },
+  };
+  const c = colors[type] || colors.danger;
+
+  // Slam down from top
+  const slideY = interpolate(clipFrame, [0, fps * 0.25], [-100, 0], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+    easing: Easing.out(Easing.back(1.3)),
+  });
+  const opacity = interpolate(clipFrame, [0, fps * 0.1], [0, 1], { extrapolateRight: "clamp" });
+
+  // Flash effect for danger
+  const flash = type === "danger"
+    ? Math.floor(clipFrame / (fps * 0.6)) % 2 === 0 ? 1 : 0.7
+    : 1;
+
+  const bodyOp = interpolate(clipFrame, [fps * 0.2, fps * 0.45], [0, 1], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+  });
+  const bodyY = interpolate(clipFrame, [fps * 0.2, fps * 0.4], [20, 0], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+    easing: Easing.out(Easing.cubic),
+  });
 
   return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: "40px 70px", gap: 0 }}>
-      {/* Alert header */}
-      <div style={{ background: color, padding: "16px 24px", borderRadius: "16px 16px 0 0", transform: `translateY(${slideY}px)`, display: "flex", alignItems: "center", gap: 14, boxShadow: `0 0 30px ${color}${Math.round(pulse * 80).toString(16).padStart(2,"0")}` }}>
-        <div style={{ fontSize: 28 }}>{data.icon || "⚠️"}</div>
-        <div style={{ fontSize: 22, fontWeight: 900, color: "white", fontFamily: "Arial Black, Arial, sans-serif", letterSpacing: 2, textTransform: "uppercase" }}>
-          {data.title}
+    <div style={{
+      position: "absolute", inset: 0,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      background: "rgba(6,12,36,0.92)",
+    }}>
+      <div style={{
+        transform: `translateY(${slideY}px)`,
+        opacity: opacity * flash,
+        width: 860,
+        background: c.bg,
+        border: `2px solid ${c.border}`,
+        borderLeft: `6px solid ${c.main}`,
+        borderRadius: 12,
+        overflow: "hidden",
+      }}>
+        {/* Header bar */}
+        <div style={{
+          background: `${c.main}22`,
+          padding: "20px 32px",
+          display: "flex", alignItems: "center", gap: 16,
+          borderBottom: `1px solid ${c.border}44`,
+        }}>
+          <span style={{ fontSize: 40 }}>{icon}</span>
+          <span style={{
+            fontFamily: "sans-serif", fontWeight: 900,
+            fontSize: 32, color: c.main,
+            textTransform: "uppercase", letterSpacing: 3,
+          }}>{title}</span>
         </div>
-      </div>
 
-      {/* Body */}
-      <div style={{ background: `${color}12`, border: `1px solid ${color}30`, borderTop: "none", borderRadius: "0 0 16px 16px", padding: "24px 24px", opacity: bodyOp }}>
-        <div style={{ fontSize: 21, color: "rgba(255,255,255,0.85)", fontFamily: "Arial, sans-serif", lineHeight: 1.5, marginBottom: data.stat ? 16 : 0 }}>
-          {data.body}
+        {/* Body */}
+        <div style={{
+          padding: "28px 32px",
+          transform: `translateY(${bodyY}px)`,
+          opacity: bodyOp,
+        }}>
+          {body && (
+            <p style={{
+              fontFamily: "sans-serif", fontWeight: 500,
+              fontSize: 26, color: "rgba(255,255,255,0.9)",
+              lineHeight: 1.5, margin: 0,
+            }}>{body}</p>
+          )}
+          {stat && (
+            <div style={{
+              marginTop: 20,
+              padding: "12px 20px",
+              background: `${c.main}18`,
+              borderRadius: 8, display: "inline-block",
+            }}>
+              <span style={{
+                fontFamily: "sans-serif", fontWeight: 700,
+                fontSize: 22, color: c.main,
+              }}>{stat}</span>
+            </div>
+          )}
         </div>
-        {data.stat && (
-          <div style={{ fontSize: 32, fontWeight: 900, color: color, fontFamily: "Arial Black, Arial, sans-serif", opacity: statOp }}>
-            {data.stat}
-          </div>
-        )}
       </div>
     </div>
   );

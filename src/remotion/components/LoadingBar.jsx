@@ -2,44 +2,102 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 import { getTheme } from "../../themes.js";
 
-// LoadingBar — Dramatic filling progress bar with label
-// data: { label: "Americans Living Paycheck to Paycheck", value: 78, suffix: "%", color: "#ef4444", subtitle: "As of 2024" }
-// USE WHEN: narrator reveals a large percentage or proportion that should feel alarming or impactful
-export const LoadingBar = ({ data, clipFrame = 0, theme = "blue_grid" }) => {
+export const LoadingBar = ({ data = {}, clipFrame = 0, theme = "blue_grid" }) => {
   const { fps } = useVideoConfig();
   const th = getTheme(theme);
   const accent = th.subtitle?.accent || "#3b82f6";
-  if (data?.value === undefined) return null;
+  const bg = th.subtitle?.bg || "rgba(6,12,36,0.92)";
 
-  const target = Math.min(Math.max(data.value, 0), 100);
-  const barW = interpolate(clipFrame, [fps * 0.3, fps * 1.2], [0, target], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
-  const labelOp = interpolate(clipFrame, [0, fps * 0.3], [0, 1], { extrapolateRight: "clamp" });
-  const numOp = interpolate(clipFrame, [fps * 0.3, fps * 0.6], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const barColor = data.color || accent;
-  const glowPulse = 0.5 + Math.sin(clipFrame / fps * 3) * 0.5;
+  const label = data.label || "Loading...";
+  const value = Math.min(100, Math.max(0, data.value || 73));
+  const suffix = data.suffix || "%";
+  const color = data.color || accent;
+  const subtitle = data.subtitle || "";
+
+  const fadeIn = interpolate(clipFrame, [0, fps * 0.2], [0, 1], { extrapolateRight: "clamp" });
+  const labelY = interpolate(clipFrame, [0, fps * 0.25], [-20, 0], {
+    extrapolateRight: "clamp", easing: Easing.out(Easing.cubic),
+  });
+
+  // Bar fills after 0.3s
+  const fillWidth = interpolate(clipFrame, [fps * 0.3, fps * 1.2], [0, value], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+    easing: Easing.out(Easing.cubic),
+  });
+
+  // Number counts up with bar
+  const displayNum = Math.round(fillWidth);
+
+  const subtitleOp = interpolate(clipFrame, [fps * 0.5, fps * 0.8], [0, 1], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+  });
+
+  // Shimmer on bar
+  const shimmerX = interpolate(clipFrame, [fps * 0.3, fps * 2], [-200, 900], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+  });
 
   return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: "40px 80px", gap: 24 }}>
-      {data.label && (
-        <div style={{ fontSize: 24, fontWeight: 700, color: "white", fontFamily: "Arial, sans-serif", lineHeight: 1.4, opacity: labelOp }}>{data.label}</div>
-      )}
+    <div style={{
+      position: "absolute", inset: 0,
+      display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      background: bg, padding: "60px 120px",
+      opacity: fadeIn,
+    }}>
+      {/* Label + value */}
+      <div style={{
+        display: "flex", justifyContent: "space-between",
+        alignItems: "flex-end", width: "100%",
+        transform: `translateY(${labelY}px)`,
+        marginBottom: 24,
+      }}>
+        <span style={{
+          fontFamily: "sans-serif", fontWeight: 700,
+          fontSize: 32, color: "#ffffff",
+        }}>{label}</span>
+        <span style={{
+          fontFamily: "sans-serif", fontWeight: 900,
+          fontSize: 64, color,
+          textShadow: `0 0 30px ${color}66`,
+          lineHeight: 1,
+        }}>{displayNum}{suffix}</span>
+      </div>
 
-      {/* Bar container */}
-      <div style={{ position: "relative" }}>
-        <div style={{ height: 36, background: "rgba(255,255,255,0.06)", borderRadius: 18, overflow: "hidden", border: "1px solid rgba(255,255,255,0.08)" }}>
-          <div style={{ width: `${barW}%`, height: "100%", background: `linear-gradient(90deg, ${barColor}cc, ${barColor})`, borderRadius: 18, boxShadow: `0 0 ${20 + glowPulse * 20}px ${barColor}60`, transition: "none", position: "relative" }}>
-            {/* Shimmer */}
-            <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 40, background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)" }} />
-          </div>
-        </div>
-        {/* Percentage label */}
-        <div style={{ position: "absolute", right: `${100 - barW}%`, top: "50%", transform: "translate(50%, -50%)", fontSize: 18, fontWeight: 900, color: "white", fontFamily: "Arial Black, Arial, sans-serif", opacity: numOp, whiteSpace: "nowrap", paddingLeft: 12 }}>
-          {Math.round(barW)}{data.suffix || "%"}
+      {/* Track */}
+      <div style={{
+        width: "100%", height: 28,
+        background: "rgba(255,255,255,0.08)",
+        borderRadius: 14, overflow: "hidden",
+        border: `1px solid rgba(255,255,255,0.12)`,
+      }}>
+        {/* Fill */}
+        <div style={{
+          width: `${fillWidth}%`, height: "100%",
+          background: `linear-gradient(90deg, ${color}cc, ${color})`,
+          borderRadius: 14,
+          position: "relative", overflow: "hidden",
+          boxShadow: `0 0 20px ${color}66`,
+          transition: "none",
+        }}>
+          {/* Shimmer */}
+          <div style={{
+            position: "absolute", top: 0, bottom: 0, width: 80,
+            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)",
+            transform: `translateX(${shimmerX}px)`,
+            borderRadius: 14,
+          }} />
         </div>
       </div>
 
-      {data.subtitle && (
-        <div style={{ fontSize: 15, color: "rgba(255,255,255,0.4)", fontFamily: "Arial, sans-serif", opacity: labelOp }}>{data.subtitle}</div>
+      {/* Subtitle */}
+      {subtitle && (
+        <div style={{
+          opacity: subtitleOp, marginTop: 20,
+          fontFamily: "sans-serif", fontWeight: 400,
+          fontSize: 20, color: "rgba(255,255,255,0.55)",
+          fontStyle: "italic",
+        }}>{subtitle}</div>
       )}
     </div>
   );

@@ -1213,7 +1213,7 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
       "news_headline","instagram_post","youtube_card","quiz_card",
       "portfolio_breakdown","roi_calculator","timelapse_bar","speed_meter",
       "candlestick_chart","conversation_bubble","loading_bar","wealth_ladder",
-      "rule_card","alert_banner","big_number","mindset_shift",
+      "rule_card","alert_banner","big_number","mindset_shift","stat_comparison","bullet_list","step_reveal","three_points","myth_fact","pro_con","score_card","loading_bar","vote_bar","pull_quote","countdown_timer",
     ]);
 
     // Per-type schema checks
@@ -1262,6 +1262,20 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
         case "youtube_card":      return d.title !== undefined;
         case "quiz_card":         return d.question !== undefined;
         case "rule_card":         return d.name !== undefined;
+        case "stat_comparison":   return d.left?.value !== undefined && d.right?.value !== undefined;
+        case "bullet_list":       return Array.isArray(d.items) && d.items.length >= 1;
+        case "step_reveal":       return Array.isArray(d.steps) && d.steps.length >= 1;
+        case "three_points":      return Array.isArray(d.points) && d.points.length >= 1;
+        case "mindset_shift":     return d.old !== undefined && d.new !== undefined;
+        case "myth_fact":         return d.myth !== undefined && d.fact !== undefined;
+        case "pro_con":           return Array.isArray(d.pros) || Array.isArray(d.cons);
+        case "score_card":        return d.grade !== undefined;
+        case "loading_bar":       return d.value !== undefined;
+        case "vote_bar":          return Array.isArray(d.options) && d.options.length >= 1;
+        case "pull_quote":        return d.quote !== undefined;
+        case "countdown_timer":   return d.from !== undefined;
+        case "big_number":        return d.value !== undefined;
+        case "alert_banner":      return d.title !== undefined;
         default: return true;
       }
     };
