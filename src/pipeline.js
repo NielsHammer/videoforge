@@ -152,13 +152,14 @@ export async function generateVideo(scriptPath, options) {
   const audioPath = path.join(assetsDir, "voiceover.mp3");
   const tsPath = path.join(assetsDir, "voiceover-timestamps.json");
 
-  let wordTimestamps, totalDuration;
+  let wordTimestamps, totalDuration, cachedEnhanced = null;
 
   if (options.skipVoice && fs.existsSync(audioPath) && fs.existsSync(tsPath)) {
     const s = ora("Loading cached voiceover...").start();
     const cached = JSON.parse(fs.readFileSync(tsPath, "utf-8"));
     wordTimestamps = cached.words;
     totalDuration = cached.duration;
+    cachedEnhanced = cached.enhancedScript || null;
     s.succeed(`Voiceover: cached (${totalDuration.toFixed(1)}s, ${wordTimestamps.length} words)`);
   } else {
     const enhancedScript = enhanceScript(scriptText, mood || "default");
@@ -167,7 +168,8 @@ export async function generateVideo(scriptPath, options) {
     wordTimestamps = result.words;
     totalDuration = result.duration;
     s.succeed(`Voiceover: ${totalDuration.toFixed(1)}s, ${wordTimestamps.length} words with timestamps`);
-    fs.writeFileSync(tsPath, JSON.stringify({ words: wordTimestamps, duration: totalDuration }, null, 2));
+    // Store enhancedScript so --skip-voice uses same text as timestamps
+    fs.writeFileSync(tsPath, JSON.stringify({ words: wordTimestamps, duration: totalDuration, enhancedScript }, null, 2));
     const audioStat = fs.existsSync(audioPath) ? fs.statSync(audioPath) : null;
     if (!audioStat || audioStat.size < 1000) {
       throw new Error(`Voiceover file is empty or missing (${audioStat?.size || 0} bytes).`);
@@ -186,18 +188,22 @@ export async function generateVideo(scriptPath, options) {
   const s2 = ora("Director creating storyboard...").start();
   const contentMode = detectContentMode(projectName, scriptText);
   console.log(chalk.blue(`🎯 Content mode: ${contentMode}`));
-  // Pick theme BEFORE storyboard so director gets correct theme personality
-  let theme = "blue_grid";
-  if (options.theme) {
-    theme = options.theme;
-    console.log(chalk.blue(`🎨 Theme override: ${theme}`));
-  } else {
-    const themeTopic = options.topic || projectName.replace(/-/g, " ");
-    theme = await pickThemeForTopic(themeTopic, scriptText) || "blue_grid";
-    console.log(chalk.blue(`🎨 Claude picked theme: ${theme}`));
-  }
+  // Use enhancedScript for sentence matching — must match ElevenLabs timestamps exactly
+  const storyboardScript = cachedEnhanced || scriptText;
 
-  const clips = await createStoryboard(scriptText, wordTimestamps, totalDuration, contentMode, options.topic || "", theme);
+  // Full order brief — Claude sees everything from the order form
+  const orderBrief = {
+    topic:           options.topic          || "",
+    niche:           options.niche          || process.env.ORDER_NICHE      || "",
+    tone:            options.tone           || process.env.ORDER_TONE       || "",
+    keyPoints:       options.keyPoints      || process.env.ORDER_KEY_POINTS || "",
+    callToAction:    options.callToAction   || process.env.ORDER_CTA        || "",
+    narrator:        options.narrator       || process.env.ORDER_NARRATOR   || "",
+    videoLength:     options.videoLength    || process.env.ORDER_LENGTH     || "",
+    backgroundStyle: options.backgroundStyle|| process.env.ORDER_BG_STYLE  || "",
+  };
+
+  const clips = await createStoryboard(storyboardScript, wordTimestamps, totalDuration, contentMode, options.topic || "", options.theme || "blue_grid", orderBrief);
 
   const numReveals = clips.filter(c => c.visual_type === "number_reveal").length;
   const comparisons = clips.filter(c => c.visual_type === "comparison").length;
@@ -242,9 +248,7 @@ export async function generateVideo(scriptPath, options) {
     // Batch 3 animations (no image needed)
     "highlight_build","count_up","neon_sign","reaction_face",
     "thumbs_up","side_by_side","youtube_progress","warning_siren",
-      // batch4 — pure graphic components, no image needed
-  "pull_quote","stat_comparison","bullet_list","myth_fact","step_reveal","pro_con","score_card","person_profile","reddit_post","google_search","three_points","stacked_bar","countdown_timer","vote_bar","map_callout","news_headline","instagram_post","youtube_card","quiz_card","portfolio_breakdown","roi_calculator","timelapse_bar","speed_meter","candlestick_chart","conversation_bubble","loading_bar","wealth_ladder","rule_card","alert_banner","big_number","mindset_shift",
-  // NOTE: quote_overlay, overlay_caption, polaroid_stack are NOT here
+    // NOTE: quote_overlay, overlay_caption, polaroid_stack are NOT here
     // — they render over fetched images and need the pipeline to fetch them
   ];
 
@@ -459,6 +463,18 @@ export async function generateVideo(scriptPath, options) {
       ms.warn("No music — add .mp3 to music/ folder");
     }
   }
+
+  // --- Theme detection: Claude picks the best theme for the topic ---
+  let theme = "blue_grid"; // safe default
+  if (!options.theme) {
+    const themeTopic = options.topic || projectName.replace(/-/g, " ");
+    theme = await pickThemeForTopic(themeTopic, scriptText);
+    if (!theme) theme = "blue_grid"; // fallback if Claude fails
+  } else {
+    theme = options.theme;
+    console.log(chalk.blue(`🎨 Theme override: ${theme}`));
+  }
+
   fs.writeFileSync(path.join(outputDir, "storyboard.json"), JSON.stringify({ clips, wordTimestamps, totalDuration, theme }, null, 2));
 
   // --- STEP 4: Render ---
@@ -517,7 +533,7 @@ async function mergeAudioVideoSimple(videoPath, audioPath, outputPath, musicPath
         `ffmpeg -y -i "${videoPath}" -i "${audioPath}" -stream_loop -1 -i "${musicPath}" ` +
         `-filter_complex "` +
         `[1:a]asetpts=PTS-STARTPTS,aformat=channel_layouts=stereo[voice];` +
-        `[2:a]atrim=0:${duration},asetpts=PTS-STARTPTS,aformat=channel_layouts=stereo,afade=t=in:st=0:d=2,afade=t=out:st=${fadeOut}:d=3,volume=0.12[music];` +
+        `[2:a]atrim=0:${duration},asetpts=PTS-STARTPTS,aformat=channel_layouts=stereo,afade=t=in:st=0:d=2,afade=t=out:st=${fadeOut}:d=3,volume=0.0[music];` +
         `[voice][music]amix=inputs=2:duration=first:dropout_transition=2[aout]` +
         `" -map 0:v -map "[aout]" -c:v copy -c:a aac -b:a 192k -ac 2 "${outputPath}"`,
         { stdio: "pipe", timeout: 1800000 }
