@@ -564,16 +564,30 @@ function generateAnimationData(type, sentence) {
   const key = words.filter(w => !stop.has(w.toLowerCase())).map(w => w.toUpperCase());
 
   switch (type) {
-    case "kinetic_text": return key.length ? { lines: key.slice(0, 2), style: "impact" } : null;
-    case "spotlight_stat":
-      if (pct) return { value: pct[1] + "%", label: key.slice(0, 3).join(" ").toLowerCase(), context: "" };
-      if (money) return { value: money[0], label: key.slice(0, 3).join(" ").toLowerCase(), context: "" };
-      if (numbers[0]) return { value: sentence.toLowerCase().includes("percent") ? numbers[0] + "%" : String(numbers[0]), label: key.slice(0, 3).join(" ").toLowerCase(), context: "" };
-      return { value: key[0] || "FACT", label: sentence.slice(0, 40), context: "" };
+    case "kinetic_text": {
+      // Filter out truncated words from apostrophe splitting (wasn, didn, don, can, won, isn, aren, couldn, shouldn)
+      const truncated = new Set(["wasn","didn","don","can","won","isn","aren","couldn","shouldn","wouldn","doesn","hadn","haven","mustn","needn","shan","let"]);
+      const cleanKey = key.filter(w => !truncated.has(w.toLowerCase()) && w.length > 2);
+      return cleanKey.length >= 2 ? { lines: cleanKey.slice(0, 2), style: "impact" } : null;
+    }
+    case "spotlight_stat": {
+      // Extract context AFTER the number for a meaningful label
+      const afterNum = sentence.replace(/^[\s\S]*?\b(\d+%?|\$[\d,]+)\b\s*/, "").replace(/[^a-zA-Z\s]/g, "").trim().toLowerCase().slice(0, 45);
+      const cleanLabel = afterNum.length > 4 ? afterNum : sentence.replace(/\d+%?/g, "").replace(/[^a-zA-Z\s]/g, " ").trim().toLowerCase().slice(0, 40);
+      if (pct) return { value: pct[1] + "%", label: cleanLabel || "of people", context: "" };
+      if (money) return { value: money[0], label: cleanLabel || "key amount", context: "" };
+      if (numbers[0]) return { value: sentence.toLowerCase().includes("percent") ? numbers[0] + "%" : String(numbers[0]), label: cleanLabel || "key stat", context: "" };
+      return { value: key[0] || "FACT", label: sentence.slice(0, 40).toLowerCase(), context: "" };
+    }
     case "count_up":
       // Only for sentences with actual meaningful numbers (>=5 to avoid "one of the" type sentences)
       if (!numbers[0] || numbers[0] < 5) return null;
-      return { value: parseFloat(numbers[0]) || 73, prefix: money ? "$" : "", suffix: pct ? "%" : "", label: key.slice(0, 3).join(" ").toLowerCase(), decimals: 0 };
+      {
+        // Extract context AFTER the number — "8 out of 10 people" → label "out of 10 people"
+        const afterNum = sentence.replace(/^[\s\S]*?\b\d+\b\s*/, "").replace(/[^a-zA-Z\s]/g, "").trim().toLowerCase().slice(0, 40);
+        const label = afterNum.length > 4 ? afterNum : key.filter(w => !/^\d+$/.test(w)).slice(1, 4).join(" ").toLowerCase() || "key stat";
+        return { value: parseFloat(numbers[0]), prefix: money ? "$" : "", suffix: pct ? "%" : "", label, decimals: 0 };
+      }
     case "money_counter":
       // Only for sentences with money amounts (>=5)
       if (!money && (!numbers[0] || numbers[0] < 5)) return null;
@@ -588,9 +602,12 @@ function generateAnimationData(type, sentence) {
     case "typewriter_reveal": return { text: sentence.slice(0, 60), subtitle: "" };
     case "glitch_text": return { text: key.slice(0, 2).join(" ") || "HACKED", subtitle: "" };
     case "news_breaking":
-      // Only for dramatic reveals or shocking stats
-      if (!numbers[0] && !/reveal|shocking|truth|secret|discover|expose|hidden/.test(sentence.toLowerCase())) return null;
-      return { headline: sentence.slice(0, 50).toUpperCase(), subtext: sentence.slice(50, 90), ticker: "DEVELOPING STORY • MORE TO COME" };
+      // Only for sentences with shocking stats — NOT section titles or numbered points
+      if (/^number (one|two|three|four|five|six|seven|eight|nine|ten)\./i.test(sentence.trim())) return null;
+      if (/^trap (one|two|three|four|five)/i.test(sentence.trim())) return null;
+      if (!numbers[0] && !/shocking|study|research|discover|reveal|scientists|experts|found/.test(sentence.toLowerCase())) return null;
+      if (sentence.length < 20) return null;
+      return { headline: sentence.slice(0, 55).toUpperCase(), subtext: sentence.slice(55, 100), ticker: "DEVELOPING STORY • MORE TO COME" };
     case "highlight_build": {
       // Only for sentences with 2+ comma-separated items or list structure
       const parts = sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 8);
@@ -1273,7 +1290,18 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
         if (bannedVisuals.some(b => c.includes(b))) c = (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[0];
         return c.length >= 3 ? c : null;
       }).filter(Boolean);
-      if (clip.search_queries.length === 0) clip.search_queries = null;
+      // Deduplicate — only keep queries that are meaningfully different (>40% different words)
+      const deduped = [];
+      for (const q of clip.search_queries) {
+        const qWords = new Set(q.split(/\s+/));
+        const isDup = deduped.some(existing => {
+          const exWords = new Set(existing.split(/\s+/));
+          const shared = [...qWords].filter(w => exWords.has(w)).length;
+          return shared / Math.max(qWords.size, exWords.size) > 0.6;
+        });
+        if (!isDup) deduped.push(q);
+      }
+      clip.search_queries = deduped.length >= 1 ? deduped : null;
     }
 
     if (graphicTypes.has(clip.visual_type)) {
@@ -1335,6 +1363,28 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo) {
       allClips[i].end_time = allClips[i].start_time + 1.5;
     }
   }
+
+  // Break any clip longer than 12 seconds into multiple clips (prevents 77s stock clips)
+  const MAX_CLIP_DUR = 12;
+  const splitLong = [];
+  for (const clip of allClips) {
+    const dur = clip.end_time - clip.start_time;
+    if (dur <= MAX_CLIP_DUR) {
+      splitLong.push(clip);
+    } else {
+      // Split into chunks of up to MAX_CLIP_DUR
+      let t = clip.start_time;
+      let chunkIdx = 0;
+      while (t < clip.end_time - 1) {
+        const chunkEnd = Math.min(t + MAX_CLIP_DUR, clip.end_time);
+        splitLong.push({ ...clip, start_time: t, end_time: chunkEnd });
+        t = chunkEnd;
+        chunkIdx++;
+      }
+    }
+  }
+  allClips.length = 0;
+  allClips.push(...splitLong);
 
   // Fullscreen cap: max 4 per minute
   const maxFullscreen = Math.max(2, Math.ceil((totalDuration / 60) * 4));
