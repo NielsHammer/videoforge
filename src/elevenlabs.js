@@ -289,12 +289,35 @@ export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath)
   const listPath = path.join(tmpDir, '_concat_list.txt');
   fs.writeFileSync(listPath, chunkPaths.map(p => `file '${p}'`).join('\n'));
   try {
-    // Concat raw chunks first, then normalize ONCE across the full audio
-    // (normalizing per-chunk causes volume jumps at boundaries)
+    // Step 1: Concat raw chunks (no processing yet)
     const rawConcatPath = path.join(tmpDir, '_raw_concat.mp3');
     execSync(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -acodec libmp3lame -b:a 192k "${rawConcatPath}"`, { stdio: 'pipe', timeout: 120000 });
-    // Single-pass normalization on the full combined audio
-    execSync(`ffmpeg -y -i "${rawConcatPath}" -af loudnorm=I=-16:TP=-1.5:LRA=11 -acodec libmp3lame -b:a 192k "${outputPath}"`, { stdio: 'pipe', timeout: 120000 });
+
+    // Step 2: Two-pass loudnorm — first pass measures the audio, second pass applies correct gain
+    // This prevents end-of-file volume spikes that single-pass loudnorm can cause
+    const pass1Out = execSync(
+      `ffmpeg -y -i "${rawConcatPath}" -af loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json -f null -`,
+      { stdio: ['pipe','pipe','pipe'], timeout: 120000 }
+    ).toString() + execSync(
+      `ffmpeg -y -i "${rawConcatPath}" -af loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json -f null - 2>&1 || true`,
+      { stdio: 'pipe', timeout: 120000, encoding: 'utf8' }
+    );
+
+    // Parse measured values from first pass
+    let loudnormFilter = 'loudnorm=I=-16:TP=-1.5:LRA=11';
+    try {
+      const jsonMatch = pass1Out.match(/\{[\s\S]*?"input_i"[\s\S]*?\}/);
+      if (jsonMatch) {
+        const m = JSON.parse(jsonMatch[0]);
+        // Second pass uses measured values for accurate, consistent normalization
+        loudnormFilter = `loudnorm=I=-16:TP=-1.5:LRA=11:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true`;
+      }
+    } catch(parseErr) {
+      // Fall back to single-pass if JSON parse fails — still better than per-chunk
+    }
+
+    // Step 3: Apply normalization with measured values
+    execSync(`ffmpeg -y -i "${rawConcatPath}" -af "${loudnormFilter}" -acodec libmp3lame -b:a 192k "${outputPath}"`, { stdio: 'pipe', timeout: 120000 });
     try { fs.unlinkSync(rawConcatPath); } catch(e) {}
   } catch (e) {
     execSync(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -c copy "${outputPath}"`, { stdio: 'pipe', timeout: 120000 });
