@@ -44,25 +44,41 @@ function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
       .filter(w => w.length > 0);
 
     if (sentenceWords.length === 0) continue;
+    if (wordIdx >= wordTimestamps.length) break;
 
+    // Search up to 40 words ahead (was 20 — too small for drift recovery)
     let startWordIdx = wordIdx;
     const firstWord = sentenceWords[0].toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 4);
+    let foundStart = false;
 
-    for (let i = wordIdx; i < Math.min(wordIdx + 20, wordTimestamps.length); i++) {
+    for (let i = wordIdx; i < Math.min(wordIdx + 40, wordTimestamps.length); i++) {
       if (wordTimestamps[i].word.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(firstWord)) {
         startWordIdx = i;
+        foundStart = true;
         break;
       }
     }
 
+    // First word not found — advance by sentence length to stay in sync, skip this sentence
+    if (!foundStart) {
+      wordIdx = Math.min(wordIdx + sentenceWords.length, wordTimestamps.length - 1);
+      continue;
+    }
+
+    // Search for last word within sentence length + 10 buffer
     const lastWord = sentenceWords[sentenceWords.length - 1].toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 4);
     let endWordIdx = startWordIdx;
+    const searchEnd = Math.min(startWordIdx + sentenceWords.length + 10, wordTimestamps.length);
 
-    for (let i = startWordIdx; i < Math.min(startWordIdx + sentenceWords.length + 5, wordTimestamps.length); i++) {
+    for (let i = startWordIdx; i < searchEnd; i++) {
       if (wordTimestamps[i].word.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(lastWord)) {
         endWordIdx = i;
       }
     }
+
+    // Ensure end is at least halfway through the sentence
+    const minEnd = Math.min(startWordIdx + Math.floor(sentenceWords.length / 2), wordTimestamps.length - 1);
+    endWordIdx = Math.max(endWordIdx, minEnd);
 
     const startTime = wordTimestamps[startWordIdx]?.start ?? 0;
     const endTime = wordTimestamps[endWordIdx]?.end ?? startTime + 2;
@@ -77,7 +93,8 @@ function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
       });
     }
 
-    wordIdx = endWordIdx + 1;
+    // Always advance — prevents infinite stall
+    wordIdx = Math.max(endWordIdx + 1, startWordIdx + 1);
   }
 
   const filled = [];
