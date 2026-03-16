@@ -26,6 +26,19 @@ const NICHE_BUDGETS = {
 };
 
 // ─── SENTENCE PARSER ─────────────────────────────────────────────────────────
+// Niche-safe fallback search queries — used across multiple functions
+const nicheSafeQueries = {
+  business: ["entrepreneur success workspace","confident professional achieving","startup team modern office","freelancer productive focused","business growth momentum"],
+  finance: ["financial growth chart professional","investor confident modern","wealth success lifestyle","stock market professional","business executive confident"],
+  health: ["gym fitness workout motivated","healthy lifestyle active","sports performance athletic","wellness outdoor nature","fit person exercising"],
+  travel: ["scenic destination landscape","travel adventure culture","beautiful nature photography","landmark iconic","travel exploration freedom"],
+  horror: ["dark atmospheric night","mysterious shadowy","abandoned eerie","foggy dark","suspenseful shadow"],
+  true_crime: ["detective investigation","evidence analysis","courtroom justice","newspaper headline","investigation board"],
+  history: ["ancient ruins architecture","historical artifact","medieval castle","period historical","ancient civilization"],
+  creator: ["person scrolling phone late night blue light","social media feed scrolling smartphone","young person phone screen dopamine","phone notification alert social media","person sitting alone staring at phone"],
+  general: ["professional modern aspirational","person thoughtful confident","city skyline panoramic","nature peaceful","team collaboration success"],
+};
+
 function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
   if (!wordTimestamps || wordTimestamps.length === 0) return [];
 
@@ -1138,17 +1151,7 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
   const banned = ["baby","infant","child","toddler","kid","kids","children","subscribe","button","icon","logo","brand","coursera","udemy","fiverr","upwork","amazon","facebook","instagram","tiktok"];
   const bannedVisuals = isHorror ? [] : ["knife","weapon","mask","ghost","monster","blood","horror","scary","creepy","ghostface","scream","killer"];
 
-  const nicheSafeQueries = {
-    business: ["entrepreneur success workspace","confident professional achieving","startup team modern office","freelancer productive focused","business growth momentum"],
-    finance: ["financial growth chart professional","investor confident modern","wealth success lifestyle","stock market professional","business executive confident"],
-    health: ["gym fitness workout motivated","healthy lifestyle active","sports performance athletic","wellness outdoor nature","fit person exercising"],
-    travel: ["scenic destination landscape","travel adventure culture","beautiful nature photography","landmark iconic","travel exploration freedom"],
-    horror: ["dark atmospheric night","mysterious shadowy","abandoned eerie","foggy dark","suspenseful shadow"],
-    true_crime: ["detective investigation","evidence analysis","courtroom justice","newspaper headline","investigation board"],
-    history: ["ancient ruins architecture","historical artifact","medieval castle","period historical","ancient civilization"],
-    creator: ["person scrolling phone late night blue light","social media feed scrolling smartphone","young person phone screen dopamine","phone notification alert social media","person sitting alone staring at phone"],
-    general: ["professional modern aspirational","person thoughtful confident","city skyline panoramic","nature peaceful","team collaboration success"],
-  };
+  // nicheSafeQueries is defined at module level
 
   const result = [];
 
