@@ -1364,20 +1364,48 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo) {
     }
   }
 
-  // Break any clip longer than 12 seconds into multiple clips (prevents 77s stock clips)
-  const MAX_CLIP_DUR = 12;
+  // Break any clip longer than 12 seconds into multiple stock clips (prevents 77s clips)
+  const MAX_CLIP_DUR = 10;
+  const nicheFallbacks = {
+    finance: ["financial growth chart professional","investor analyzing markets","wealth success lifestyle","stock market professional","business executive confident"],
+    business: ["entrepreneur success workspace","confident professional achieving","startup team modern office","business growth momentum","professional meeting boardroom"],
+    health: ["gym fitness workout motivated","healthy lifestyle active","sports performance athletic","wellness outdoor nature","fit person exercising"],
+    horror: ["dark atmospheric night","mysterious shadowy","abandoned eerie","foggy dark","suspenseful shadow"],
+    true_crime: ["detective investigation","evidence analysis","courtroom justice","newspaper headline","investigation board"],
+    general: ["professional modern aspirational","person thoughtful confident","city skyline panoramic","nature peaceful","team collaboration success"],
+  };
+  const fallbacks = nicheFallbacks[nicheInfo?.niche] || nicheFallbacks.general;
+
   const splitLong = [];
   for (const clip of allClips) {
     const dur = clip.end_time - clip.start_time;
     if (dur <= MAX_CLIP_DUR) {
       splitLong.push(clip);
     } else {
-      // Split into chunks of up to MAX_CLIP_DUR
+      // Split into stock chunks with varied queries — never repeat same animation type
       let t = clip.start_time;
       let chunkIdx = 0;
       while (t < clip.end_time - 1) {
         const chunkEnd = Math.min(t + MAX_CLIP_DUR, clip.end_time);
-        splitLong.push({ ...clip, start_time: t, end_time: chunkEnd });
+        if (chunkEnd - t < 1.5) break; // skip tiny tail clips
+        const isFirst = chunkIdx === 0;
+        // First chunk keeps original type, subsequent chunks become stock with varied queries
+        if (isFirst && clip.visual_type !== "stock") {
+          splitLong.push({ ...clip, start_time: t, end_time: chunkEnd });
+        } else {
+          splitLong.push({
+            ...clip,
+            start_time: t,
+            end_time: chunkEnd,
+            visual_type: "stock",
+            display_style: "framed",
+            search_query: fallbacks[(Math.floor(t / MAX_CLIP_DUR)) % fallbacks.length],
+            search_queries: null,
+            animation_data: null,
+            chart_data: null,
+            number_data: null,
+          });
+        }
         t = chunkEnd;
         chunkIdx++;
       }
@@ -1386,7 +1414,18 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo) {
   allClips.length = 0;
   allClips.push(...splitLong);
 
-  // Fullscreen cap: max 4 per minute
+  // No same type twice in a row — runs AFTER splitter so split chunks are also checked
+  let lastType = "";
+  allClips.forEach(clip => {
+    if (clip.visual_type === "stock") { lastType = "stock"; return; }
+    if (clip.visual_type === lastType) {
+      clip.visual_type = "stock";
+      clip.display_style = "framed";
+      clip.animation_data = null;
+      clip.chart_data = null;
+    }
+    lastType = clip.visual_type;
+  });
   const maxFullscreen = Math.max(2, Math.ceil((totalDuration / 60) * 4));
   let fullscreenCount = 0;
   allClips.forEach(clip => {
@@ -1394,17 +1433,6 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo) {
       fullscreenCount++;
       if (fullscreenCount > maxFullscreen) clip.display_style = "framed";
     }
-  });
-
-  // No same type twice in a row (but allow same type to repeat with stock in between)
-  let lastType = "";
-  allClips.forEach(clip => {
-    if (clip.visual_type === "stock") { lastType = "stock"; return; }
-    if (clip.visual_type === lastType) {
-      clip.visual_type = "stock";
-      clip.display_style = "framed";
-    }
-    lastType = clip.visual_type;
   });
 
   // Hook protection: no fullscreen in first 5 clips, no data infographics in first 5s
@@ -1421,6 +1449,29 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo) {
       clip.search_query = clip.search_query || "dramatic cinematic opening";
     }
   });
+
+  // Break up runs of 3+ consecutive stock clips by inserting kinetic_text
+  {
+    let stockRun = 0;
+    for (let i = 0; i < allClips.length; i++) {
+      if (allClips[i].visual_type === "stock") {
+        stockRun++;
+        if (stockRun >= 3 && allClips[i].end_time - allClips[i].start_time >= 3.5) {
+          // Convert this stock clip to kinetic_text using its search_query words
+          const q = allClips[i].search_query || "";
+          const words = q.split(/\s+/).filter(w => w.length > 3 && !/^(and|the|for|with|from|into)$/.test(w)).slice(0, 2).map(w => w.toUpperCase());
+          if (words.length >= 2) {
+            allClips[i].visual_type = "kinetic_text";
+            allClips[i].animation_data = { lines: words, style: "impact" };
+            allClips[i].imagePath = null;
+            stockRun = 0;
+          }
+        }
+      } else {
+        stockRun = 0;
+      }
+    }
+  }
 
   // Inject interrupt cards every 90s — only into stock clips, never over animations
   const facts = extractFacts(scriptText);
