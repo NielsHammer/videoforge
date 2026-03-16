@@ -923,11 +923,20 @@ function pickIconForSentence(sentence) {
 // ─── PASS 2: ASSIGN VISUAL DETAILS ───────────────────────────────────────────
 async function directClipWindows(windows, planChunk, scriptText, isFirst, isLast, nicheInfo, themeHints, budget, topic, theme, isHorror) {
 
-  // Build window reference showing each window + its planned category and type
+  // Build window reference showing each window + its REQUIRED TYPE (explicit, not just a hint)
   const windowRef = windows.map((w, i) => {
     const plan = planChunk[i] || {};
     const dur = (w.end - w.start).toFixed(1);
-    return `[${i}] ${w.start.toFixed(2)}s-${w.end.toFixed(2)}s (${dur}s) | PLAN: ${plan.category || "stock"}→${plan.type || "stock"} | "${w.text}"`;
+    const cat = plan.category || "stock";
+    const type = plan.type || "stock";
+    // Make the instruction crystal clear based on category
+    let instruction;
+    if (cat === "stock") instruction = `USE: stock | display: ${plan.display || "framed"}`;
+    else if (cat === "animation") instruction = `REQUIRED_TYPE: ${type} | MUST have animation_data for ${type}`;
+    else if (cat === "infographic") instruction = `REQUIRED_TYPE: ${type} | MUST have chart_data or number_data for ${type}`;
+    else if (cat === "split") instruction = `USE: stock | display: ${plan.display || "split_left"} | add panel_icon`;
+    else instruction = `USE: ${type}`;
+    return `[${i}] ${w.start.toFixed(2)}s-${w.end.toFixed(2)}s (${dur}s) | ${instruction} | "${w.text}"`;
   }).join("\n");
 
   try {
@@ -981,8 +990,11 @@ VIDEO: "${topic}" | NICHE: ${nicheInfo.niche} | THEME: "${theme}"
 IMAGE STYLE: ${nicheInfo.imageStyle}
 THEME PREFERRED: ${themeHints.prefer.join(", ")}
 
-Each clip window below has a PLANNED category and type. Your job is to fill in the exact details.
+Each clip window below has a REQUIRED_TYPE. You MUST use exactly that type — do NOT substitute kinetic_text or stock unless the window explicitly says to use them.
 start_time and end_time are FIXED — do not change them.
+
+CRITICAL: If a window says REQUIRED_TYPE: spotlight_stat, you MUST return visual_type: "spotlight_stat" with proper animation_data. NOT kinetic_text. NOT stock.
+If a window says REQUIRED_TYPE: money_counter, return money_counter. If REQUIRED_TYPE: reaction_face, return reaction_face. Follow the type exactly.
 
 CLIP WINDOWS WITH PLAN:
 ${windowRef}
