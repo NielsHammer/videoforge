@@ -566,35 +566,37 @@ function getNumbers(sentence) {
 
 function generateAnimationData(type, sentence) {
   const words = sentence.replace(/[^a-zA-Z0-9\s%$]/g, " ").split(/\s+/).filter(w => w.length > 2);
-  const numbers = getNumbers(sentence); // parses both "68%" and "sixty-eight percent"
+  const numbers = getNumbers(sentence);
   const pct = sentence.match(/(\d+)\s*%/) || (numbers.length && sentence.toLowerCase().includes("percent") ? [null, String(numbers[0])] : null);
   const money = sentence.match(/\$[\d,]+/);
-  const stop = new Set(["the","and","but","for","with","this","that","have","from","they","their","your","you","was","are","were","has","had","not","can","will","would","could","should","what","when","where","how","why","who","which","been","being","than","then","into","just","more","most","some","such","even","also","very"]);
+  const stop = new Set(["the","and","but","for","with","this","that","have","from","they","their","your","you","was","are","were","has","had","not","can","will","would","could","should","what","when","where","how","why","who","which","been","being","than","then","into","just","more","most","some","such","even","also","very","show","means","nearly","that","about","these","those"]);
   const key = words.filter(w => !stop.has(w.toLowerCase())).map(w => w.toUpperCase());
+
+  // Helper: extract a SHORT clean label (max 4 words, word-boundary safe, no sentence fragments)
+  const shortLabel = (str, maxWords = 4) => {
+    const cleaned = str.replace(/[^a-zA-Z\s]/g, " ").trim().toLowerCase();
+    const labelWords = cleaned.split(/\s+/).filter(w => w.length > 2 && !stop.has(w));
+    return labelWords.slice(0, maxWords).join(" ");
+  };
 
   switch (type) {
     case "kinetic_text": {
-      // Filter out truncated words from apostrophe splitting (wasn, didn, don, can, won, isn, aren, couldn, shouldn)
       const truncated = new Set(["wasn","didn","don","can","won","isn","aren","couldn","shouldn","wouldn","doesn","hadn","haven","mustn","needn","shan","let"]);
       const cleanKey = key.filter(w => !truncated.has(w.toLowerCase()) && w.length > 2);
       return cleanKey.length >= 2 ? { lines: cleanKey.slice(0, 2), style: "impact" } : null;
     }
     case "spotlight_stat": {
-      // Extract context AFTER the number for a meaningful label
-      const afterNum = sentence.replace(/^[\s\S]*?\b(\d+%?|\$[\d,]+)\b\s*/, "").replace(/[^a-zA-Z\s]/g, "").trim().toLowerCase().slice(0, 45);
-      const cleanLabel = afterNum.length > 4 ? afterNum : sentence.replace(/\d+%?/g, "").replace(/[^a-zA-Z\s]/g, " ").trim().toLowerCase().slice(0, 40);
-      if (pct) return { value: pct[1] + "%", label: cleanLabel || "of people", context: "" };
-      if (money) return { value: money[0], label: cleanLabel || "key amount", context: "" };
-      if (numbers[0]) return { value: sentence.toLowerCase().includes("percent") ? numbers[0] + "%" : String(numbers[0]), label: cleanLabel || "key stat", context: "" };
-      return { value: key[0] || "FACT", label: sentence.slice(0, 40).toLowerCase(), context: "" };
+      // Label: max 4 meaningful words from the sentence, never a sentence fragment
+      const label = shortLabel(sentence.replace(/\d+%?/g, "").replace(/dollars?|percent/gi, ""), 4) || "key stat";
+      if (pct) return { value: pct[1] + "%", label, context: "" };
+      if (money) return { value: money[0], label, context: "" };
+      if (numbers[0]) return { value: sentence.toLowerCase().includes("percent") ? numbers[0] + "%" : String(numbers[0]), label, context: "" };
+      return { value: key[0] || "FACT", label, context: "" };
     }
     case "count_up":
-      // Only for sentences with actual meaningful numbers (>=5 to avoid "one of the" type sentences)
       if (!numbers[0] || numbers[0] < 5) return null;
       {
-        // Extract context AFTER the number — "8 out of 10 people" → label "out of 10 people"
-        const afterNum = sentence.replace(/^[\s\S]*?\b\d+\b\s*/, "").replace(/[^a-zA-Z\s]/g, "").trim().toLowerCase().slice(0, 40);
-        const label = afterNum.length > 4 ? afterNum : key.filter(w => !/^\d+$/.test(w)).slice(1, 4).join(" ").toLowerCase() || "key stat";
+        const label = shortLabel(sentence.replace(/\d+/g, ""), 4) || "key stat";
         return { value: parseFloat(numbers[0]), prefix: money ? "$" : "", suffix: pct ? "%" : "", label, decimals: 0 };
       }
     case "money_counter":
@@ -793,7 +795,10 @@ function generateInfographicData(type, sentence, scriptText) {
   const stop = new Set(["the","and","but","for","with","this","that","have","from","they","their","your","you","was","are","were","has","had","not","can","will","would","could","should","just","also","more","very"]);
   const key = words.filter(w => !stop.has(w.toLowerCase())).slice(0, 6);
   const pct = sentence.match(/(\d+)\s*%/) || (numbers.length && sentence.toLowerCase().includes("percent") ? [null, String(numbers[0])] : null);
-  const title = key.slice(0, 3).join(" ");
+  // Build a meaningful short title from sentence — max 4 content words, word-boundary safe
+  const titleStop = new Set(["the","and","but","for","with","this","that","have","from","they","their","your","you","was","are","were","has","had","not","can","will","would","could","should","just","also","more","very","show","means","nearly","about","these","those","that","here","what","when","where","how","why"]);
+  const titleWords = sentence.replace(/[^a-zA-Z\s]/g, " ").split(/\s+/).filter(w => w.length > 3 && !titleStop.has(w.toLowerCase()));
+  const title = titleWords.slice(0, 4).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ") || key.slice(0, 2).join(" ");
 
   // Pull nearby sentences from script for list-type infographics
   const allSentences = scriptText.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 10 && s.length < 80);
@@ -804,12 +809,18 @@ function generateInfographicData(type, sentence, scriptText) {
     case "number_reveal":
       // Only when sentence has an actual number
       if (!numbers[0]) return {};
-      return { number_data: { value: parseFloat(numbers[0]), prefix: sentence.includes("$") ? "$" : "", suffix: pct ? "%" : "", label: key.slice(0, 3).join(" "), style: "counter" } };
+      {
+        const numLabel = titleWords.slice(0, 3).join(" ") || key.slice(0, 2).join(" ");
+        return { number_data: { value: parseFloat(numbers[0]), prefix: sentence.includes("$") ? "$" : "", suffix: pct ? "%" : "", label: numLabel, style: "counter" } };
+      }
 
     case "stat_card":
       // Only when sentence has at least one number or stat
       if (!numbers[0] && !pct) return {};
-      return { chart_data: { title, stats: [{ value: pct ? pct[1] + "%" : String(numbers[0]), label: sentence.slice(0, 40) }, numbers[1] ? { value: String(numbers[1]), label: key.slice(3, 6).join(" ") } : null].filter(Boolean) } };
+      {
+        const statLabel = titleWords.slice(0, 3).join(" ") || key.slice(0, 2).join(" ");
+        return { chart_data: { title, stats: [{ value: pct ? pct[1] + "%" : String(numbers[0]), label: statLabel }, numbers[1] ? { value: String(numbers[1]), label: titleWords.slice(2, 4).join(" ") || "" } : null].filter(Boolean) } };
+      }
 
     case "checklist": {
       // Only for list-like sentences or when nearby sentences form a list
@@ -898,7 +909,7 @@ function generateInfographicData(type, sentence, scriptText) {
       return { animation_data: { percent: parseInt(pct?.[1]) || 73, label: key.slice(0, 4).join(" ").toLowerCase() } };
 
     default:
-      return { chart_data: { title, stats: [{ value: pct ? pct[1] + "%" : (numbers[0] ? String(numbers[0]) : key[0] || "Key Stat"), label: sentence.slice(0, 40) }] } };
+      return { chart_data: { title, stats: [{ value: pct ? pct[1] + "%" : (numbers[0] ? String(numbers[0]) : key[0] || "Key Stat"), label: titleWords.slice(0, 3).join(" ") || key.slice(0, 2).join(" ") }] } };
   }
 }
 
