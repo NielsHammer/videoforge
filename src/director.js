@@ -572,10 +572,14 @@ function generateAnimationData(type, sentence) {
   const stop = new Set(["the","and","but","for","with","this","that","have","from","they","their","your","you","was","are","were","has","had","not","can","will","would","could","should","what","when","where","how","why","who","which","been","being","than","then","into","just","more","most","some","such","even","also","very","show","means","nearly","that","about","these","those"]);
   const key = words.filter(w => !stop.has(w.toLowerCase())).map(w => w.toUpperCase());
 
-  // Helper: extract a SHORT clean label (max 4 words, word-boundary safe, no sentence fragments)
+  // Number words and contraction fragments to exclude from labels
+  const numWords = new Set(["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety","hundred","thousand","million","billion","first","second","third","fourth","fifth"]);
+  const fragments = new Set(["wasn","didn","don","can","won","isn","aren","couldn","shouldn","wouldn","doesn","hadn","haven","mustn","needn","shan","let","that","this","than","then","what","when","here","show","means","nearly","about"]);
+
+  // Helper: extract a SHORT clean label (max 4 words, word-boundary safe, no number words or fragments)
   const shortLabel = (str, maxWords = 4) => {
     const cleaned = str.replace(/[^a-zA-Z\s]/g, " ").trim().toLowerCase();
-    const labelWords = cleaned.split(/\s+/).filter(w => w.length > 2 && !stop.has(w));
+    const labelWords = cleaned.split(/\s+/).filter(w => w.length > 2 && !stop.has(w) && !numWords.has(w) && !fragments.has(w));
     return labelWords.slice(0, maxWords).join(" ");
   };
 
@@ -796,7 +800,7 @@ function generateInfographicData(type, sentence, scriptText) {
   const key = words.filter(w => !stop.has(w.toLowerCase())).slice(0, 6);
   const pct = sentence.match(/(\d+)\s*%/) || (numbers.length && sentence.toLowerCase().includes("percent") ? [null, String(numbers[0])] : null);
   // Build a meaningful short title from sentence — max 4 content words, word-boundary safe
-  const titleStop = new Set(["the","and","but","for","with","this","that","have","from","they","their","your","you","was","are","were","has","had","not","can","will","would","could","should","just","also","more","very","show","means","nearly","about","these","those","that","here","what","when","where","how","why"]);
+  const titleStop = new Set(["the","and","but","for","with","this","that","have","from","they","their","your","you","was","are","were","has","had","not","can","will","would","could","should","just","also","more","very","show","means","nearly","about","these","those","that","here","what","when","where","how","why","wasn","didn","don","won","isn","aren","couldn","shouldn","wouldn","doesn","hadn","zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety","hundred","thousand","million"]);
   const titleWords = sentence.replace(/[^a-zA-Z\s]/g, " ").split(/\s+/).filter(w => w.length > 3 && !titleStop.has(w.toLowerCase()));
   const title = titleWords.slice(0, 4).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ") || key.slice(0, 2).join(" ");
 
