@@ -1282,8 +1282,14 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
       } else if (["reaction_face"].includes(type)) {
         rescued = { emoji: "🤯", label: words.slice(0,2).join(" ") || "SHOCKING", style: "slam" };
       } else if (["spotlight_stat","big_number"].includes(type)) {
+        // Extract number with context - handle $, B, M, K suffixes
+        const moneyMatch = sentence.match(/\$[\d,.]+[BMKbmk]?/);
         const numMatch = sentence.match(/\d+/);
-        if (numMatch) rescued = { value: numMatch[0], label: words.slice(0,3).join(" ").toLowerCase(), context: "" };
+        if (moneyMatch) {
+          rescued = { value: moneyMatch[0].replace(/^\$/, ""), label: words.slice(0,3).join(" ").toLowerCase(), context: "", prefix: "$", suffix: "" };
+        } else if (numMatch) {
+          rescued = { value: numMatch[0], label: words.slice(0,3).join(" ").toLowerCase(), context: "", prefix: "", suffix: "" };
+        }
       } else if (["money_counter","count_up"].includes(type)) {
         const numMatch = sentence.match(/\d+/);
         if (numMatch && parseInt(numMatch[0]) >= 5) {
