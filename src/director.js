@@ -29,7 +29,11 @@ const NICHE_BUDGETS = {
 function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
   if (!wordTimestamps || wordTimestamps.length === 0) return [];
 
-  const rawSentences = scriptText
+  // Strip SSML tags from scriptText before sentence splitting
+  // (enhancedScript may contain <break time="500ms"/> etc.)
+  const cleanScript = scriptText.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+  const rawSentences = cleanScript
     .split(/(?<=[.!?])\s+/)
     .map(s => s.trim())
     .filter(s => s.length > 2);
@@ -39,46 +43,34 @@ function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
 
   for (const sentence of rawSentences) {
     const sentenceWords = sentence
-      .replace(/[^a-zA-Z0-9\s']/g, " ")
+      .replace(/[^a-zA-Z0-9\s\']/g, " ")
       .split(/\s+/)
       .filter(w => w.length > 0);
 
     if (sentenceWords.length === 0) continue;
     if (wordIdx >= wordTimestamps.length) break;
 
-    // Search up to 40 words ahead (was 20 — too small for drift recovery)
+    // Search up to 40 words ahead (was 20 — increased for better drift tolerance)
     let startWordIdx = wordIdx;
     const firstWord = sentenceWords[0].toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 4);
-    let foundStart = false;
 
     for (let i = wordIdx; i < Math.min(wordIdx + 40, wordTimestamps.length); i++) {
       if (wordTimestamps[i].word.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(firstWord)) {
         startWordIdx = i;
-        foundStart = true;
         break;
       }
     }
 
-    // First word not found — advance by sentence length to stay in sync, skip this sentence
-    if (!foundStart) {
-      wordIdx = Math.min(wordIdx + sentenceWords.length, wordTimestamps.length - 1);
-      continue;
-    }
-
-    // Search for last word within sentence length + 10 buffer
+    // Search for last word within sentence length + 8 buffer
     const lastWord = sentenceWords[sentenceWords.length - 1].toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 4);
     let endWordIdx = startWordIdx;
-    const searchEnd = Math.min(startWordIdx + sentenceWords.length + 10, wordTimestamps.length);
+    const searchEnd = Math.min(startWordIdx + sentenceWords.length + 8, wordTimestamps.length);
 
     for (let i = startWordIdx; i < searchEnd; i++) {
       if (wordTimestamps[i].word.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(lastWord)) {
         endWordIdx = i;
       }
     }
-
-    // Ensure end is at least halfway through the sentence
-    const minEnd = Math.min(startWordIdx + Math.floor(sentenceWords.length / 2), wordTimestamps.length - 1);
-    endWordIdx = Math.max(endWordIdx, minEnd);
 
     const startTime = wordTimestamps[startWordIdx]?.start ?? 0;
     const endTime = wordTimestamps[endWordIdx]?.end ?? startTime + 2;
@@ -93,8 +85,8 @@ function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
       });
     }
 
-    // Always advance — prevents infinite stall
-    wordIdx = Math.max(endWordIdx + 1, startWordIdx + 1);
+    // Always advance past endWordIdx to prevent stalling
+    wordIdx = Math.max(endWordIdx + 1, wordIdx + 1);
   }
 
   const filled = [];
