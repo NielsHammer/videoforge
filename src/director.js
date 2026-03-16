@@ -410,7 +410,7 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
   const plan = await classifyClipWindows(clipWindows, scriptText, nicheInfo, themeHints, budget, topic, theme, isHorror, orderBrief);
 
   // Pass 2: Assign details in chunks of 40
-  const CHUNK_SIZE = 40;
+  const CHUNK_SIZE = 20; // smaller chunks = faster, less likely to timeout
   const allClips = [];
 
   // Persistent across chunks so neon_sign used in chunk 1 counts toward chunk 2's cap
@@ -952,9 +952,24 @@ async function directClipWindows(windows, planChunk, scriptText, isFirst, isLast
     clips = validateAndSyncClips(clips, windows, nicheInfo);
     return clips;
   } catch (e) {
-    console.log(chalk.yellow(`  Pass 2 chunk failed (${e.message}), using enforcePlan fallback`));
-    // Return stock clips for this chunk — enforcePlan will inject animations from the plan
-    return windows.map(w => makeStockClip(w, nicheInfo));
+    console.log(chalk.yellow(`  Pass 2 chunk failed (${e.message}) — using plan-based fallback`));
+    // Build minimal clips from plan rather than pure stock
+    return windows.map((w, i) => {
+      const plan = planChunk[i] || {};
+      if (plan.category === "stock" || plan.category === "split") {
+        return makeStockClip(w, nicheInfo);
+      }
+      // For animation/infographic slots: build a kinetic_text from the sentence
+      const words = (w.text || "").replace(/[^a-zA-Z0-9\s]/g," ").split(/\s+/)
+        .filter(w => w.length > 3 && !/^(the|and|but|for|with|this|that|from|they|your|you|was|are|were|has|just|also|more|very)$/i.test(w));
+      const lines = words.slice(0, 2).map(w => w.toUpperCase());
+      if (lines.length >= 1) {
+        return { start_time: w.start, end_time: w.end, visual_type: "kinetic_text",
+          display_style: "framed", animation_data: { lines, style: "impact" },
+          search_query: "", search_queries: null, subtitle_words: [] };
+      }
+      return makeStockClip(w, nicheInfo);
+    });
   }
 }
 
