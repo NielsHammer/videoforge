@@ -432,7 +432,7 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
     );
 
     // Enforce plan with persistent global counts
-    const result = enforcePlan(chunkClips, windowChunk, planChunk, scriptText, globalTypeCounts, globalAnimIdx, globalInfraIdx);
+    const result = enforcePlan(chunkClips, windowChunk, planChunk, scriptText, globalTypeCounts, globalAnimIdx, globalInfraIdx, nicheInfo);
     allClips.push(...result.clips);
     globalAnimIdx = result.animIdx;
     globalInfraIdx = result.infraIdx;
@@ -449,7 +449,7 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
 // ─── ENFORCE PLAN ────────────────────────────────────────────────────────────
 // Pass 2 often ignores the plan and returns stock for everything.
 // This re-injects planned animation/infographic with auto-generated data.
-function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, animRotationIdx = 0, infraRotationIdx = 0) {
+function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, animRotationIdx = 0, infraRotationIdx = 0, nicheInfo = {}) {
   const maxPerType = 3; // max per type before rotating to next
 
   // Rotation pools for variety
