@@ -190,7 +190,7 @@ function getThemeAnimationHints(theme) {
 // ─── PASS 1: PRE-FLIGHT CLASSIFICATION ───────────────────────────────────────
 // Claude reads the full script and assigns a visual category + type to each window
 // This ensures the right mix BEFORE detailed clip assignment happens
-async function classifyClipWindows(clipWindows, scriptText, nicheInfo, themeHints, budget, topic, theme, isHorror) {
+async function classifyClipWindows(clipWindows, scriptText, nicheInfo, themeHints, budget, topic, theme, isHorror, orderBrief = {}) {
   const total = clipWindows.length;
   const stockTarget   = Math.round(total * budget.stock / 100);
   const animTarget    = Math.round(total * budget.animation / 100);
@@ -202,12 +202,21 @@ async function classifyClipWindows(clipWindows, scriptText, nicheInfo, themeHint
     return `[${i}] ${w.start.toFixed(1)}s (${dur}s): "${w.text}"`;
   }).join("\n");
 
+  // Build order brief context string for Claude
+  const briefContext = [
+    orderBrief.tone ? `TONE: ${orderBrief.tone}` : "",
+    orderBrief.keyPoints ? `KEY POINTS TO COVER: ${orderBrief.keyPoints}` : "",
+    orderBrief.callToAction ? `CALL TO ACTION: ${orderBrief.callToAction}` : "",
+    orderBrief.narrator ? `NARRATOR VOICE: ${orderBrief.narrator}` : "",
+    orderBrief.videoLength ? `VIDEO LENGTH: ${orderBrief.videoLength} minutes` : "",
+  ].filter(Boolean).join("\n");
+
   const prompt = `You are planning a YouTube video storyboard. Read every sentence and assign the BEST visual type for each clip.
 
 VIDEO TOPIC: "${topic}"
-NICHE: ${nicheInfo.niche} | THEME: "${theme}"
+CHANNEL NICHE: ${nicheInfo.niche} | THEME: "${theme}"
 NICHE STYLE: ${budget.label}
-PREFERRED ANIMATIONS FOR THIS THEME: ${themeHints.prefer.join(", ")}
+${briefContext ? "ORDER BRIEF:\n" + briefContext + "\n" : ""}PREFERRED ANIMATIONS FOR THIS THEME: ${themeHints.prefer.join(", ")}
 
 TARGET MIX for ${total} total clips:
 - ${stockTarget} clips → "stock" (real images only)
@@ -363,9 +372,15 @@ Display: "framed", "fullscreen", "split_left", "split_right"`;
 }
 
 // ─── MAIN EXPORT ─────────────────────────────────────────────────────────────
-export async function createStoryboard(scriptText, wordTimestamps, totalDuration, contentMode = "visual", topic = "", theme = "blue_grid") {
-
-  const nicheInfo = detectNiche(topic, scriptText);
+export async function createStoryboard(scriptText, wordTimestamps, totalDuration, contentMode = "visual", topic = "", theme = "blue_grid", orderBrief = {}) {
+  // orderBrief: { topic, niche, tone, keyPoints, callToAction, backgroundStyle, narrator, videoLength }
+  // Merge explicit niche from order form with auto-detected niche
+  const nicheInfo = detectNiche(orderBrief.niche || topic, scriptText);
+  if (orderBrief.niche) {
+    const mappedNiche = orderBrief.niche.toLowerCase().replace(/\s+/g, "_");
+    const validNiches = ["finance","business","health","horror","true_crime","travel","history","general"];
+    if (validNiches.includes(mappedNiche)) nicheInfo.niche = mappedNiche;
+  }
   const themeHints = getThemeAnimationHints(theme);
   const isHorror = nicheInfo.niche === "horror" || nicheInfo.niche === "true_crime";
   const budget = NICHE_BUDGETS[nicheInfo.niche] || NICHE_BUDGETS.general;
@@ -379,7 +394,7 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
 
   // Pass 1: Pre-flight classification
   console.log(chalk.gray(`  Running pre-flight classification...`));
-  const plan = await classifyClipWindows(clipWindows, scriptText, nicheInfo, themeHints, budget, topic, theme, isHorror);
+  const plan = await classifyClipWindows(clipWindows, scriptText, nicheInfo, themeHints, budget, topic, theme, isHorror, orderBrief);
 
   // Pass 2: Assign details in chunks of 40
   const CHUNK_SIZE = 40;
@@ -459,68 +474,22 @@ function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, ani
     if (plan.category === "infographic" && clip.visual_type !== "stock" && (clip.chart_data || clip.number_data || clip.animation_data)) {
       // Pass 2 provided data — validate it's not malformed
       if (clip.visual_type === "number_reveal") {
-        // Ensure number_data.value is actually a number
+        // Ensure number_data.value is actually a number — if not, fall back to stock
         if (!clip.number_data || typeof clip.number_data.value !== "number") {
-          const repaired = generateInfographicData("number_reveal", sentence, scriptText);
-          clip.number_data = repaired.number_data;
+          const stockQ = (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[i % 5];
+          clip.visual_type = "stock"; clip.display_style = "framed"; clip.number_data = null;
+          if (!clip.search_query || clip.search_query.length < 3) clip.search_query = stockQ;
         }
       }
       typeCounts[clip.visual_type] = (typeCounts[clip.visual_type] || 0) + 1;
       return clip;
     }
 
-    // Pass 2 ignored the plan — re-inject with variety
-    if (plan.category === "animation") {
-      // Pick a type we haven't overused
-      let type = plan.type;
-      if ((typeCounts[type] || 0) >= maxPerType) {
-        // Find next unused type in rotation
-        for (let r = 0; r < animRotation.length; r++) {
-          const candidate = animRotation[(animRotationIdx + r) % animRotation.length];
-          if ((typeCounts[candidate] || 0) < maxPerType) {
-            type = candidate;
-            animRotationIdx = (animRotationIdx + r + 1) % animRotation.length;
-            break;
-          }
-        }
-      }
-      typeCounts[type] = (typeCounts[type] || 0) + 1;
-      const animData = generateAnimationData(type, sentence);
-      if (animData) {
-        return { ...clip, visual_type: type, display_style: "framed", animation_data: animData, search_query: "" };
-      }
-      // generateAnimationData returned null (e.g. compare_reveal with no comparison) — try next type
-      for (let r = 0; r < animRotation.length; r++) {
-        const alt = animRotation[(animRotationIdx + r) % animRotation.length];
-        if ((typeCounts[alt] || 0) < maxPerType) {
-          const altData = generateAnimationData(alt, sentence);
-          if (altData) {
-            typeCounts[alt] = (typeCounts[alt] || 0) + 1;
-            animRotationIdx = (animRotationIdx + r + 1) % animRotation.length;
-            return { ...clip, visual_type: alt, display_style: "framed", animation_data: altData, search_query: "" };
-          }
-        }
-      }
-    }
-
-    if (plan.category === "infographic") {
-      // Pick an infographic type we haven't overused
-      let type = plan.type;
-      if ((typeCounts[type] || 0) >= maxPerType) {
-        for (let r = 0; r < infraRotation.length; r++) {
-          const candidate = infraRotation[(infraRotationIdx + r) % infraRotation.length];
-          if ((typeCounts[candidate] || 0) < maxPerType) {
-            type = candidate;
-            infraRotationIdx = (infraRotationIdx + r + 1) % infraRotation.length;
-            break;
-          }
-        }
-      }
-      typeCounts[type] = (typeCounts[type] || 0) + 1;
-      const infraData = generateInfographicData(type, sentence, scriptText);
-      if (infraData.chart_data || infraData.number_data || infraData.animation_data) {
-        return { ...clip, visual_type: type, display_style: "framed", ...infraData, search_query: "" };
-      }
+    // Pass 2 ignored the plan — fall back to stock (never generate garbage fallback data)
+    if (plan.category === "animation" || plan.category === "infographic") {
+      // Option A: kill fallback generators — stock is always better than word salad
+      const stockQuery = (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[i % 5];
+      return { ...clip, visual_type: "stock", display_style: "framed", animation_data: null, chart_data: null, number_data: null, search_query: stockQuery };
     }
 
     if (plan.category === "split") {
@@ -610,7 +579,11 @@ function generateAnimationData(type, sentence) {
     case "reaction_face":
       return { emoji: /warn|danger|bad|problem|addict|shock|crazy|wild|insane|unbeliev/.test(sentence.toLowerCase()) ? "😱" : "🤯", label: key.slice(0, 2).join(" ") || "SHOCKING", style: "slam" };
     case "warning_siren":
-      // Only for danger/mistake/warning sentences
+      // Block section title sentences (Number X., Trap X., etc.)
+      if (/^number (one|two|three|four|five|six|seven|eight|nine|ten)\./i.test(sentence.trim())) return null;
+      if (/^trap (one|two|three|four|five)/i.test(sentence.trim())) return null;
+      if (/^\d+\./i.test(sentence.trim())) return null;
+      // Only for genuine danger/mistake/warning sentences
       if (!/warn|danger|risk|mistake|wrong|avoid|never|stop|careful|trap|lie|myth|broke/.test(sentence.toLowerCase())) return null;
       return { headline: "WARNING", body: sentence.slice(0, 60), icon: "⚠️", color: "#ef4444" };
     case "neon_sign": return { text: key.slice(0, 2).join(" ") || "THE TRUTH", subtitle: key[2] || "" };
@@ -725,7 +698,7 @@ function generateAnimationData(type, sentence) {
       return { left: { value: v1, label: key.slice(0, 2).join(" ").toLowerCase(), color: "#ef4444" }, right: { value: v2, label: key.slice(2, 4).join(" ").toLowerCase(), color: "#22c55e" }, title: key.slice(4, 7).join(" ") || "The Gap" };
     }
     case "bullet_list": {
-      const parts = sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 8).slice(0, 5);
+      const parts = sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 8 && !/^(number|trap|step|part|tip|reason|way)\s+(one|two|three|four|five|\d+)/i.test(s)).slice(0, 5);
       if (parts.length < 2) return null;
       return { title: key.slice(0, 2).join(" "), items: parts, icon: "▶" };
     }
@@ -829,7 +802,10 @@ function generateInfographicData(type, sentence, scriptText) {
     case "checklist": {
       // Only for list-like sentences or when nearby sentences form a list
       const hasList = /first|second|third|step|,|include|following/.test(sentence.toLowerCase());
-      const items = nearby.length >= 2 ? nearby.slice(0, 4) : hasList ? sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 8).slice(0, 4) : null;
+      // Filter out section title sentences from nearby (Number X., Trap X., step X.)
+      const sectionPattern = /^(number|trap|step|part|tip|reason|way)\s+(one|two|three|four|five|six|seven|eight|nine|ten|\d+)[.:\s]/i;
+      const nearbyFiltered = nearby.filter(s => !sectionPattern.test(s.trim()) && !/^\d+\./.test(s.trim()));
+      const items = nearbyFiltered.length >= 2 ? nearbyFiltered.slice(0, 4) : hasList ? sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 8).slice(0, 4) : null;
       if (!items || items.length < 2) return {};
       return { chart_data: { title, items, checked: true } };
     }
@@ -1260,30 +1236,29 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
       }
     };
 
+    // Option A: if animation/infographic data is missing or bad schema → stock (never garbage text)
+    const stockFallback = () => {
+      const stockQuery = (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[i % 5];
+      clip.visual_type = "stock";
+      clip.display_style = "framed";
+      clip.animation_data = null;
+      clip.chart_data = null;
+      clip.number_data = null;
+      if (!clip.search_query || clip.search_query.length < 3) clip.search_query = stockQuery;
+    };
+
     if (animTypes.has(clip.visual_type) && !schemaOk(clip.visual_type, clip.animation_data)) {
-      const fallback = generateAnimationData(clip.visual_type, windows[i]?.text || "");
-      if (fallback && schemaOk(clip.visual_type, fallback)) {
-        clip.animation_data = fallback;
-      } else {
-        const words = (windows[i]?.text || "").split(/\s+/).filter(w => w.length > 3).slice(0, 2);
-        clip.visual_type = "kinetic_text";
-        clip.animation_data = { lines: words.length ? words.map(w => w.toUpperCase()) : ["KEY", "INSIGHT"], style: "impact" };
-      }
+      stockFallback();
     }
 
-    // Infographic types need chart_data or number_data — generate real fallback data
     const needsChartData = new Set(["stat_card","line_chart","donut_chart","progress_bar","timeline","leaderboard","process_flow","quote_card","checklist","horizontal_bar","vertical_bar","growth_curve","ranking_cards","split_comparison","scale_comparison","funnel_chart","body_diagram","map_highlight","icon_grid","flow_diagram"]);
     const needsNumberData = new Set(["number_reveal"]);
 
     if (needsChartData.has(clip.visual_type) && !clip.chart_data) {
-      const repaired = generateInfographicData(clip.visual_type, windows[i]?.text || "", "");
-      if (repaired.chart_data) { clip.chart_data = repaired.chart_data; }
-      else { clip.visual_type = "spotlight_stat"; clip.animation_data = { value: "KEY FACT", label: (windows[i]?.text || "").slice(0, 40), context: "" }; }
+      stockFallback();
     }
     if (needsNumberData.has(clip.visual_type) && (!clip.number_data || typeof clip.number_data.value !== "number")) {
-      const repaired = generateInfographicData("number_reveal", windows[i]?.text || "", "");
-      if (repaired.number_data) { clip.number_data = repaired.number_data; }
-      else { clip.visual_type = "spotlight_stat"; clip.animation_data = { value: "KEY FACT", label: (windows[i]?.text || "").slice(0, 40), context: "" }; }
+      stockFallback();
     }
     // comparison needs comparison_data
     if (clip.visual_type === "comparison" && !clip.comparison_data) {
