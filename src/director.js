@@ -40,7 +40,18 @@ const nicheSafeQueries = {
 };
 
 function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
-  if (!wordTimestamps || wordTimestamps.length === 0) return [];
+  if (!wordTimestamps || filteredTimestamps.length === 0) return [];
+
+  // Filter ElevenLabs noise artifacts — short nonsense "words" that appear at chunk boundaries
+  // These cause "YANOU" / "UHH" type gibberish in the first or last second of a chunk
+  const cleanedTimestamps = wordTimestamps.filter(w => {
+    const word = (w.word || "").trim();
+    if (word.length <= 1) return false; // single chars are always noise
+    if (word.length <= 3 && !/^(I|a|an|the|is|it|in|on|at|to|do|go|no|so|up|us|we)$/i.test(word)) return false;
+    if (/^[^a-zA-Z]+$/.test(word)) return false; // numbers/punctuation only
+    return true;
+  });
+  const filteredTimestamps = cleanedTimestamps.length > 5 ? cleanedTimestamps : wordTimestamps;
 
   // Strip SSML tags from scriptText before sentence splitting
   // (enhancedScript may contain <break time="500ms"/> etc.)
@@ -61,14 +72,14 @@ function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
       .filter(w => w.length > 0);
 
     if (sentenceWords.length === 0) continue;
-    if (wordIdx >= wordTimestamps.length) break;
+    if (wordIdx >= filteredTimestamps.length) break;
 
     // Search up to 40 words ahead (was 20 — increased for better drift tolerance)
     let startWordIdx = wordIdx;
     const firstWord = sentenceWords[0].toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 4);
 
-    for (let i = wordIdx; i < Math.min(wordIdx + 40, wordTimestamps.length); i++) {
-      if (wordTimestamps[i].word.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(firstWord)) {
+    for (let i = wordIdx; i < Math.min(wordIdx + 40, filteredTimestamps.length); i++) {
+      if (filteredTimestamps[i].word.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(firstWord)) {
         startWordIdx = i;
         break;
       }
@@ -77,16 +88,16 @@ function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
     // Search for last word within sentence length + 8 buffer
     const lastWord = sentenceWords[sentenceWords.length - 1].toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 4);
     let endWordIdx = startWordIdx;
-    const searchEnd = Math.min(startWordIdx + sentenceWords.length + 8, wordTimestamps.length);
+    const searchEnd = Math.min(startWordIdx + sentenceWords.length + 8, filteredTimestamps.length);
 
     for (let i = startWordIdx; i < searchEnd; i++) {
-      if (wordTimestamps[i].word.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(lastWord)) {
+      if (filteredTimestamps[i].word.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(lastWord)) {
         endWordIdx = i;
       }
     }
 
-    const startTime = wordTimestamps[startWordIdx]?.start ?? 0;
-    const endTime = wordTimestamps[endWordIdx]?.end ?? startTime + 2;
+    const startTime = filteredTimestamps[startWordIdx]?.start ?? 0;
+    const endTime = filteredTimestamps[endWordIdx]?.end ?? startTime + 2;
 
     if (endTime > startTime + 0.3) {
       sentences.push({
@@ -340,6 +351,7 @@ ${nicheInfo.niche === "travel" ? "- TRAVEL: Prioritize map_callout, person_profi
 
 CRITICAL DISTRIBUTION RULES:
 1. Clip 0 MUST be "animation" — most dramatic type for opening line
+2. Clip 1 should also be "animation" or "infographic" — no stock in first 2 clips
 2. First 3 clips: NEVER "fullscreen", NEVER "split"
 3. Every 5 consecutive clips must have at least 2 non-stock
 4. NEVER bunch animations at the end — spread throughout
@@ -1441,6 +1453,20 @@ function makeStockClip(window, nicheInfo) {
 
 // ─── POST-PROCESSING ──────────────────────────────────────────────────────────
 function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo) {
+  // Guarantee first clip is always a strong animation — never stock
+  // Prevents weak/gibberish video openings
+  if (allClips.length > 0 && allClips[0].visual_type === "stock") {
+    const s = allClips[0];
+    const openWords = (scriptText || "").slice(0, 120).replace(/[^a-zA-Z0-9 ]/g, " ")
+      .split(" ").filter(w => w.length > 3 &&
+        !/^(the|and|but|for|with|this|that|from|they|your|you|was|are|were|has|just|also|more|very|been|have)$/i.test(w));
+    allClips[0] = {
+      ...s,
+      visual_type: "spotlight_stat",
+      animation_data: { value: openWords.slice(0,2).join(" ").toUpperCase() || "WATCH THIS", label: openWords.slice(2,5).join(" ").toLowerCase() || "", context: "" },
+      display_style: "framed",
+    };
+  }
 
   allClips.sort((a, b) => a.start_time - b.start_time);
 
