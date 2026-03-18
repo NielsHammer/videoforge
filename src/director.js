@@ -42,16 +42,15 @@ const nicheSafeQueries = {
 function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
   if (!wordTimestamps || filteredTimestamps.length === 0) return [];
 
-  // Filter ElevenLabs noise artifacts — short nonsense "words" that appear at chunk boundaries
-  // These cause "YANOU" / "UHH" type gibberish in the first or last second of a chunk
-  const cleanedTimestamps = wordTimestamps.filter(w => {
+  // Filter ElevenLabs noise artifacts — short nonsense "words" at chunk boundaries
+  const _cleaned = wordTimestamps.filter(w => {
     const word = (w.word || "").trim();
-    if (word.length <= 1) return false; // single chars are always noise
+    if (word.length <= 1) return false;
     if (word.length <= 3 && !/^(I|a|an|the|is|it|in|on|at|to|do|go|no|so|up|us|we)$/i.test(word)) return false;
-    if (/^[^a-zA-Z]+$/.test(word)) return false; // numbers/punctuation only
+    if (/^[^a-zA-Z]+$/.test(word)) return false;
     return true;
   });
-  const filteredTimestamps = cleanedTimestamps.length > 5 ? cleanedTimestamps : wordTimestamps;
+  const filteredTimestamps = _cleaned.length > 5 ? _cleaned : wordTimestamps;
 
   // Strip SSML tags from scriptText before sentence splitting
   // (enhancedScript may contain <break time="500ms"/> etc.)
