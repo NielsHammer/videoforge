@@ -2,55 +2,105 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 import { getTheme } from "../../themes.js";
 
-// NewsHeadline — Newspaper or news channel style headline reveal
-// data: { outlet: "BREAKING NEWS", headline: "96% of Americans Will Never Build Wealth", subtext: "New study reveals shocking truth about financial literacy", date: "2024" }
-// USE WHEN: narrator reveals a shocking stat or fact that sounds like breaking news
-export const NewsHeadline = ({ data, clipFrame = 0, theme = "blue_grid" }) => {
+export const NewsHeadline = ({ data = {}, clipFrame = 0, theme = "blue_grid" }) => {
   const { fps } = useVideoConfig();
   const th = getTheme(theme);
   const accent = th.subtitle?.accent || "#3b82f6";
-  if (!data?.headline) return null;
+  const bg = th.subtitle?.bg || "rgba(6,12,36,0.92)";
 
-  const bannerW = interpolate(clipFrame, [0, fps * 0.3], [0, 1], { extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
-  const headlineOp = interpolate(clipFrame, [fps * 0.25, fps * 0.6], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const headlineY = interpolate(clipFrame, [fps * 0.25, fps * 0.6], [20, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
-  const subtextOp = interpolate(clipFrame, [fps * 0.6, fps * 0.9], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const tickerX = interpolate(clipFrame, [0, fps * 4], [1920, -2000], { extrapolateRight: "clamp" });
+  const outlet = data.outlet || "BREAKING NEWS";
+  const headline = data.headline || "";
+  const subtext = data.subtext || "";
+  const date = data.date || new Date().getFullYear().toString();
 
-  const fontSize = data.headline.length > 60 ? 34 : data.headline.length > 40 ? 40 : 48;
+  const slideIn = interpolate(clipFrame, [0, fps * 0.3], [-60, 0], {
+    extrapolateRight: "clamp", easing: Easing.out(Easing.cubic),
+  });
+  const fadeIn = interpolate(clipFrame, [0, fps * 0.2], [0, 1], { extrapolateRight: "clamp" });
+
+  const headlineOp = interpolate(clipFrame, [fps * 0.2, fps * 0.5], [0, 1], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+  });
+  const headlineY = interpolate(clipFrame, [fps * 0.2, fps * 0.45], [20, 0], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+    easing: Easing.out(Easing.cubic),
+  });
+  const subtextOp = interpolate(clipFrame, [fps * 0.5, fps * 0.75], [0, 1], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+  });
+
+  // Ticker scroll
+  const tickerX = interpolate(clipFrame, [fps * 0.3, fps * 6], [0, -800], {
+    extrapolateRight: "clamp",
+  });
 
   return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0" }}>
-      {/* Top breaking banner */}
-      <div style={{ background: "#cc0000", padding: "10px 40px", width: `${bannerW * 100}%`, overflow: "hidden", display: "flex", alignItems: "center", gap: 16 }}>
-        <div style={{ fontSize: 14, fontWeight: 900, color: "white", letterSpacing: 4, fontFamily: "Arial Black, Arial, sans-serif", flexShrink: 0 }}>
-          {data.outlet || "BREAKING NEWS"}
-        </div>
-        <div style={{ width: 2, height: 16, background: "rgba(255,255,255,0.4)", flexShrink: 0 }} />
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", fontFamily: "Arial, sans-serif" }}>{data.date || new Date().getFullYear()}</div>
+    <div style={{
+      position: "absolute", inset: 0,
+      display: "flex", flexDirection: "column",
+      justifyContent: "center",
+      background: bg,
+      opacity: fadeIn,
+      transform: `translateX(${slideIn}px)`,
+    }}>
+      {/* Top bar */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, height: 6,
+        background: `linear-gradient(90deg, ${accent}, ${accent}aa)`,
+      }} />
+
+      {/* Outlet badge */}
+      <div style={{
+        position: "absolute", top: 24, left: 60,
+        display: "flex", alignItems: "center", gap: 12,
+      }}>
+        <div style={{
+          background: accent, padding: "6px 16px", borderRadius: 4,
+          fontFamily: "sans-serif", fontWeight: 900,
+          fontSize: 16, color: "#000",
+          textTransform: "uppercase", letterSpacing: 2,
+        }}>{outlet}</div>
+        <div style={{
+          fontFamily: "sans-serif", fontSize: 14,
+          color: "rgba(255,255,255,0.4)", fontStyle: "italic",
+        }}>{date}</div>
       </div>
 
       {/* Main headline */}
-      <div style={{ padding: "32px 40px 24px", opacity: headlineOp, transform: `translateY(${headlineY}px)` }}>
-        <div style={{ fontSize, fontWeight: 900, fontFamily: "Georgia, serif", color: "white", lineHeight: 1.25, textShadow: "0 2px 20px rgba(0,0,0,0.8)" }}>
-          {data.headline}
-        </div>
+      <div style={{ padding: "0 60px", marginTop: 20 }}>
+        <div style={{
+          opacity: headlineOp, transform: `translateY(${headlineY}px)`,
+          fontFamily: "Georgia, serif", fontWeight: 700,
+          fontSize: 48, color: "#ffffff",
+          lineHeight: 1.25,
+          borderLeft: `5px solid ${accent}`,
+          paddingLeft: 24,
+        }}>{headline}</div>
+
+        {subtext && (
+          <div style={{
+            opacity: subtextOp, marginTop: 20, paddingLeft: 29,
+            fontFamily: "sans-serif", fontWeight: 400,
+            fontSize: 22, color: "rgba(255,255,255,0.6)",
+            lineHeight: 1.5,
+          }}>{subtext}</div>
+        )}
       </div>
 
-      {/* Divider line */}
-      <div style={{ height: 3, background: `linear-gradient(90deg, ${accent}, transparent)`, margin: "0 40px", opacity: headlineOp }} />
-
-      {/* Subtext */}
-      {data.subtext && (
-        <div style={{ padding: "16px 40px", fontSize: 20, color: "rgba(255,255,255,0.7)", fontFamily: "Georgia, serif", fontStyle: "italic", opacity: subtextOp, lineHeight: 1.5 }}>
-          {data.subtext}
-        </div>
-      )}
-
-      {/* Ticker bar */}
-      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: accent, padding: "8px 0", overflow: "hidden" }}>
-        <div style={{ transform: `translateX(${tickerX}px)`, whiteSpace: "nowrap", fontSize: 14, fontWeight: 700, color: "white", fontFamily: "Arial, sans-serif", letterSpacing: 2 }}>
-          {data.ticker || `${data.headline} • ${data.headline} • ${data.headline} •`}
+      {/* Bottom ticker */}
+      <div style={{
+        position: "absolute", bottom: 0, left: 0, right: 0,
+        height: 40, background: accent,
+        overflow: "hidden", display: "flex", alignItems: "center",
+      }}>
+        <div style={{
+          transform: `translateX(${tickerX}px)`,
+          whiteSpace: "nowrap",
+          fontFamily: "sans-serif", fontWeight: 700,
+          fontSize: 14, color: "#000",
+          letterSpacing: 1,
+        }}>
+          {`${outlet} · ${headline} · ${subtext || ""} · `.repeat(3)}
         </div>
       </div>
     </div>

@@ -1225,7 +1225,7 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
       "news_headline","instagram_post","youtube_card","quiz_card",
       "portfolio_breakdown","roi_calculator","timelapse_bar","speed_meter",
       "candlestick_chart","conversation_bubble","loading_bar","wealth_ladder",
-      "rule_card","alert_banner","big_number","mindset_shift","stat_comparison","bullet_list","step_reveal","three_points","myth_fact","pro_con","score_card","loading_bar","vote_bar","pull_quote","countdown_timer",
+      "rule_card","alert_banner","big_number","mindset_shift","stat_comparison","bullet_list","step_reveal","three_points","myth_fact","pro_con","score_card","loading_bar","vote_bar","pull_quote","countdown_timer","candlestick_chart","wealth_ladder","portfolio_breakdown","roi_calculator","timelapse_bar","speed_meter","stacked_bar","map_callout","news_headline","instagram_post","youtube_card","reddit_post","google_search","person_profile","conversation_bubble","quiz_card",
     ]);
 
     // Per-type schema checks
@@ -1273,7 +1273,24 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
         case "instagram_post":    return d.caption !== undefined;
         case "youtube_card":      return d.title !== undefined;
         case "quiz_card":         return d.question !== undefined;
-        case "rule_card":         return d.name !== undefined;
+        case "rule_card":          return d.name !== undefined;
+        // Batch B
+        case "candlestick_chart":  return Array.isArray(d.candles) && d.candles.length >= 1;
+        case "wealth_ladder":      return Array.isArray(d.rungs) && d.rungs.length >= 1;
+        case "portfolio_breakdown":return Array.isArray(d.allocations) && d.allocations.length >= 1;
+        case "roi_calculator":     return d.invested !== undefined;
+        case "timelapse_bar":      return d.start !== undefined;
+        case "speed_meter":        return d.value !== undefined;
+        case "stacked_bar":        return Array.isArray(d.segments) && d.segments.length >= 1;
+        case "map_callout":        return d.location !== undefined;
+        case "news_headline":      return d.headline !== undefined;
+        case "instagram_post":     return d.caption !== undefined;
+        case "youtube_card":       return d.title !== undefined;
+        case "reddit_post":        return d.title !== undefined;
+        case "google_search":      return d.query !== undefined;
+        case "person_profile":     return d.name !== undefined;
+        case "conversation_bubble":return Array.isArray(d.exchanges) && d.exchanges.length >= 1;
+        case "quiz_card":          return d.question !== undefined;
         case "stat_comparison":   return d.left?.value !== undefined && d.right?.value !== undefined;
         case "bullet_list":       return Array.isArray(d.items) && d.items.length >= 1;
         case "step_reveal":       return Array.isArray(d.steps) && d.steps.length >= 1;

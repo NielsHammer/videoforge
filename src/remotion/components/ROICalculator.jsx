@@ -2,48 +2,111 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 import { getTheme } from "../../themes.js";
 
-// ROICalculator — Shows an investment growing over time
-// data: { invested: "$10,000", returned: "$340,000", years: 30, rate: "10%", label: "S&P 500 average" }
-// USE WHEN: narrator shows compound interest, investment returns, or wealth growth calculations
-export const ROICalculator = ({ data, clipFrame = 0, theme = "blue_grid" }) => {
+export const ROICalculator = ({ data = {}, clipFrame = 0, theme = "blue_grid" }) => {
   const { fps } = useVideoConfig();
   const th = getTheme(theme);
   const accent = th.subtitle?.accent || "#3b82f6";
-  if (!data?.invested) return null;
+  const bg = th.subtitle?.bg || "rgba(6,12,36,0.92)";
 
-  const investedOp = interpolate(clipFrame, [0, fps * 0.4], [0, 1], { extrapolateRight: "clamp" });
-  const arrowScale = interpolate(clipFrame, [fps * 0.4, fps * 0.7], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.back(1.5)) });
-  const returnedOp = interpolate(clipFrame, [fps * 0.7, fps * 1.1], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const returnedScale = interpolate(clipFrame, [fps * 0.7, fps * 1.1], [0.5, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.back(1.2)) });
-  const labelOp = interpolate(clipFrame, [fps * 1.1, fps * 1.4], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const invested = data.invested || "$10,000";
+  const returned = data.returned || "$340,000";
+  const years = data.years || 30;
+  const rate = data.rate || "10%";
+  const label = data.label || "S&P 500 average";
+
+  const fadeIn = interpolate(clipFrame, [0, fps * 0.2], [0, 1], { extrapolateRight: "clamp" });
+
+  const investedOp = interpolate(clipFrame, [fps * 0.1, fps * 0.35], [0, 1], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+  });
+  const investedY = interpolate(clipFrame, [fps * 0.1, fps * 0.35], [30, 0], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+    easing: Easing.out(Easing.cubic),
+  });
+
+  const arrowScale = interpolate(clipFrame, [fps * 0.4, fps * 0.6], [0, 1], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+    easing: Easing.out(Easing.back(1.5)),
+  });
+
+  const returnedOp = interpolate(clipFrame, [fps * 0.55, fps * 0.85], [0, 1], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+  });
+  const returnedScale = interpolate(clipFrame, [fps * 0.55, fps * 0.85], [0.7, 1], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+    easing: Easing.out(Easing.back(1.3)),
+  });
+
+  const detailsOp = interpolate(clipFrame, [fps * 0.9, fps * 1.1], [0, 1], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+  });
 
   return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "40px 80px" }}>
-      {/* Input */}
-      <div style={{ textAlign: "center", opacity: investedOp }}>
-        <div style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", letterSpacing: 3, textTransform: "uppercase", fontFamily: "Arial, sans-serif", marginBottom: 6 }}>YOU INVEST</div>
-        <div style={{ fontSize: 52, fontWeight: 900, color: "rgba(255,255,255,0.7)", fontFamily: "Arial Black, Arial, sans-serif" }}>{data.invested}</div>
+    <div style={{
+      position: "absolute", inset: 0,
+      display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      background: bg, opacity: fadeIn, gap: 8,
+    }}>
+      {/* Invested */}
+      <div style={{
+        opacity: investedOp, transform: `translateY(${investedY}px)`,
+        textAlign: "center",
+      }}>
+        <div style={{
+          fontFamily: "sans-serif", fontWeight: 400,
+          fontSize: 18, color: "rgba(255,255,255,0.5)",
+          textTransform: "uppercase", letterSpacing: 3, marginBottom: 8,
+        }}>You invest</div>
+        <div style={{
+          fontFamily: "sans-serif", fontWeight: 900,
+          fontSize: 72, color: "#ffffff",
+          textShadow: "0 2px 0 rgba(0,0,0,0.5)",
+        }}>{invested}</div>
       </div>
 
-      {/* Arrow + years */}
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", transform: `scale(${arrowScale})`, gap: 4 }}>
-        <div style={{ fontSize: 36, color: accent }}>↓</div>
-        <div style={{ fontSize: 14, color: accent, fontWeight: 700, letterSpacing: 2, fontFamily: "Arial, sans-serif" }}>
-          {data.years ? `${data.years} YEARS` : ""} {data.rate ? `@ ${data.rate}` : ""}
-        </div>
-        <div style={{ fontSize: 36, color: accent }}>↓</div>
+      {/* Arrow */}
+      <div style={{
+        transform: `scale(${arrowScale})`,
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+        margin: "8px 0",
+      }}>
+        <div style={{ width: 2, height: 40, background: `linear-gradient(to bottom, rgba(255,255,255,0.1), ${accent})` }} />
+        <div style={{ fontSize: 28, color: accent }}>↓</div>
+        <div style={{
+          fontFamily: "sans-serif", fontWeight: 700,
+          fontSize: 16, color: accent,
+          background: `${accent}22`, padding: "4px 16px", borderRadius: 20,
+          border: `1px solid ${accent}44`,
+        }}>{years} years @ {rate}</div>
+        <div style={{ width: 2, height: 40, background: `linear-gradient(to bottom, ${accent}, rgba(255,255,255,0.1))` }} />
       </div>
 
-      {/* Output */}
-      <div style={{ textAlign: "center", opacity: returnedOp, transform: `scale(${returnedScale})` }}>
-        <div style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", letterSpacing: 3, textTransform: "uppercase", fontFamily: "Arial, sans-serif", marginBottom: 6 }}>BECOMES</div>
-        <div style={{ fontSize: 72, fontWeight: 900, color: accent, fontFamily: "Arial Black, Arial, sans-serif", textShadow: `0 0 40px ${accent}60` }}>{data.returned}</div>
+      {/* Returned */}
+      <div style={{
+        opacity: returnedOp, transform: `scale(${returnedScale})`,
+        textAlign: "center",
+      }}>
+        <div style={{
+          fontFamily: "sans-serif", fontWeight: 400,
+          fontSize: 18, color: "rgba(255,255,255,0.5)",
+          textTransform: "uppercase", letterSpacing: 3, marginBottom: 8,
+        }}>You get back</div>
+        <div style={{
+          fontFamily: "sans-serif", fontWeight: 900,
+          fontSize: 96, color: "#22c55e",
+          textShadow: `0 0 60px #22c55e44, 0 4px 0 rgba(0,0,0,0.5)`,
+          lineHeight: 1,
+        }}>{returned}</div>
       </div>
 
-      {/* Label */}
-      {data.label && (
-        <div style={{ fontSize: 15, color: "rgba(255,255,255,0.4)", fontFamily: "Arial, sans-serif", fontStyle: "italic", opacity: labelOp }}>{data.label}</div>
-      )}
+      {/* Source label */}
+      <div style={{
+        opacity: detailsOp, marginTop: 16,
+        fontFamily: "sans-serif", fontWeight: 400,
+        fontSize: 16, color: "rgba(255,255,255,0.35)",
+        fontStyle: "italic",
+      }}>{label}</div>
     </div>
   );
 };

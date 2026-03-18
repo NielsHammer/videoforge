@@ -2,56 +2,129 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 import { getTheme } from "../../themes.js";
 
-// QuizCard — Quiz question reveal with answer
-// data: { question: "What % of Americans have less than $1000 saved?", options: ["25%","51%","78%","90%"], answer: 2, explanation: "78% live paycheck to paycheck" }
-// USE WHEN: narrator poses a question to the viewer before revealing an answer or statistic
-export const QuizCard = ({ data, clipFrame = 0, theme = "blue_grid" }) => {
+export const QuizCard = ({ data = {}, clipFrame = 0, theme = "blue_grid" }) => {
   const { fps } = useVideoConfig();
   const th = getTheme(theme);
   const accent = th.subtitle?.accent || "#3b82f6";
-  if (!data?.question) return null;
+  const bg = th.subtitle?.bg || "rgba(6,12,36,0.92)";
 
-  const options = (data.options || []).slice(0, 4);
-  const answerIdx = data.answer ?? 0;
+  const question = data.question || "";
+  const options = data.options || ["A", "B", "C", "D"];
+  const answer = data.answer ?? 0; // index of correct answer
+  const explanation = data.explanation || "";
+
+  // Question appears first
+  const questionOp = interpolate(clipFrame, [0, fps * 0.25], [0, 1], { extrapolateRight: "clamp" });
+  const questionY = interpolate(clipFrame, [0, fps * 0.3], [-20, 0], {
+    extrapolateRight: "clamp", easing: Easing.out(Easing.cubic),
+  });
+
+  // Options stagger in
+  const optionsReady = clipFrame > fps * 0.2;
+
+  // Answer reveal
   const revealAt = fps * 1.5;
-
-  const questionOp = interpolate(clipFrame, [0, fps * 0.4], [0, 1], { extrapolateRight: "clamp" });
-  const questionY = interpolate(clipFrame, [0, fps * 0.4], [20, 0], { extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
+  const revealed = clipFrame > revealAt;
+  const revealOp = interpolate(clipFrame, [revealAt, revealAt + fps * 0.3], [0, 1], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+  });
 
   return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: "36px 70px", gap: 20 }}>
+    <div style={{
+      position: "absolute", inset: 0,
+      display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      background: bg, padding: "40px 80px",
+    }}>
+      {/* Question number badge */}
+      <div style={{
+        opacity: questionOp,
+        fontFamily: "sans-serif", fontWeight: 900,
+        fontSize: 13, color: accent,
+        textTransform: "uppercase", letterSpacing: 4,
+        marginBottom: 16,
+        padding: "6px 20px",
+        border: `1px solid ${accent}44`,
+        borderRadius: 20,
+      }}>Quick Question</div>
+
       {/* Question */}
-      <div style={{ fontSize: 26, fontWeight: 700, color: "white", fontFamily: "Arial, sans-serif", lineHeight: 1.4, opacity: questionOp, transform: `translateY(${questionY}px)` }}>
-        {data.question}
-      </div>
+      <div style={{
+        opacity: questionOp, transform: `translateY(${questionY}px)`,
+        fontFamily: "sans-serif", fontWeight: 700,
+        fontSize: 30, color: "#ffffff",
+        textAlign: "center", lineHeight: 1.4,
+        marginBottom: 36,
+      }}>{question}</div>
 
       {/* Options */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {options.map((opt, i) => {
-          const delay = fps * (0.4 + i * 0.15);
-          const optOp = interpolate(clipFrame, [delay, delay + fps * 0.25], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-          const isAnswer = i === answerIdx;
-          const revealed = clipFrame >= revealAt;
-          const bg = revealed && isAnswer ? `${accent}25` : "rgba(255,255,255,0.04)";
-          const border = revealed && isAnswer ? `2px solid ${accent}` : "1px solid rgba(255,255,255,0.1)";
+      <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 14 }}>
+        {options.slice(0, 4).map((opt, i) => {
+          const delay = fps * (0.3 + i * 0.15);
+          const oOp = interpolate(clipFrame, [delay, delay + fps * 0.2], [0, 1], {
+            extrapolateLeft: "clamp", extrapolateRight: "clamp",
+          });
+          const oX = interpolate(clipFrame, [delay, delay + fps * 0.25], [-40, 0], {
+            extrapolateLeft: "clamp", extrapolateRight: "clamp",
+            easing: Easing.out(Easing.cubic),
+          });
+
+          const isCorrect = i === answer;
+          const letter = ["A", "B", "C", "D"][i];
+
+          let borderColor = `${accent}30`;
+          let bgColor = `${accent}08`;
+          let textColor = "rgba(255,255,255,0.85)";
+
+          if (revealed && isCorrect) {
+            borderColor = "#22c55e";
+            bgColor = "rgba(34,197,94,0.15)";
+            textColor = "#ffffff";
+          }
+
           return (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, background: bg, border, borderRadius: 12, padding: "14px 20px", opacity: optOp }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", border: `2px solid ${revealed && isAnswer ? accent : "rgba(255,255,255,0.2)"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: revealed && isAnswer ? accent : "rgba(255,255,255,0.5)", fontFamily: "Arial, sans-serif", flexShrink: 0 }}>
-                {String.fromCharCode(65 + i)}
+            <div key={i} style={{
+              display: "flex", alignItems: "center", gap: 16,
+              opacity: oOp, transform: `translateX(${oX}px)`,
+              padding: "14px 20px",
+              background: bgColor,
+              border: `1.5px solid ${borderColor}`,
+              borderRadius: 10,
+              transition: "none",
+            }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: "50%",
+                background: revealed && isCorrect ? "#22c55e" : `${accent}20`,
+                border: `1.5px solid ${revealed && isCorrect ? "#22c55e" : accent + "50"}`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontFamily: "sans-serif", fontWeight: 900,
+                fontSize: 16, color: revealed && isCorrect ? "#000" : accent,
+                flexShrink: 0,
+              }}>
+                {revealed && isCorrect ? "✓" : letter}
               </div>
-              <div style={{ fontSize: 18, fontWeight: revealed && isAnswer ? 700 : 500, color: revealed && isAnswer ? "white" : "rgba(255,255,255,0.75)", fontFamily: "Arial, sans-serif" }}>
-                {opt}
-              </div>
-              {revealed && isAnswer && <div style={{ marginLeft: "auto", fontSize: 20 }}>✅</div>}
+              <span style={{
+                fontFamily: "sans-serif", fontWeight: isCorrect && revealed ? 700 : 400,
+                fontSize: 22, color: textColor,
+              }}>{opt}</span>
             </div>
           );
         })}
       </div>
 
       {/* Explanation */}
-      {data.explanation && clipFrame >= revealAt && (
-        <div style={{ fontSize: 17, color: accent, fontFamily: "Arial, sans-serif", fontStyle: "italic", opacity: interpolate(clipFrame, [revealAt, revealAt + fps * 0.3], [0, 1], { extrapolateRight: "clamp" }) }}>
-          💡 {data.explanation}
+      {explanation && revealed && (
+        <div style={{
+          opacity: revealOp, marginTop: 24, width: "100%",
+          padding: "16px 20px",
+          background: "rgba(34,197,94,0.1)",
+          border: "1px solid rgba(34,197,94,0.3)",
+          borderRadius: 10,
+        }}>
+          <div style={{
+            fontFamily: "sans-serif", fontWeight: 600,
+            fontSize: 18, color: "rgba(255,255,255,0.85)",
+          }}>{explanation}</div>
         </div>
       )}
     </div>

@@ -2,52 +2,98 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 import { getTheme } from "../../themes.js";
 
-// WealthLadder — Ladder/tier visualization of wealth levels
-// data: { title: "The Wealth Ladder", rungs: [{label:"Broke",desc:"Living paycheck to paycheck",pct:40},{label:"Surviving",desc:"$1K-$10K saved",pct:30},{label:"Stable",desc:"3-6 month emergency fund",pct:20},{label:"Wealthy",desc:"Assets generating income",pct:8},{label:"Rich",desc:"$1M+ net worth",pct:2}] }
-// USE WHEN: narrator describes wealth tiers, levels, or how most people are stuck at the bottom
-export const WealthLadder = ({ data, clipFrame = 0, theme = "blue_grid" }) => {
+export const WealthLadder = ({ data = {}, clipFrame = 0, theme = "blue_grid" }) => {
   const { fps } = useVideoConfig();
   const th = getTheme(theme);
   const accent = th.subtitle?.accent || "#3b82f6";
-  if (!data?.rungs?.length) return null;
+  const bg = th.subtitle?.bg || "rgba(6,12,36,0.92)";
 
-  const rungs = [...data.rungs].reverse().slice(0, 5); // top rung first
-  const titleOp = interpolate(clipFrame, [0, fps * 0.3], [0, 1], { extrapolateRight: "clamp" });
+  const title = data.title || "The Wealth Ladder";
+  const rungs = data.rungs || [
+    { label: "Broke", desc: "Paycheck to paycheck", pct: 40, color: "#ef4444" },
+    { label: "Surviving", desc: "Some savings", pct: 30, color: "#f59e0b" },
+    { label: "Stable", desc: "3-6 month emergency fund", pct: 20, color: "#3b82f6" },
+    { label: "Wealthy", desc: "Assets working for you", pct: 8, color: "#22c55e" },
+    { label: "Rich", desc: "Generational wealth", pct: 2, color: "#a855f7" },
+  ];
 
-  const colors = [accent, "#22c55e", "#f59e0b", "#f97316", "#ef4444"];
+  const fadeIn = interpolate(clipFrame, [0, fps * 0.2], [0, 1], { extrapolateRight: "clamp" });
 
   return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: "36px 70px", gap: 12 }}>
-      {data.title && (
-        <div style={{ fontSize: 18, fontWeight: 700, color: accent, letterSpacing: 3, textTransform: "uppercase", fontFamily: "Arial, sans-serif", opacity: titleOp, marginBottom: 4 }}>
-          {data.title}
-        </div>
-      )}
-      {rungs.map((rung, i) => {
-        const actualIdx = rungs.length - 1 - i;
-        const delay = fps * (0.2 + actualIdx * 0.12);
-        const op = interpolate(clipFrame, [delay, delay + fps * 0.3], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-        const x = interpolate(clipFrame, [delay, delay + fps * 0.3], [-30, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
-        const color = colors[i % colors.length];
-        const barW = `${Math.max((rung.pct || 0) * 2.5, 8)}%`;
-        return (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 16, opacity: op, transform: `translateX(${x}px)` }}>
-            {/* Rung indicator */}
-            <div style={{ width: 4, height: 40, background: color, borderRadius: 2, flexShrink: 0, boxShadow: `0 0 10px ${color}60` }} />
-            {/* Bar + label */}
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: "white", fontFamily: "Arial Black, Arial, sans-serif" }}>{rung.label}</div>
-                <div style={{ fontSize: 14, color: color, fontWeight: 700, fontFamily: "Arial, sans-serif" }}>{rung.pct}%</div>
+    <div style={{
+      position: "absolute", inset: 0,
+      display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      background: bg, opacity: fadeIn, padding: "40px 80px",
+    }}>
+      <div style={{
+        fontFamily: "sans-serif", fontWeight: 800,
+        fontSize: 26, color: accent,
+        textTransform: "uppercase", letterSpacing: 4,
+        marginBottom: 32,
+      }}>{title}</div>
+
+      <div style={{ width: "100%", display: "flex", flexDirection: "column-reverse", gap: 8 }}>
+        {rungs.map((rung, i) => {
+          const delay = fps * (0.1 + i * 0.15);
+          const op = interpolate(clipFrame, [delay, delay + fps * 0.3], [0, 1], {
+            extrapolateLeft: "clamp", extrapolateRight: "clamp",
+          });
+          const x = interpolate(clipFrame, [delay, delay + fps * 0.35], [-60, 0], {
+            extrapolateLeft: "clamp", extrapolateRight: "clamp",
+            easing: Easing.out(Easing.cubic),
+          });
+
+          // Width scales with position — higher rungs are narrower (fewer people)
+          const widthPct = 40 + (i / (rungs.length - 1)) * 55;
+
+          return (
+            <div key={i} style={{
+              opacity: op, transform: `translateX(${x}px)`,
+              display: "flex", alignItems: "center", gap: 16,
+            }}>
+              {/* Bar — wider at bottom, narrower at top */}
+              <div style={{
+                width: `${widthPct}%`,
+                padding: "14px 20px",
+                background: `${rung.color}18`,
+                border: `1.5px solid ${rung.color}55`,
+                borderLeft: `4px solid ${rung.color}`,
+                borderRadius: "0 8px 8px 0",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+              }}>
+                <div>
+                  <div style={{
+                    fontFamily: "sans-serif", fontWeight: 800,
+                    fontSize: 18, color: rung.color,
+                  }}>{rung.label}</div>
+                  {rung.desc && (
+                    <div style={{
+                      fontFamily: "sans-serif", fontWeight: 400,
+                      fontSize: 13, color: "rgba(255,255,255,0.55)",
+                      marginTop: 2,
+                    }}>{rung.desc}</div>
+                  )}
+                </div>
+                <div style={{
+                  fontFamily: "sans-serif", fontWeight: 800,
+                  fontSize: 20, color: rung.color,
+                  opacity: 0.8,
+                }}>{rung.pct}%</div>
               </div>
-              <div style={{ height: 6, background: "rgba(255,255,255,0.06)", borderRadius: 3, overflow: "hidden" }}>
-                <div style={{ width: barW, height: "100%", background: color, borderRadius: 3 }} />
-              </div>
-              {rung.desc && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", fontFamily: "Arial, sans-serif", marginTop: 3 }}>{rung.desc}</div>}
+
+              {/* Arrow up */}
+              {i < rungs.length - 1 && (
+                <div style={{
+                  position: "absolute", right: 20,
+                  fontFamily: "sans-serif", fontSize: 16,
+                  color: "rgba(255,255,255,0.15)",
+                }}>↑</div>
+              )}
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 };

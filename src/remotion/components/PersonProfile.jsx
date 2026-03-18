@@ -2,50 +2,119 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 import { getTheme } from "../../themes.js";
 
-// PersonProfile — A card showing a person's key stats or details
-// data: { name: "Sarah Martinez", role: "Portland, Oregon", stats: [{label:"Savings", value:"$0"}, {label:"Debt", value:"$23K"}], outcome: "Started investing at 35" }
-// USE WHEN: narrator introduces a real person with specific details or statistics
-export const PersonProfile = ({ data, clipFrame = 0, theme = "blue_grid" }) => {
+export const PersonProfile = ({ data = {}, clipFrame = 0, theme = "blue_grid" }) => {
   const { fps } = useVideoConfig();
   const th = getTheme(theme);
   const accent = th.subtitle?.accent || "#3b82f6";
-  if (!data?.name) return null;
+  const bg = th.subtitle?.bg || "rgba(6,12,36,0.92)";
 
-  const stats = (data.stats || []).slice(0, 4);
-  const cardOp = interpolate(clipFrame, [0, fps * 0.4], [0, 1], { extrapolateRight: "clamp" });
-  const cardY = interpolate(clipFrame, [0, fps * 0.4], [30, 0], { extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
-  const outcomeOp = interpolate(clipFrame, [fps * 0.8, fps * 1.2], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const name = data.name || "John Smith";
+  const role = data.role || "Self-made millionaire";
+  const stats = data.stats || [
+    { value: "$0", label: "Started with" },
+    { value: "$2.3M", label: "Net worth" },
+  ];
+  const outcome = data.outcome || "";
+
+  const slideIn = interpolate(clipFrame, [0, fps * 0.3], [-80, 0], {
+    extrapolateRight: "clamp", easing: Easing.out(Easing.cubic),
+  });
+  const opacity = interpolate(clipFrame, [0, fps * 0.2], [0, 1], { extrapolateRight: "clamp" });
+  const statsOp = interpolate(clipFrame, [fps * 0.3, fps * 0.55], [0, 1], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+  });
+  const outcomeOp = interpolate(clipFrame, [fps * 0.55, fps * 0.8], [0, 1], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+  });
 
   return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 80px", gap: 16 }}>
-      {/* Profile card */}
-      <div style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: `1px solid ${accent}25`, borderRadius: 20, padding: "28px 32px", opacity: cardOp, transform: `translateY(${cardY}px)` }}>
-        {/* Name + role */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 32, fontWeight: 900, color: "white", fontFamily: "Arial Black, Arial, sans-serif" }}>{data.name}</div>
-          {data.role && <div style={{ fontSize: 16, color: accent, fontFamily: "Arial, sans-serif", letterSpacing: 2, marginTop: 4 }}>{data.role}</div>}
+    <div style={{
+      position: "absolute", inset: 0,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      background: bg,
+    }}>
+      <div style={{
+        transform: `translateX(${slideIn}px)`, opacity,
+        width: 640,
+      }}>
+        {/* Profile header */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 28,
+          padding: "32px 40px",
+          background: `${accent}0e`,
+          border: `1.5px solid ${accent}33`,
+          borderBottom: "none",
+          borderRadius: "16px 16px 0 0",
+        }}>
+          {/* Avatar */}
+          <div style={{
+            width: 90, height: 90, borderRadius: "50%",
+            background: `linear-gradient(135deg, ${accent}88, ${accent}22)`,
+            border: `3px solid ${accent}`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 40, flexShrink: 0,
+          }}>👤</div>
+
+          <div>
+            <div style={{
+              fontFamily: "sans-serif", fontWeight: 900,
+              fontSize: 34, color: "#ffffff",
+              lineHeight: 1.1,
+            }}>{name}</div>
+            <div style={{
+              fontFamily: "sans-serif", fontWeight: 500,
+              fontSize: 18, color: accent,
+              marginTop: 6,
+            }}>{role}</div>
+          </div>
         </div>
-        {/* Stats grid */}
-        {stats.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(stats.length, 2)}, 1fr)`, gap: 12 }}>
-            {stats.map((stat, i) => {
-              const statOp = interpolate(clipFrame, [fps * (0.3 + i * 0.15), fps * (0.5 + i * 0.15)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-              return (
-                <div key={i} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "12px 16px", opacity: statOp }}>
-                  <div style={{ fontSize: 24, fontWeight: 900, color: "white", fontFamily: "Arial Black, Arial, sans-serif" }}>{stat.value}</div>
-                  <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 2, fontFamily: "Arial, sans-serif", marginTop: 4 }}>{stat.label}</div>
-                </div>
-              );
-            })}
+
+        {/* Stats row */}
+        <div style={{
+          display: "flex",
+          background: "rgba(0,0,0,0.3)",
+          border: `1.5px solid ${accent}33`,
+          borderTop: `1px solid ${accent}22`,
+          borderBottom: "none",
+          opacity: statsOp,
+        }}>
+          {stats.map((s, i) => (
+            <div key={i} style={{
+              flex: 1, padding: "20px 24px",
+              textAlign: "center",
+              borderRight: i < stats.length - 1 ? `1px solid ${accent}22` : "none",
+            }}>
+              <div style={{
+                fontFamily: "sans-serif", fontWeight: 900,
+                fontSize: 30, color: accent,
+                textShadow: `0 0 20px ${accent}55`,
+              }}>{s.value}</div>
+              <div style={{
+                fontFamily: "sans-serif", fontSize: 14,
+                color: "rgba(255,255,255,0.5)", marginTop: 4,
+              }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Outcome */}
+        {outcome && (
+          <div style={{
+            padding: "20px 32px",
+            background: `${accent}08`,
+            border: `1.5px solid ${accent}33`,
+            borderTop: `1px solid ${accent}22`,
+            borderRadius: "0 0 16px 16px",
+            opacity: outcomeOp,
+          }}>
+            <div style={{
+              fontFamily: "Georgia, serif", fontStyle: "italic",
+              fontSize: 18, color: "rgba(255,255,255,0.75)",
+              lineHeight: 1.5,
+            }}>"{outcome}"</div>
           </div>
         )}
       </div>
-      {/* Outcome */}
-      {data.outcome && (
-        <div style={{ fontSize: 20, fontWeight: 600, color: accent, fontFamily: "Arial, sans-serif", textAlign: "center", opacity: outcomeOp, fontStyle: "italic" }}>
-          → {data.outcome}
-        </div>
-      )}
     </div>
   );
 };

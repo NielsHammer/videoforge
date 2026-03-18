@@ -77,6 +77,23 @@ import { VoteBar } from "./components/VoteBar";
 import { PullQuote } from "./components/PullQuote";
 import { CountdownTimer } from "./components/CountdownTimer";
 import { RuleCard } from "./components/RuleCard";
+// Batch B — niche-specific components
+import { CandlestickChart } from "./components/CandlestickChart";
+import { WealthLadder } from "./components/WealthLadder";
+import { PortfolioBreakdown } from "./components/PortfolioBreakdown";
+import { ROICalculator } from "./components/ROICalculator";
+import { TimelapseBar } from "./components/TimelapseBar";
+import { SpeedMeter } from "./components/SpeedMeter";
+import { StackedBar } from "./components/StackedBar";
+import { MapCallout } from "./components/MapCallout";
+import { NewsHeadline } from "./components/NewsHeadline";
+import { InstagramPost } from "./components/InstagramPost";
+import { YouTubeCard } from "./components/YouTubeCard";
+import { RedditPost } from "./components/RedditPost";
+import { GoogleSearch } from "./components/GoogleSearch";
+import { PersonProfile } from "./components/PersonProfile";
+import { ConversationBubble } from "./components/ConversationBubble";
+import { QuizCard } from "./components/QuizCard";
 
 export const VideoComposition = ({ clips, wordTimestamps, theme }) => {
   const { fps } = useVideoConfig();
@@ -118,6 +135,11 @@ const GRAPHIC_TYPES = [
   "highlight_build","count_up","neon_sign","reaction_face",
   "thumbs_up","side_by_side","youtube_progress",
   "warning_siren",
+  // Batch B
+  "candlestick_chart","wealth_ladder","portfolio_breakdown","roi_calculator",
+  "timelapse_bar","speed_meter","stacked_bar","map_callout",
+  "news_headline","instagram_post","youtube_card","reddit_post",
+  "google_search","person_profile","conversation_bubble","quiz_card",
   // Batch A
   "big_number","stat_comparison","alert_banner","bullet_list","step_reveal",
   "three_points","mindset_shift","myth_fact","pro_con","score_card",
@@ -250,6 +272,24 @@ const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {
       {type === "pull_quote" && <PullQuote data={ad} clipFrame={frame} theme={theme} />}
       {type === "countdown_timer" && <CountdownTimer data={ad} clipFrame={frame} theme={theme} />}
       {type === "rule_card" && <RuleCard data={ad} clipFrame={frame} theme={theme} />}
+
+      {/* ═══ BATCH B — NICHE-SPECIFIC ═══ */}
+      {type === "candlestick_chart" && <CandlestickChart data={ad} clipFrame={frame} theme={theme} />}
+      {type === "wealth_ladder" && <WealthLadder data={ad} clipFrame={frame} theme={theme} />}
+      {type === "portfolio_breakdown" && <PortfolioBreakdown data={ad} clipFrame={frame} theme={theme} />}
+      {type === "roi_calculator" && <ROICalculator data={ad} clipFrame={frame} theme={theme} />}
+      {type === "timelapse_bar" && <TimelapseBar data={ad} clipFrame={frame} theme={theme} />}
+      {type === "speed_meter" && <SpeedMeter data={ad} clipFrame={frame} theme={theme} />}
+      {type === "stacked_bar" && <StackedBar data={ad} clipFrame={frame} theme={theme} />}
+      {type === "map_callout" && <MapCallout data={ad} clipFrame={frame} theme={theme} />}
+      {type === "news_headline" && <NewsHeadline data={ad} clipFrame={frame} theme={theme} />}
+      {type === "instagram_post" && <InstagramPost data={ad} clipFrame={frame} theme={theme} />}
+      {type === "youtube_card" && <YouTubeCard data={ad} clipFrame={frame} theme={theme} />}
+      {type === "reddit_post" && <RedditPost data={ad} clipFrame={frame} theme={theme} />}
+      {type === "google_search" && <GoogleSearch data={ad} clipFrame={frame} theme={theme} />}
+      {type === "person_profile" && <PersonProfile data={ad} clipFrame={frame} theme={theme} />}
+      {type === "conversation_bubble" && <ConversationBubble data={ad} clipFrame={frame} theme={theme} />}
+      {type === "quiz_card" && <QuizCard data={ad} clipFrame={frame} theme={theme} />}
 
       {/* ═══ SPLIT LAYOUT ═══ */}
       {isImage && isSplit && (

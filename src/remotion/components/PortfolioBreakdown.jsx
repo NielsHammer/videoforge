@@ -2,46 +2,110 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 import { getTheme } from "../../themes.js";
 
-// PortfolioBreakdown — Investment portfolio allocation breakdown
-// data: { title: "Millionaire Portfolio", total: "$2.4M", allocations: [{label:"Stocks",pct:60,color:"#22c55e"},{label:"Real Estate",pct:25,color:"#3b82f6"},{label:"Bonds",pct:10,color:"#f59e0b"},{label:"Cash",pct:5,color:"#6b7280"}] }
-// USE WHEN: narrator describes how wealthy people allocate investments or breaks down a financial portfolio
-export const PortfolioBreakdown = ({ data, clipFrame = 0, theme = "blue_grid" }) => {
+export const PortfolioBreakdown = ({ data = {}, clipFrame = 0, theme = "blue_grid" }) => {
   const { fps } = useVideoConfig();
   const th = getTheme(theme);
   const accent = th.subtitle?.accent || "#3b82f6";
-  if (!data?.allocations?.length) return null;
+  const bg = th.subtitle?.bg || "rgba(6,12,36,0.92)";
 
-  const allocs = data.allocations.slice(0, 6);
-  const titleOp = interpolate(clipFrame, [0, fps * 0.3], [0, 1], { extrapolateRight: "clamp" });
+  const title = data.title || "Portfolio Allocation";
+  const total = data.total || "";
+  const allocations = data.allocations || [
+    { label: "Stocks", pct: 60, color: "#3b82f6" },
+    { label: "Bonds", pct: 20, color: "#22c55e" },
+    { label: "Real Estate", pct: 15, color: "#f59e0b" },
+    { label: "Cash", pct: 5, color: "#64748b" },
+  ];
+
+  const fadeIn = interpolate(clipFrame, [0, fps * 0.2], [0, 1], { extrapolateRight: "clamp" });
+
+  // Build SVG pie chart
+  const radius = 100;
+  const cx = 130, cy = 130;
+  let currentAngle = -90; // start from top
+
+  const slices = allocations.map((a, i) => {
+    const delay = fps * (0.2 + i * 0.15);
+    const sweepProgress = interpolate(clipFrame, [delay, delay + fps * 0.5], [0, 1], {
+      extrapolateLeft: "clamp", extrapolateRight: "clamp",
+      easing: Easing.out(Easing.cubic),
+    });
+
+    const startAngle = currentAngle;
+    const fullSweep = (a.pct / 100) * 360;
+    const sweep = fullSweep * sweepProgress;
+    currentAngle += fullSweep;
+
+    const startRad = (startAngle * Math.PI) / 180;
+    const endRad = ((startAngle + sweep) * Math.PI) / 180;
+    const x1 = cx + radius * Math.cos(startRad);
+    const y1 = cy + radius * Math.sin(startRad);
+    const x2 = cx + radius * Math.cos(endRad);
+    const y2 = cy + radius * Math.sin(endRad);
+    const largeArc = sweep > 180 ? 1 : 0;
+
+    const path = sweep > 0.1
+      ? `M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`
+      : "";
+
+    return { ...a, path, delay };
+  });
 
   return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: "36px 70px", gap: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", opacity: titleOp, marginBottom: 4 }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: accent, letterSpacing: 4, textTransform: "uppercase", fontFamily: "Arial, sans-serif" }}>{data.title || "Portfolio"}</div>
-        {data.total && <div style={{ fontSize: 28, fontWeight: 900, color: "white", fontFamily: "Arial Black, Arial, sans-serif" }}>{data.total}</div>}
+    <div style={{
+      position: "absolute", inset: 0,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      background: bg, opacity: fadeIn, gap: 60,
+    }}>
+      {/* Pie chart */}
+      <div style={{ position: "relative" }}>
+        <svg width="260" height="260">
+          {slices.map((s, i) => s.path && (
+            <path key={i} d={s.path} fill={s.color}
+              style={{ filter: `drop-shadow(0 0 6px ${s.color}66)` }} />
+          ))}
+          {/* Center hole */}
+          <circle cx={cx} cy={cy} r={50} fill={bg} />
+          {total && (
+            <>
+              <text x={cx} y={cy - 6} textAnchor="middle"
+                style={{ fontFamily: "sans-serif", fontWeight: 900, fontSize: 18, fill: "#fff" }}>
+                {total}
+              </text>
+              <text x={cx} y={cy + 14} textAnchor="middle"
+                style={{ fontFamily: "sans-serif", fontSize: 11, fill: "rgba(255,255,255,0.4)" }}>
+                total
+              </text>
+            </>
+          )}
+        </svg>
       </div>
 
-      {/* Bar rows */}
-      {allocs.map((alloc, i) => {
-        const delay = fps * (0.2 + i * 0.15);
-        const barW = interpolate(clipFrame, [delay, delay + fps * 0.5], [0, alloc.pct], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
-        const rowOp = interpolate(clipFrame, [delay, delay + fps * 0.25], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-        const color = alloc.color || accent;
-        return (
-          <div key={i} style={{ opacity: rowOp }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 12, height: 12, borderRadius: 3, background: color }} />
-                <div style={{ fontSize: 17, fontWeight: 600, color: "rgba(255,255,255,0.85)", fontFamily: "Arial, sans-serif" }}>{alloc.label}</div>
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: color, fontFamily: "Arial Black, Arial, sans-serif" }}>{Math.round(barW)}%</div>
+      {/* Legend */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{
+          fontFamily: "sans-serif", fontWeight: 800,
+          fontSize: 20, color: accent,
+          textTransform: "uppercase", letterSpacing: 3,
+          marginBottom: 8,
+        }}>{title}</div>
+        {allocations.map((a, i) => {
+          const op = interpolate(clipFrame, [fps * (0.3 + i * 0.15), fps * (0.5 + i * 0.15)], [0, 1], {
+            extrapolateLeft: "clamp", extrapolateRight: "clamp",
+          });
+          return (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, opacity: op }}>
+              <div style={{ width: 14, height: 14, borderRadius: 3, background: a.color, flexShrink: 0 }} />
+              <span style={{ fontFamily: "sans-serif", fontSize: 18, color: "rgba(255,255,255,0.85)", flex: 1 }}>
+                {a.label}
+              </span>
+              <span style={{ fontFamily: "sans-serif", fontWeight: 800, fontSize: 18, color: a.color }}>
+                {a.pct}%
+              </span>
             </div>
-            <div style={{ height: 12, background: "rgba(255,255,255,0.06)", borderRadius: 6, overflow: "hidden" }}>
-              <div style={{ width: `${barW}%`, height: "100%", background: `linear-gradient(90deg, ${color}, ${color}cc)`, borderRadius: 6, boxShadow: `0 0 12px ${color}40` }} />
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 };
