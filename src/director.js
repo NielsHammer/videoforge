@@ -40,7 +40,7 @@ const nicheSafeQueries = {
 };
 
 function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
-  if (!wordTimestamps || filteredTimestamps.length === 0) return [];
+  if (!wordTimestamps || wordTimestamps.length === 0) return [];
 
   // Filter ElevenLabs noise artifacts — short nonsense "words" at chunk boundaries
   const _cleaned = wordTimestamps.filter(w => {
