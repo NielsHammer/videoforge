@@ -24,27 +24,25 @@ const NICHE_BUDGETS = {
   tech:       { stock: 30, animation: 30, split: 20, infographic: 20, label: "data visualizations, loading bars, speed meters, step reveals" },
   luxury:     { stock: 40, animation: 25, split: 25, infographic: 10, label: "big numbers, ROI reveals, person profiles, pull quotes" },
   history:    { stock: 45, animation: 20, split: 20, infographic: 15, label: "historical imagery with timelines and key date animations" },
-  creator:    { stock: 35, animation: 35, split: 20, infographic: 10, label: "social-native — phone screens, tweet cards, youtube stats, reaction faces" },
   general:    { stock: 40, animation: 25, split: 20, infographic: 15, label: "balanced mix — keep variety high to maintain engagement" },
 };
 
-// ─── SENTENCE PARSER ─────────────────────────────────────────────────────────
 // Niche-safe fallback search queries — used across multiple functions
 const nicheSafeQueries = {
-  business: ["entrepreneur success workspace","confident professional achieving","startup team modern office","freelancer productive focused","business growth momentum"],
-  finance: ["financial growth chart professional","investor confident modern","wealth success lifestyle","stock market professional","business executive confident"],
-  health: ["gym fitness workout motivated","healthy lifestyle active","sports performance athletic","wellness outdoor nature","fit person exercising"],
-  travel: ["scenic destination landscape","travel adventure culture","beautiful nature photography","landmark iconic","travel exploration freedom"],
-  horror: ["dark atmospheric night","mysterious shadowy","abandoned eerie","foggy dark","suspenseful shadow"],
+  finance:    ["financial growth chart professional","investor confident modern","wealth success lifestyle","stock market professional","business executive confident"],
+  business:   ["entrepreneur success workspace","confident professional achieving","startup team modern office","freelancer productive focused","business growth momentum"],
+  health:     ["gym fitness workout motivated","healthy lifestyle active","sports performance athletic","wellness outdoor nature","fit person exercising"],
+  travel:     ["scenic destination landscape","travel adventure culture","beautiful nature photography","landmark iconic","travel exploration freedom"],
+  horror:     ["dark atmospheric night","mysterious shadowy","abandoned eerie","foggy dark","suspenseful shadow"],
   true_crime: ["detective investigation","evidence analysis","courtroom justice","newspaper headline","investigation board"],
-  history: ["ancient ruins architecture","historical artifact","medieval castle","period historical","ancient civilization"],
-  creator: ["person scrolling phone late night blue light","social media feed scrolling smartphone","young person phone screen dopamine","phone notification alert social media","person sitting alone staring at phone"],
-  general: ["professional modern aspirational","person thoughtful confident","city skyline panoramic","nature peaceful","team collaboration success"],
-  creator: ["person scrolling phone late night blue light","social media feed scrolling smartphone","young person phone screen dopamine","phone notification alert social media","person sitting alone staring at phone"],
-  tech: ["abstract technology digital data","ai artificial intelligence concept","computer code programming screen","technology innovation modern","digital transformation business"],
-  luxury: ["luxury lifestyle mansion expensive","premium brand product elegant","wealthy person success achievement","luxury car watch jewelry","aspirational wealth success"],
+  history:    ["ancient ruins architecture","historical artifact","medieval castle","period historical","ancient civilization"],
+  creator:    ["person scrolling phone late night blue light","social media feed scrolling smartphone","young person phone screen dopamine","phone notification alert social media","content creator recording camera studio"],
+  tech:       ["abstract technology digital data","ai artificial intelligence concept","computer code programming screen","technology innovation modern","digital transformation business"],
+  luxury:     ["luxury lifestyle mansion expensive","premium brand product elegant","wealthy person success achievement","luxury car watch jewelry","aspirational wealth success"],
+  general:    ["professional modern aspirational","person thoughtful confident","city skyline panoramic","nature peaceful","team collaboration success"],
 };
 
+// ─── SENTENCE PARSER ─────────────────────────────────────────────────────────
 function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
   if (!wordTimestamps || wordTimestamps.length === 0) return [];
 
@@ -410,9 +408,60 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
   // Merge explicit niche from order form with auto-detected niche
   const nicheInfo = detectNiche(orderBrief.niche || topic, scriptText);
   if (orderBrief.niche) {
-    const mappedNiche = orderBrief.niche.toLowerCase().replace(/\s+/g, "_");
-    const validNiches = ["finance","business","health","horror","true_crime","travel","history","creator","tech","luxury","general"];
-    if (validNiches.includes(mappedNiche)) nicheInfo.niche = mappedNiche;
+    // Fuzzy map customer-typed niche to canonical niche
+    // Handles: "Personal Finance", "Content Creator", "Social Media", "Technology", etc.
+    const raw = orderBrief.niche.toLowerCase().trim();
+    const nicheMap = {
+      // Finance variants
+      finance: "finance", "personal finance": "finance", financial: "finance",
+      investing: "finance", investment: "finance", forex: "finance",
+      trading: "finance", crypto: "finance", cryptocurrency: "finance",
+      stocks: "finance", "stock market": "finance", wealth: "finance",
+      money: "finance", "make money": "finance", "passive income": "finance",
+      // Business variants
+      business: "business", entrepreneurship: "business", entrepreneur: "business",
+      "side hustle": "business", startup: "business", ecommerce: "business",
+      marketing: "business", "online business": "business", freelance: "business",
+      // Health variants
+      health: "health", fitness: "health", wellness: "health",
+      workout: "health", nutrition: "health", diet: "health",
+      "weight loss": "health", exercise: "health", gym: "health",
+      // Horror variants
+      horror: "horror", scary: "horror", paranormal: "horror",
+      supernatural: "horror", creepy: "horror", terror: "horror",
+      // True crime variants
+      "true crime": "true_crime", crime: "true_crime", mystery: "true_crime",
+      detective: "true_crime", murder: "true_crime", "cold case": "true_crime",
+      // Travel variants
+      travel: "travel", lifestyle: "travel", adventure: "travel",
+      tourism: "travel", destinations: "travel",
+      // History variants
+      history: "history", historical: "history", ancient: "history",
+      documentary: "history",
+      // Creator variants
+      creator: "creator", "content creator": "creator", youtube: "creator",
+      "social media": "creator", influencer: "creator", tiktok: "creator",
+      instagram: "creator", "content creation": "creator", viral: "creator",
+      // Tech variants
+      tech: "tech", technology: "tech", ai: "tech", "artificial intelligence": "tech",
+      science: "tech", coding: "tech", software: "tech", gaming: "tech",
+      // Luxury variants
+      luxury: "luxury", "high end": "luxury", premium: "luxury",
+      "net worth": "luxury", rich: "luxury",
+      // General
+      general: "general", other: "general", miscellaneous: "general",
+    };
+    const mappedNiche = nicheMap[raw] || nicheMap[raw.replace(/_/g, " ")] || null;
+    if (mappedNiche) nicheInfo.niche = mappedNiche;
+    // If no exact match, try partial — e.g. "personal finance tips" → finance
+    if (!mappedNiche) {
+      for (const [key, val] of Object.entries(nicheMap)) {
+        if (raw.includes(key) || key.includes(raw)) {
+          nicheInfo.niche = val;
+          break;
+        }
+      }
+    }
   }
   const themeHints = getThemeAnimationHints(theme);
   const isHorror = nicheInfo.niche === "horror" || nicheInfo.niche === "true_crime";
@@ -1198,7 +1247,6 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
   const banned = ["baby","infant","child","toddler","kid","kids","children","subscribe","button","icon","logo","brand","coursera","udemy","fiverr","upwork","amazon","facebook","instagram","tiktok"];
   const bannedVisuals = isHorror ? [] : ["knife","weapon","mask","ghost","monster","blood","horror","scary","creepy","ghostface","scream","killer"];
 
-  // nicheSafeQueries is defined at module level
 
   const result = [];
 
@@ -1516,18 +1564,8 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo) {
 
   // Break any clip longer than 12 seconds into multiple stock clips (prevents 77s clips)
   const MAX_CLIP_DUR = 10;
-  const nicheFallbacks = {
-    finance: ["financial growth chart professional","investor analyzing markets","wealth success lifestyle","stock market professional","business executive confident"],
-    business: ["entrepreneur success workspace","confident professional achieving","startup team modern office","business growth momentum","professional meeting boardroom"],
-    health: ["gym fitness workout motivated","healthy lifestyle active","sports performance athletic","wellness outdoor nature","fit person exercising"],
-    horror: ["dark atmospheric night","mysterious shadowy","abandoned eerie","foggy dark","suspenseful shadow"],
-    true_crime: ["detective investigation","evidence analysis","courtroom justice","newspaper headline","investigation board"],
-    general: ["professional modern aspirational","person thoughtful confident","city skyline panoramic","nature peaceful","team collaboration success"],
-  creator: ["person scrolling phone late night blue light","social media feed scrolling smartphone","young person phone screen dopamine","phone notification alert social media","person sitting alone staring at phone"],
-  tech: ["abstract technology digital data","ai artificial intelligence concept","computer code programming screen","technology innovation modern","digital transformation business"],
-  luxury: ["luxury lifestyle mansion expensive","premium brand product elegant","wealthy person success achievement","luxury car watch jewelry","aspirational wealth success"],
-  };
-  const fallbacks = nicheFallbacks[nicheInfo?.niche] || nicheFallbacks.general;
+  // Use module-level nicheSafeQueries so all niche fallbacks stay in sync
+  const fallbacks = nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general;
 
   const splitLong = [];
   for (const clip of allClips) {
