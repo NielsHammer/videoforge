@@ -20,6 +20,9 @@ const NICHE_BUDGETS = {
   horror:     { stock: 55, animation: 30, split: 15, infographic: 0,  label: "atmospheric imagery — dark animations, reaction faces, warning sirens, no data charts" },
   true_crime: { stock: 50, animation: 25, split: 15, infographic: 10, label: "storytelling imagery, dramatic animations, minimal data" },
   travel:     { stock: 50, animation: 20, split: 25, infographic: 5,  label: "scenic imagery, destination splits, reaction faces" },
+  creator:    { stock: 25, animation: 40, split: 20, infographic: 15, label: "social media cards, phone screens, reaction faces, viral moments" },
+  tech:       { stock: 30, animation: 30, split: 20, infographic: 20, label: "data visualizations, loading bars, speed meters, step reveals" },
+  luxury:     { stock: 40, animation: 25, split: 25, infographic: 10, label: "big numbers, ROI reveals, person profiles, pull quotes" },
   history:    { stock: 45, animation: 20, split: 20, infographic: 15, label: "historical imagery with timelines and key date animations" },
   creator:    { stock: 35, animation: 35, split: 20, infographic: 10, label: "social-native — phone screens, tweet cards, youtube stats, reaction faces" },
   general:    { stock: 40, animation: 25, split: 20, infographic: 15, label: "balanced mix — keep variety high to maintain engagement" },
@@ -37,6 +40,9 @@ const nicheSafeQueries = {
   history: ["ancient ruins architecture","historical artifact","medieval castle","period historical","ancient civilization"],
   creator: ["person scrolling phone late night blue light","social media feed scrolling smartphone","young person phone screen dopamine","phone notification alert social media","person sitting alone staring at phone"],
   general: ["professional modern aspirational","person thoughtful confident","city skyline panoramic","nature peaceful","team collaboration success"],
+  creator: ["person scrolling phone late night blue light","social media feed scrolling smartphone","young person phone screen dopamine","phone notification alert social media","person sitting alone staring at phone"],
+  tech: ["abstract technology digital data","ai artificial intelligence concept","computer code programming screen","technology innovation modern","digital transformation business"],
+  luxury: ["luxury lifestyle mansion expensive","premium brand product elegant","wealthy person success achievement","luxury car watch jewelry","aspirational wealth success"],
 };
 
 function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
@@ -347,6 +353,9 @@ ${nicheInfo.niche === "business" ? "- BUSINESS: Prioritize rule_card, mindset_sh
 ${nicheInfo.niche === "history" ? "- HISTORY: Prioritize timeline, timelapse_bar, news_headline, person_profile, map_callout, typewriter_reveal." : ""}
 ${nicheInfo.niche === "health" ? "- HEALTH: Prioritize score_card, loading_bar, percent_fill, vote_bar, bullet_list, three_points, step_reveal." : ""}
 ${nicheInfo.niche === "travel" ? "- TRAVEL: Prioritize map_callout, person_profile, split layouts, pull_quote." : ""}
+${nicheInfo.niche === "creator" ? "- CREATOR: Prioritize instagram_post, youtube_card, reddit_post, google_search, conversation_bubble, social_counter, tweet_card, phone_screen, reaction_face." : ""}
+${nicheInfo.niche === "tech" ? "- TECH: Prioritize loading_bar, speed_meter, google_search, countdown_timer, stat_comparison, big_number, step_reveal." : ""}
+${nicheInfo.niche === "luxury" ? "- LUXURY: Prioritize big_number, stat_comparison, person_profile, before_after, pull_quote, roi_calculator." : ""}
 
 CRITICAL DISTRIBUTION RULES:
 1. Clip 0 MUST be "animation" — most dramatic type for opening line
@@ -402,7 +411,7 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
   const nicheInfo = detectNiche(orderBrief.niche || topic, scriptText);
   if (orderBrief.niche) {
     const mappedNiche = orderBrief.niche.toLowerCase().replace(/\s+/g, "_");
-    const validNiches = ["finance","business","health","horror","true_crime","travel","history","general"];
+    const validNiches = ["finance","business","health","horror","true_crime","travel","history","creator","tech","luxury","general"];
     if (validNiches.includes(mappedNiche)) nicheInfo.niche = mappedNiche;
   }
   const themeHints = getThemeAnimationHints(theme);
@@ -1514,6 +1523,9 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo) {
     horror: ["dark atmospheric night","mysterious shadowy","abandoned eerie","foggy dark","suspenseful shadow"],
     true_crime: ["detective investigation","evidence analysis","courtroom justice","newspaper headline","investigation board"],
     general: ["professional modern aspirational","person thoughtful confident","city skyline panoramic","nature peaceful","team collaboration success"],
+  creator: ["person scrolling phone late night blue light","social media feed scrolling smartphone","young person phone screen dopamine","phone notification alert social media","person sitting alone staring at phone"],
+  tech: ["abstract technology digital data","ai artificial intelligence concept","computer code programming screen","technology innovation modern","digital transformation business"],
+  luxury: ["luxury lifestyle mansion expensive","premium brand product elegant","wealthy person success achievement","luxury car watch jewelry","aspirational wealth success"],
   };
   const fallbacks = nicheFallbacks[nicheInfo?.niche] || nicheFallbacks.general;
 
