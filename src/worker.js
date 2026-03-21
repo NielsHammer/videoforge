@@ -213,7 +213,7 @@ async function regenerateThumbnail(order) {
 async function processOrder(order) {
   const {
     id: orderId, topic, script_upload, tone, voice_id, admin_notes, video_length,
-    key_points, cta_text, background_theme, channel_niche  // order form fields
+    key_points, cta_text, background_theme, channel_niche, niche  // order form fields
   } = order;
 
   log(`Processing order ${orderId}: "${topic}"`);
@@ -311,7 +311,7 @@ async function processOrder(order) {
     const briefPath = path.join(VIDEOFORGE_DIR, 'scripts', `order-${orderId}-brief.json`);
     const orderBriefData = {
       topic:           topic           || '',
-      niche:           channel_niche   || '',
+      niche:           channel_niche || niche || '',
       tone:            tone            || '',
       keyPoints:       key_points      || '',
       callToAction:    cta_text        || '',
