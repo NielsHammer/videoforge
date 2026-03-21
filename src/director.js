@@ -586,7 +586,7 @@ function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, ani
     // Pass 2 ignored the plan — fall back to stock (never generate garbage fallback data)
     if (plan.category === "animation" || plan.category === "infographic") {
       // Option A: kill fallback generators — stock is always better than word salad
-      const biblePrefix = videoBible?.image_search_prefix || "";
+      const biblePrefix = "";
           const baseQuery = (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[i % 5];
           const stockQuery = biblePrefix ? `${biblePrefix} ${baseQuery}` : baseQuery;
       return { ...clip, visual_type: "stock", display_style: "framed", animation_data: null, chart_data: null, number_data: null, search_query: stockQuery };
@@ -1385,7 +1385,7 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
 
     // Option A: if animation/infographic data is missing or bad schema → stock (never garbage text)
     const stockFallback = () => {
-      const biblePrefix = videoBible?.image_search_prefix || "";
+      const biblePrefix = "";
           const baseQuery = (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[i % 5];
           const stockQuery = biblePrefix ? `${biblePrefix} ${baseQuery}` : baseQuery;
       clip.visual_type = "stock";
