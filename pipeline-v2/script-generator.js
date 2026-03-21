@@ -452,9 +452,21 @@ export async function generateScript(topic, options = {}) {
     // Join blocks with a clear separator that won't affect TTS
     let fullScript = blocks.join('\n\n');
 
-    // Review pass on full assembled script
+    // Review pass — for very long scripts, review in blocks to avoid token limits
     spinner.text = "Polishing script...";
-    fullScript = await reviewAndPolishScript(fullScript, topic, niche, style);
+    const fullWordCount = fullScript.split(/\s+/).length;
+    if (fullWordCount > 4000) {
+      // Review each block individually then rejoin
+      const reviewedBlocks = [];
+      for (let bi = 0; bi < blocks.length; bi++) {
+        spinner.text = `Polishing block ${bi+1}/${blocks.length}...`;
+        const reviewed = await reviewAndPolishScript(blocks[bi], topic, niche, style);
+        reviewedBlocks.push(reviewed);
+      }
+      fullScript = reviewedBlocks.join('\n\n');
+    } else {
+      fullScript = await reviewAndPolishScript(fullScript, topic, niche, style);
+    }
 
     const wordCount = fullScript.split(/\s+/).length;
     const estMinutes = (wordCount / WORDS_PER_MINUTE).toFixed(1);

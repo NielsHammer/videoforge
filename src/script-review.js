@@ -1,3 +1,6 @@
+import axios from "axios";
+import chalk from "chalk";
+
 // ─── SCRIPT REVIEW PASS ──────────────────────────────────────────────────────
 // Runs after script generation. Catches AI clichés, robotic sentences,
 // and rewrites them before the script goes to the video pipeline.
@@ -46,7 +49,7 @@ Just the clean script ready to go straight to voice recording.`;
       "https://api.anthropic.com/v1/messages",
       {
         model: "claude-sonnet-4-20250514",
-        max_tokens: 8192,
+        max_tokens: 16000,
         messages: [{ role: "user", content: prompt }],
       },
       {

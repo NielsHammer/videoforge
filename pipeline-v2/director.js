@@ -247,6 +247,8 @@ ${videoBible.required_visual_style ? `REQUIRED VISUAL STYLE: ${videoBible.requir
 ${videoBible.image_search_prefix ? `EVERY image search MUST start with: "${videoBible.image_search_prefix}"` : ""}
 ${videoBible.banned_visuals?.length ? `BANNED VISUALS (never show): ${videoBible.banned_visuals.join(", ")}` : ""}
 ${videoBible.banned_components?.length ? `BANNED COMPONENTS (never use): ${videoBible.banned_components.join(", ")}` : ""}
+${videoBible.infographic_opportunities?.length ? `\nINFOGRAPHIC OPPORTUNITIES (use these for matching sentences):\n${videoBible.infographic_opportunities.slice(0, 5).map(o => `- When narrator says "${o.moment?.slice(0,60)}..." → use ${o.component} showing: ${o.data_hint}`).join("\n")}` : ""}
+${videoBible.key_visual_moments?.length ? `\nKEY VISUAL MOMENTS (use these search queries for matching sentences):\n${videoBible.key_visual_moments.slice(0, 5).map(m => `- "${m.moment?.slice(0,50)}..." → search: "${m.search_query}"`).join("\n")}` : ""}
 CHANNEL NICHE: ${nicheInfo.niche} | THEME: "${theme}"
 NICHE STYLE: ${budget.label}
 ${briefContext ? "ORDER BRIEF:\n" + briefContext + "\n" : ""}PREFERRED ANIMATIONS FOR THIS THEME: ${themeHints.prefer.join(", ")}

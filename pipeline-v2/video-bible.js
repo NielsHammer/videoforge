@@ -1,3 +1,6 @@
+import axios from "axios";
+import chalk from "chalk";
+
 // ─── VIDEO BIBLE ─────────────────────────────────────────────────────────────
 // Runs once before any storyboard decisions are made.
 // Reads the full script and produces a "bible" — rules every downstream
@@ -11,7 +14,7 @@ Read this script carefully and produce a VIDEO BIBLE — a strict set of rules t
 TOPIC: "${topic}"
 NICHE: ${niche || "auto-detect"}
 SCRIPT:
-${scriptText.slice(0, 3000)}${scriptText.length > 3000 ? "\n[...script continues...]" : ""}
+${scriptText.slice(0, 5000)}${scriptText.length > 5000 ? "\n[...script continues for " + Math.round(scriptText.length/5) + " more words...]" : ""}
 
 Analyze the script and return ONLY valid JSON (no markdown, no preamble):
 
