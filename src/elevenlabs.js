@@ -273,6 +273,7 @@ async function ttsChunk(rawText, voiceId) {
 }
 
 export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath) {
+  text = text.replace(/\*\*([^*]+)\*\*/g,"$1").replace(/\*([^*]+)\*/g,"$1").replace(/^#{1,6}\s+/gm,"").replace(/^---+$/gm,"").replace(/^\s*[-*+]\s+/gm,"").replace(/\n{3,}/g,"\n\n").trim();
   const chunks = chunkText(text);
 
   if (chunks.length === 1) {

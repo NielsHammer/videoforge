@@ -358,7 +358,14 @@ Minimum: ${minWords} words — going below this is a FAILURE
 Maximum: ${maxWords} words
 Fight the urge to summarize. Develop every moment fully. A ${duration}-minute documentary needs ${targetWords} words of real storytelling.
 
-Write the complete script now. No preamble — drop straight into the cold open.`;
+Write the complete script now. No preamble — drop straight into the cold open.
+
+CRITICAL FORMAT RULES:
+- NO markdown formatting whatsoever
+- NO asterisks, NO bold, NO italics, NO headers (##), NO horizontal rules (---)
+- NO bullet points, NO numbered lists
+- Plain text only — this goes straight to voice recording
+- Chapter titles are spoken naturally as part of the narration, not formatted as headers`;
 }
 
 // ─── VISUAL PROMPT ───────────────────────────────────────────────────────────
@@ -554,6 +561,11 @@ CONTINUITY: This is block ${blockNum} of ${totalBlocks}. Do NOT write a new hook
 
 // ─── MAIN EXPORT ─────────────────────────────────────────────────────────────
 
+
+function stripMarkdown(text) {
+  return text.replace(/\*\*([^*]+)\*\*/g,"$1").replace(/\*([^*]+)\*/g,"$1").replace(/^#{1,6}\s+/gm,"").replace(/^---+$/gm,"").replace(/^\s*[-*+]\s+/gm,"").replace(/\n{3,}/g,"\n\n").trim();
+}
+
 export async function generateScript(topic, options = {}) {
   const duration   = options.duration   || "10";
   const style      = options.tone       || options.style || "engaging";
@@ -619,6 +631,7 @@ export async function generateScript(topic, options = {}) {
     const wordCount = fullScript.split(/\s+/).length;
     const estMinutes = (wordCount / WORDS_PER_MINUTE).toFixed(1);
 
+    fullScript = stripMarkdown(fullScript);
     fs.writeFileSync(outputPath, fullScript);
     spinner.succeed(`Script complete: ${outputPath}`);
     console.log(chalk.white(`📝 Words: ${wordCount} (~${estMinutes} min across ${totalBlocks} blocks)`));
@@ -671,6 +684,7 @@ export async function generateScript(topic, options = {}) {
   const wordCount = script.split(/\s+/).length;
   const estMinutes = (wordCount / WORDS_PER_MINUTE).toFixed(1);
 
+  script = stripMarkdown(script);
   fs.writeFileSync(outputPath, script);
   spinner.succeed(`Script written: ${outputPath}`);
   console.log(chalk.white(`📝 Words: ${wordCount}`));
