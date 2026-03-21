@@ -408,7 +408,7 @@ function getBlockRoles(totalBlocks) {
 // ─── BLOCK GENERATION ────────────────────────────────────────────────────────
 
 const BLOCK_SIZE_MINUTES = 10;
-const WORDS_PER_MINUTE = 130;
+const WORDS_PER_MINUTE = 140;
 
 async function generateScriptBlock(topic, blockNum, totalBlocks, style, mode, keyPoints, ctaText, niche) {
   const isFirst = blockNum === 1;
