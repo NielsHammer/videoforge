@@ -11,6 +11,7 @@ export async function reviewAndPolishScript(rawScript, topic, niche, tone) {
   const prompt = `You are a script editor for a top YouTube channel. Your job is to make this script sound like a real, passionate human wrote it — not AI.
 
 TOPIC: "${topic}"
+CURRENT YEAR: 2026 — if the script mentions "2024" or "2025" anywhere in the body, update it to 2026
 NICHE: ${niche || "general"}
 TONE: ${tone || "engaging"}
 
@@ -28,7 +29,7 @@ BANNED PHRASES TO ELIMINATE:
 "dive into", "delve", "landscape", "game-changer", "let's unpack", "it's worth noting",
 "in today's world", "at the end of the day", "make no mistake", "the fact of the matter",
 "when it comes to", "in conclusion", "to summarize", "moreover", "furthermore",
-"it is important to", "needless to say", "rest assured",
+"it is important to", "needless to say", "rest assured", "twenty twenty-four", "twenty twenty-five",
 "leverage", "synergy", "paradigm", "holistic", "robust", "seamless",
 "cutting-edge", "state-of-the-art", "revolutionary", "groundbreaking",
 "fascinating", "interesting", "incredible", "amazing", "unbelievable"
