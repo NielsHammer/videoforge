@@ -134,11 +134,15 @@ BANNED FOREVER — these words will not appear anywhere in this script:
 "it is important to", "needless to say", "rest assured", "touch base",
 "leverage", "synergy", "paradigm", "holistic", "robust", "seamless",
 "cutting-edge", "state-of-the-art", "revolutionary", "groundbreaking",
-"fascinating", "interesting", "incredible", "amazing", "unbelievable" (these are lazy — show don't tell)
+"fascinating", "interesting", "incredible", "amazing", "unbelievable" (these are lazy — show don't tell),
+"picture this" (overused YouTube cliché — find a more original scene opener),
+"fast forward" (lazy transition — write the scene properly instead),
+"throughout history", "since the dawn of time", "in the world of",
+"needless to say", "it goes without saying", "believe it or not"
 
 BANNED SENTENCE STARTERS:
 Never start a sentence with "As", "While", "Furthermore", "Additionally", "In addition",
-"It's important to note", "It's worth mentioning", "This means that"
+"It's important to note", "It's worth mentioning", "This means that", "Picture this", "Fast forward"
 
 NUMBER RULES:
 - Spell out ALL numbers as words: "thirty-eight percent" not "38%"
@@ -203,21 +207,36 @@ The hook must do THREE things in order:
 After the hook, drop ONE early pattern interrupt: a surprising fact, a counterintuitive claim, or a "here's what nobody tells you" moment. This is what keeps people past the 30-second mark.
 
 BODY (numbered sections, 3-6 depending on length):
+Each section MUST be more intense than the one before it. The video escalates — every section raises the stakes.
 Each section needs:
 - A punchy section title said out loud ("Number one. The mistake everyone makes.")
 - An open loop before it ("But before we get there, here's something you need to know.")
 - At least 3 specific numbers, stats, or data points per section
-- One comparison or analogy that makes the data feel real
-- A micro-cliffhanger at the end ("And in section three, we'll get to the part that actually changes everything.")
+- One comparison or analogy that makes the data feel real — something the viewer can picture
+- A micro-cliffhanger at the end leading to the next section
+- At least one sentence connecting this to the VIEWER's life ("That means if you're earning the average salary, you're already...")
 
-MIDDLE HOOK (at ~40% mark):
-One sentence that re-engages viewers who are drifting. A twist, a reveal, or a bold reframe.
-Natural subscribe mention: "If this is hitting different, make sure you're subscribed — we do this every week."
+EMOTIONAL ESCALATION — MANDATORY:
+Section 1: Establish the problem or situation. Make it real.
+Section 2: Deepen it. Show the scale. Make them feel it personally.
+Section 3+: The twist, the revelation, the thing nobody talks about. This is where the video lives.
+Final section: The resolution or call to action. What do they do NOW with this information?
+
+SUBSCRIBE CTA — MANDATORY at ~40% mark:
+This is NON-NEGOTIABLE. Must appear. Natural integration only — never forced.
+Example: "If you're finding this useful, hit subscribe — we break down this kind of stuff every week."
+Example: "This is the kind of thing they don't teach in school. Subscribe so you don't miss the next one."
+DO NOT SKIP THIS.
+
+VIEWER CONNECTION — MANDATORY:
+Every section must have at least one sentence that brings the information back to the viewer personally.
+Not "people do X" — but "you probably do X" or "if you're like most people watching this..."
+The viewer must feel like this video was made specifically for them.
 
 CLOSE (final 60-90 seconds):
 - The single biggest takeaway — one sentence, unforgettable
-- What happens if they act on this vs. if they don't
-- Forward-looking final image or thought
+- What the viewer should do TODAY — specific, actionable
+- A final thought that makes them think about this tomorrow
 - CTA if provided
 
 ═══ DATA REQUIREMENTS ═══
@@ -232,8 +251,15 @@ Bad: "Savings rates haven't improved much over the years."
 
 ${UNIVERSAL_VOICE_RULES}
 
-WORD COUNT: Write ${minWords}–${maxWords} words. Target exactly ${targetWords} words.
-This video is ${duration} minutes at ~130 words per minute.
+WORD COUNT — CRITICAL:
+Target: ${targetWords} words (${duration} minutes × 130 words per minute)
+Minimum: ${minWords} words — going below this is a FAILURE
+Maximum: ${maxWords} words
+
+IMPORTANT: Most AI scripts run short because they don't develop their points fully.
+Fight this tendency. Every section should feel complete. Every claim should be explained.
+Every number should have context. If you finish a section in 3 sentences, it needs more.
+A ${duration}-minute video needs ${targetWords} words. Count carefully before finishing.
 
 Write the complete script now. No preamble, no "Here is your script:" — just start with the first word of the hook.`;
 }
@@ -288,25 +314,41 @@ The hook must:
 After the hook: one early pattern interrupt. A twist the viewer didn't see coming. This is what keeps them past 30 seconds.
 
 BODY (numbered sections, 3-6 depending on length):
+Each section MUST be more intense than the one before it. The story escalates — tension builds, stakes rise.
 Each section needs:
 - A punchy section title said out loud
-- Scene-setting that creates a vivid mental image
-- Specific details — names, dates, places, quotes (not vague summaries)
-- Emotional beats — moments where the viewer feels something
-- A micro-cliffhanger at the end of each section
+- Scene-setting that creates a vivid mental image — specific location, time, person
+- Specific details — names, dates, places, direct quotes (not vague summaries)
+- Emotional beats — moments where the viewer genuinely feels something (dread, awe, anger, inspiration)
+- A micro-cliffhanger at the end leading to the next section
+- At least one sentence connecting this story to the VIEWER's world today
+
+EMOTIONAL ESCALATION — MANDATORY:
+Section 1: Set the scene. Introduce the person, place, or situation. Build investment.
+Section 2: Complicate it. The first twist. Something the viewer didn't expect.
+Section 3+: The turning point. The biggest revelation. The moment everything changes.
+Final section: The aftermath and meaning. Why does this story matter RIGHT NOW in 2026?
 
 PACING RULES:
-- Vary sentence length deliberately. Short. Then a longer one that builds momentum and takes the viewer somewhere unexpected before landing.
+- Vary sentence length deliberately. Short. Then a longer one that builds momentum and carries the viewer somewhere unexpected before landing hard.
 - Use white space (blank lines) to create pause and breath
 - Every 60-90 seconds: shift location, introduce someone new, or reveal a twist
 
-MIDDLE HOOK (at ~40% mark):
-The biggest revelation or twist in the video. This is the moment that makes someone say "wait, what?"
-Natural subscribe mention here.
+SUBSCRIBE CTA — MANDATORY at ~40% mark:
+This is NON-NEGOTIABLE. Must appear. Natural only — never forced.
+Example: "Stories like this one don't make it into history books. Subscribe so you catch the next one."
+Example: "If you want to know how this ends — and trust me, you do — make sure you're subscribed."
+DO NOT SKIP THIS.
+
+MODERN RELEVANCE — MANDATORY in closing:
+The final section must connect this story to TODAY. Why does it matter to someone watching in 2026?
+What can the viewer take from this? What does it say about the world they're living in right now?
+One paragraph minimum. This is what separates a good video from a great one.
 
 CLOSE (final 60-90 seconds):
 - The emotional payoff — what this story ultimately means
-- A final image or thought that stays with the viewer
+- The modern connection — why this still matters today
+- A final image or thought that the viewer will still be thinking about tomorrow
 - CTA if provided
 
 ═══ VISUAL WRITING RULES ═══
@@ -321,8 +363,15 @@ Bad: "He was determined to succeed."
 
 ${UNIVERSAL_VOICE_RULES}
 
-WORD COUNT: Write ${minWords}–${maxWords} words. Target exactly ${targetWords} words.
-This video is ${duration} minutes at ~130 words per minute.
+WORD COUNT — CRITICAL:
+Target: ${targetWords} words (${duration} minutes × 130 words per minute)
+Minimum: ${minWords} words — going below this is a FAILURE
+Maximum: ${maxWords} words
+
+IMPORTANT: Most scripts run short because scenes aren't fully developed.
+Fight this tendency. Let scenes breathe. Give characters depth. Let revelations land properly.
+If you finish a section in 3 sentences, it needs more. Develop it.
+A ${duration}-minute video needs ${targetWords} words. Count carefully before finishing.
 
 Write the complete script now. No preamble — just start with the first word of the hook.`;
 }
