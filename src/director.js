@@ -516,7 +516,7 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
     );
 
     // Enforce plan with persistent global counts
-    const result = enforcePlan(chunkClips, windowChunk, planChunk, scriptText, globalTypeCounts, globalAnimIdx, globalInfraIdx, nicheInfo);
+    const result = enforcePlan(chunkClips, windowChunk, planChunk, scriptText, globalTypeCounts, globalAnimIdx, globalInfraIdx, nicheInfo, videoBible);
     allClips.push(...result.clips);
     globalAnimIdx = result.animIdx;
     globalInfraIdx = result.infraIdx;
@@ -533,7 +533,7 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
 // ─── ENFORCE PLAN ────────────────────────────────────────────────────────────
 // Pass 2 often ignores the plan and returns stock for everything.
 // This re-injects planned animation/infographic with auto-generated data.
-function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, animRotationIdx = 0, infraRotationIdx = 0, nicheInfo = {}) {
+function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, animRotationIdx = 0, infraRotationIdx = 0, nicheInfo = {}, videoBible = {}) {
   const maxPerType = 3; // max per type before rotating to next
 
   // Rotation pools for variety
@@ -1660,6 +1660,17 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
     }
   });
 
+  // ── HARDCODED HISTORY BANS — catches components Claude assigns in failed chunks ──
+  if (nicheInfo?.niche === "history" || (videoBible?.era && videoBible.era !== "modern" && videoBible.era !== "timeless")) {
+    const HISTORY_BANNED = { "money_counter": "count_up", "stock_ticker": "typewriter_reveal", "roi_calculator": "count_up", "candlestick_chart": "typewriter_reveal", "portfolio_breakdown": "typewriter_reveal", "reaction_face": "typewriter_reveal", "tweet_card": "typewriter_reveal", "instagram_post": "typewriter_reveal", "youtube_card": "typewriter_reveal", "phone_screen": "typewriter_reveal", "google_search": "typewriter_reveal", "social_counter": "count_up", "reddit_post": "typewriter_reveal", "loading_bar": "count_up", "score_card": "typewriter_reveal", "alert_banner": "typewriter_reveal" };
+    allClips.forEach(clip => {
+      if (HISTORY_BANNED[clip.visual_type]) {
+        clip.visual_type = HISTORY_BANNED[clip.visual_type];
+        clip.animation_data = null; clip.chart_data = null;
+      }
+    });
+  }
+
   // ── BANNED COMPONENTS: enforce videoBible banned list in post-processing ──
   // Claude sometimes ignores banned_components in the prompt — catch them here
   if (videoBible?.banned_components?.length) {
@@ -1721,7 +1732,7 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
   {
     const HOOK_END = 15.0;
     const MAX_HOOK_DUR = 2.5;
-    const splitableTypes = new Set(["stock", "ai_image"]);
+    const splitableTypes = new Set(["stock", "ai_image", "typewriter_reveal", "kinetic_text", "neon_sign", "count_up", "big_number"]);
     const isHistorical = videoBible?.era && videoBible.era !== "modern";
     const eraSpec = videoBible?.era_specific || "";
     const hookFallbacks = nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general;
@@ -1735,7 +1746,7 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
         const mid = clip.start_time + dur / 2;
         hookedClips.push({ ...clip, end_time: mid });
         const second = { ...clip, start_time: mid };
-        if (clip.visual_type === "ai_image" && isHistorical) {
+        if ((clip.visual_type === "ai_image" || !splitableTypes.has(clip.visual_type) || ["typewriter_reveal","kinetic_text","neon_sign","count_up","big_number"].includes(clip.visual_type)) && isHistorical) {
           const prompts = [
             `${eraSpec} dramatic battle scene, soldiers clashing, epic cinematic`,
             `${eraSpec} ancient city burning, smoke and fire, dramatic`,
