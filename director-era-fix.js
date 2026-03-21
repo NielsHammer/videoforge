@@ -527,7 +527,7 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
   let finalClips = applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, videoBible);
 
   console.log(chalk.gray(`  Storyboard: ${finalClips.length} clips`));
-  return finalClips;
+  return { clips: finalClips, videoBible };
 }
 
 
