@@ -19,6 +19,7 @@ const VOICE_MAP = {
   cedric:           "BQOei2tk6QCBMHQWPhbj",
   daniel:           "9fHP3GqJWwJmIbYQwQ1V",
   casey:            "mKoqwDP2laxTdq1gEgU6",
+  matt_par:         "yr43K8H5LoTp6S1QFSGg",
   aaron:            "3DR8c2yd30eztg65o4jV",
   charles:          "S9GPGBaMND8XWwwzxQXp",
   ray:              "Uh6UEmMIUnnL0GOOUghh",
@@ -28,6 +29,10 @@ const VOICE_MAP = {
   king_chuku:       "XALcFq0WF65uNKzmpcZW",
   frederick:        "j9jfwdrw7BRfcR43Qohk",
   // Female voices
+  christina:        "BuaKXS4Sv1Mccaw3flfU",
+  tanya:            "Bwff1jnzl1s94AEcntUq",
+  belle:            "cNYrMw9glwJZXR8RwbuR",
+  casey_female:     "WzsP0bfiCpSDfNgLrUuN",
   jessica:          "cgSgspJ2msm6clMCkdW9",
   charlotte:        "XB0fDUnXU5powFXDhCwa",
   alice:            "Xb7hH8MSUJpSbSDYk0k2",
@@ -36,6 +41,7 @@ const VOICE_MAP = {
 
 // Voice metadata for order form display + auto-selection
 export const VOICE_CATALOG = [
+  { id: "matt_par",    voiceId: "yr43K8H5LoTp6S1QFSGg", name: "Matt Par",         description: "Bold, natural, high-energy. Best performing voice.",           style: "all",          gender: "male",   accent: "american" },
   { id: "heisenberg",   voiceId: "iEBOK9alpKauGRvBSsFi", name: "Heisenberg",               description: "Polished, clear, cinematic. Deep resonance with authority.",       style: "authority",     gender: "male",   accent: "american" },
   { id: "brian_nguyen",  voiceId: "bP8FJDHmWVEgXJDitdQd", name: "Brian Nguyen",             description: "Balanced, wise, calm. Young American-Asian male.",                style: "calm",          gender: "male",   accent: "american" },
   { id: "drew",          voiceId: "q0IMILNRPxOgtBTS4taI", name: "Drew",                      description: "Casual, curious, fun. Perfect for food, travel, lifestyle.",      style: "casual",        gender: "male",   accent: "american" },
@@ -53,6 +59,10 @@ export const VOICE_CATALOG = [
   { id: "king_chuku",    voiceId: "XALcFq0WF65uNKzmpcZW", name: "King Chuku",               description: "Deep, powerful, stoic. Perfect for speeches & motivation.",        style: "motivational",  gender: "male",   accent: "american" },
   { id: "frederick",     voiceId: "j9jfwdrw7BRfcR43Qohk", name: "Frederick Surrey",         description: "Professional British narrator. Nature, science, mystery.",         style: "documentary",   gender: "male",   accent: "british" },
   // Female voices
+  { id: "christina",     voiceId: "BuaKXS4Sv1Mccaw3flfU", name: "Christina",              description: "Energetic, commercial, upbeat. Lifestyle & business.",            style: "lifestyle",     gender: "female", accent: "american" },
+  { id: "tanya",         voiceId: "Bwff1jnzl1s94AEcntUq", name: "Tanya",                  description: "Upbeat, expressive, energetic. Entertainment & social media.",      style: "entertainment", gender: "female", accent: "american" },
+  { id: "belle",         voiceId: "cNYrMw9glwJZXR8RwbuR", name: "Belle",                  description: "Warm, empathetic, friendly. Health, wellness, parenting.",           style: "calm",          gender: "female", accent: "american" },
+  { id: "casey_female",  voiceId: "WzsP0bfiCpSDfNgLrUuN", name: "Casey (Female)",         description: "Clean, crisp, friendly. Education & general purpose.",               style: "educational",   gender: "female", accent: "american" },
   { id: "jessica",       voiceId: "cgSgspJ2msm6clMCkdW9", name: "Jessica",                   description: "Warm, expressive, conversational. Great for lifestyle & wellness.",  style: "lifestyle",     gender: "female", accent: "american" },
   { id: "charlotte",     voiceId: "XB0fDUnXU5powFXDhCwa", name: "Charlotte",                 description: "Seductive, confident, clear. Luxury, fashion, premium content.",      style: "luxury",        gender: "female", accent: "british" },
   { id: "alice",         voiceId: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice",                     description: "Professional, authoritative, news anchor tone. Finance & business.",  style: "authority",     gender: "female", accent: "british" },
@@ -84,14 +94,15 @@ const STYLE_VOICES = {
   calm:          { primary: "australian",    backup: "brian_nguyen" },
   storytelling:  { primary: "archer",        backup: "frank" },
   social_media:  { primary: "charles",       backup: "drew" },
-  default:       { primary: "heisenberg",    backup: "daniel" },
+  default:       { primary: "matt_par",      backup: "heisenberg" },
   // Female-specific styles
   wellness:      { primary: "sarah",          backup: "jessica" },
   parenting:     { primary: "sarah",          backup: "jessica" },
   fashion:       { primary: "charlotte",      backup: "jessica" },
   beauty:        { primary: "jessica",        backup: "charlotte" },
   female_finance:{ primary: "alice",          backup: "charlotte" },
-  insurance:     { primary: "sarah",          backup: "alice" },
+  insurance:     { primary: "belle",          backup: "casey_female" },
+  female:        { primary: "christina",      backup: "tanya" },
   meditation:    { primary: "sarah",          backup: "australian" },
   creator:       { primary: "jessica",        backup: "charles" },
 };
