@@ -457,6 +457,25 @@ async function recoverStuckOrders() {
     } else {
       log('  No stuck orders found.');
     }
+
+    // Auto-requeue failed orders — max 3 attempts, 10 min cooldown between tries
+    const { data: failedOrders } = await supabase
+      .from('orders')
+      .select('id, topic, updated_at, retry_count')
+      .eq('status', 'failed');
+    if (failedOrders && failedOrders.length > 0) {
+      for (const o of failedOrders) {
+        const failedMs = Date.now() - new Date(o.updated_at).getTime();
+        if (failedMs < 10 * 60 * 1000) continue;
+        const retries = o.retry_count || 0;
+        if (retries >= 3) continue;
+        deleteOutputFolder(o.id);
+        await supabase.from('orders')
+          .update({ status: 'queued', video_url: null, thumbnail_url: null, output_dir: null, retry_count: retries + 1 })
+          .eq('id', o.id);
+        log(`  Auto-requeued failed order: "${o.topic}" (attempt ${retries + 1}/3)`);
+      }
+    }
   } catch (err) {
     log(`Recovery error: ${err.message}`);
   }
