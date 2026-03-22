@@ -342,7 +342,7 @@ export async function generateVideo(scriptPath, options) {
 
   const markImageUsed = (filePath) => {
     if (!filePath) return;
-    markImageUsed(filePath);
+    usedImagePaths.add(filePath);
     const hash = getImageFingerprint(filePath);
     if (hash) usedImageHashes.add(hash);
   };
