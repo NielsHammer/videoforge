@@ -101,7 +101,10 @@ function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
     }
 
     const startTime = filteredTimestamps[startWordIdx]?.start ?? 0;
-    const endTime = filteredTimestamps[endWordIdx]?.end ?? startTime + 2;
+    const rawEndTime = filteredTimestamps[endWordIdx]?.end ?? startTime + 2;
+    // FIX E: +300ms to account for ElevenLabs trailing audio after last word timestamp.
+    // Without this, last syllable of narration plays over the next visual.
+    const endTime = rawEndTime + 0.3;
 
     if (endTime > startTime + 0.3) {
       sentences.push({
@@ -1115,7 +1118,7 @@ async function directClipWindows(windows, planChunk, scriptText, isFirst, isLast
 
     const content = response.data.content[0].text;
     let clips = parseClipsJSON(content);
-    clips = validateAndSyncClips(clips, windows, nicheInfo);
+    clips = validateAndSyncClips(clips, windows, nicheInfo, videoBible);
     return clips;
   } catch (e) {
     console.log(chalk.yellow(`  Pass 2 chunk failed (${e.message}) — using plan-based fallback`));
@@ -1282,7 +1285,7 @@ function parseClipsJSON(content) {
 }
 
 // ─── VALIDATE AND SYNC CLIPS TO WINDOWS ──────────────────────────────────────
-function validateAndSyncClips(clips, windows, nicheInfo) {
+function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
   if (!Array.isArray(clips)) return windows.map(w => makeStockClip(w, nicheInfo));
 
   const isHorror = nicheInfo?.niche === "horror" || nicheInfo?.niche === "true_crime";
@@ -1351,6 +1354,9 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
     clip.start_time = window.start;
     clip.end_time = window.end;
     clip.subtitle_words = [];
+    // FIX A: carry the narrated sentence onto every clip object.
+    // Without this, craftAIPrompt, stock-run-breaker, and kinetic text all get undefined.
+    if (window.text && !clip.text) clip.text = window.text;
 
     if (!validTypes.includes(clip.visual_type)) clip.visual_type = "stock";
 
@@ -1554,6 +1560,17 @@ function validateAndSyncClips(clips, windows, nicheInfo) {
     }
     if (q.length < 3) {
       q = (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[i % 5];
+    }
+    // FIX F3: For historical eras, prepend the era prefix to every stock search query.
+    // Root cause: "doctor" → modern Pexels/Brave result in a Roman Empire video.
+    // The pipeline's Brave route adds the prefix at fetch time but the stored query is era-blind.
+    // Fix it here so the query is correct for ALL downstream uses.
+    {
+      const eraPrefix = videoBible?.image_search_prefix || "";
+      const isHistEra = videoBible?.era && videoBible.era !== "modern" && videoBible.era !== "timeless" && videoBible.era !== "";
+      if (isHistEra && eraPrefix && !q.startsWith(eraPrefix.toLowerCase())) {
+        q = `${eraPrefix.toLowerCase()} ${q}`.trim().slice(0, 100);
+      }
     }
     clip.search_query = q;
 

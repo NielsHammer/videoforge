@@ -28,22 +28,21 @@ function fixImageRotation(imagePath) {
   } catch {}
 }
 
-// Extract the sentence being narrated at clipStart..clipEnd.
-// Splits script into sentences, uses clip's proportional position in video to find the right one.
-function extractNarratedSentence(scriptText, clipStart, clipEnd, totalDuration) {
-  if (!scriptText || !totalDuration) return "";
-  const sentences = scriptText
-    .replace(/<[^>]+>/g, " ")
-    .split(/(?<=[.!?])\s+/)
-    .map(s => s.trim())
-    .filter(s => s.length > 10);
-  if (sentences.length === 0) return "";
-  // Map clip time to sentence index proportionally
-  const startRatio = Math.max(0, clipStart / totalDuration);
-  const endRatio = Math.min(1, clipEnd / totalDuration);
-  const startIdx = Math.floor(startRatio * sentences.length);
-  const endIdx = Math.min(Math.ceil(endRatio * sentences.length), sentences.length - 1);
-  return sentences.slice(Math.max(0, startIdx), endIdx + 1).join(" ").slice(0, 250);
+// FIX B: Exact word timestamp lookup — replaces proportional estimation.
+// wordTimestamps = [{word, start, end}, ...] from ElevenLabs — exact timing per word.
+function extractNarratedSentence(wordTimestamps, clipStart, clipEnd) {
+  if (!wordTimestamps || wordTimestamps.length === 0) return "";
+  const start = Math.max(0, clipStart - 0.1);
+  const end = clipEnd + 0.3;
+  const wordsInWindow = wordTimestamps.filter(w => w.start >= start && w.start <= end);
+  if (wordsInWindow.length === 0) {
+    // Nothing found — use closest words within 3 seconds
+    const closest = wordTimestamps
+      .filter(w => Math.abs(w.start - clipStart) < 3.0)
+      .slice(0, 15);
+    return closest.map(w => w.word).join(" ").trim();
+  }
+  return wordsInWindow.map(w => w.word).join(" ").trim().slice(0, 250);
 }
 
 async function craftAIPrompt(basicPrompt, clip, scriptText, eraContext = "", totalDuration = 0) {
@@ -368,6 +367,44 @@ export async function generateVideo(scriptPath, options) {
       clip.visual_type = clip.visual_type === 'ai_image' ? 'ai_image' : 'stock';
     }
 
+    // FIX D: If stock query is < 3 words, it's too vague — rebuild from narrated sentence.
+    // "doctor" → "doctor examining patient reviewing red meat nutrition study, medical office"
+    // Only fires for stock clips with vague queries — targeted, not every clip.
+    if (
+      clip.visual_type === "stock" &&
+      clip.text &&
+      (clip.search_query || "").split(/\s+/).filter(Boolean).length < 3
+    ) {
+      try {
+        const qResp = await axios.post(
+          "https://api.anthropic.com/v1/messages",
+          {
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 60,
+            messages: [{
+              role: "user",
+              content: `Narrator says: "${clip.text.slice(0, 150)}"
+${(isHistoricalEra && videoBible.era_specific) ? `ERA: ${videoBible.era_specific} — period-accurate only, no modern elements` : ""}
+
+Write a 5-8 word image search query showing what a viewer SEES while hearing this.
+Be specific about the scene, not just the subject.
+Good: "ancient roman senate debate marble columns dramatic" (not "roman")
+Good: "doctor reviewing nutrition research red meat study" (not "doctor")
+Good: "woman eating steak restaurant satisfied expression" (not "food")
+Return ONLY the search query.`
+            }],
+          },
+          { headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" }, timeout: 8000 }
+        );
+        const newQ = qResp.data.content[0].text.trim().replace(/['"]/g, "").slice(0, 100);
+        if (newQ.split(/\s+/).length >= 3) {
+          clip.search_query = (isHistoricalEra && imagePrefix)
+            ? `${imagePrefix} ${newQ}`
+            : newQ;
+        }
+      } catch { /* keep original query if this fails */ }
+    }
+
     const s = ora(`Clip ${i + 1}: "${clip.search_query || clip.ai_prompt || ''}"...`).start();
     const baseName = `clip-${i + 1}`;
     const photoPath = path.join(assetsDir, `${baseName}.jpg`);
@@ -382,9 +419,13 @@ export async function generateVideo(scriptPath, options) {
       }
 
       // Route 0.5: web_image → Brave search (always fresh, no cache)
+      // FIX C: Apply era prefix here too — previously missing, allowed modern images in historical videos.
       if (clip.visual_type === "web_image" && clip.search_query && webImageAvailable) {
         try {
-          await searchWebImage(clip.search_query, webPath, clip);
+          const webQuery05 = (isHistoricalEra && imagePrefix)
+            ? `${imagePrefix} ${clip.search_query}`
+            : clip.search_query;
+          await searchWebImage(webQuery05, webPath, { ...clip, era: videoBible.era_specific });
           if (isValidImageFile(webPath) && !isImageDuplicate(webPath)) {
             fixImageRotation(webPath);
             clip.imagePath = webPath;
@@ -420,7 +461,7 @@ export async function generateVideo(scriptPath, options) {
             clip,
             scriptText,
             videoBible.era_specific || videoEra,
-            totalDuration
+            wordTimestamps
           );
           await generateAIImage(detailedPrompt, aiPath);
           if (isValidImageFile(aiPath)) {
@@ -439,7 +480,7 @@ export async function generateVideo(scriptPath, options) {
 
       // Route 1: ai_image → Claude refines prompt → Fal.ai (always fresh)
       if (clip.visual_type === "ai_image" && clip.ai_prompt) {
-        const detailedPrompt = await craftAIPrompt(clip.ai_prompt, clip, scriptText, videoBible.era_specific || videoEra, totalDuration);
+        const detailedPrompt = await craftAIPrompt(clip.ai_prompt, clip, scriptText, videoBible.era_specific || videoEra, wordTimestamps);
         await generateAIImage(detailedPrompt, aiPath);
         fixImageRotation(aiPath);
         clip.imagePath = aiPath;
@@ -506,7 +547,7 @@ export async function generateVideo(scriptPath, options) {
         const basePrompt = isHistoricalEra
           ? `${videoBible.era_specific || videoEra} historical scene: ${clip.search_query || "ancient scene"}. Period-accurate, no modern elements, cinematic, dramatic lighting, painterly quality.`
           : clip.search_query || "professional scene";
-        const detailedPrompt = await craftAIPrompt(basePrompt, clip, scriptText, videoBible.era_specific || videoEra, totalDuration);
+        const detailedPrompt = await craftAIPrompt(basePrompt, clip, scriptText, videoBible.era_specific || videoEra, wordTimestamps);
         await generateAIImage(detailedPrompt, aiPath);
         fixImageRotation(aiPath);
         clip.imagePath = aiPath;
