@@ -28,19 +28,44 @@ function fixImageRotation(imagePath) {
   } catch {}
 }
 
-async function craftAIPrompt(basicPrompt, clip, scriptText, eraContext = "") {
-  try {
-    const clipStart = clip.start_time || 0;
-    const clipEnd = clip.end_time || clipStart + 3;
-    const isHistorical = eraContext && eraContext !== "modern" && eraContext !== "";
-    const styleGuide = isHistorical
-      ? `- Style: epic historical painting meets cinematic photography, period-accurate, dramatic chiaroscuro lighting, 16:9 aspect ratio
-- CRITICAL: No modern elements whatsoever — no contemporary clothing, no gym equipment, no smartphones, no modern architecture
+// Extract the sentence being narrated at clipStart..clipEnd.
+// Splits script into sentences, uses clip's proportional position in video to find the right one.
+function extractNarratedSentence(scriptText, clipStart, clipEnd, totalDuration) {
+  if (!scriptText || !totalDuration) return "";
+  const sentences = scriptText
+    .replace(/<[^>]+>/g, " ")
+    .split(/(?<=[.!?])\s+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 10);
+  if (sentences.length === 0) return "";
+  // Map clip time to sentence index proportionally
+  const startRatio = Math.max(0, clipStart / totalDuration);
+  const endRatio = Math.min(1, clipEnd / totalDuration);
+  const startIdx = Math.floor(startRatio * sentences.length);
+  const endIdx = Math.min(Math.ceil(endRatio * sentences.length), sentences.length - 1);
+  return sentences.slice(Math.max(0, startIdx), endIdx + 1).join(" ").slice(0, 250);
+}
+
+async function craftAIPrompt(basicPrompt, clip, scriptText, eraContext = "", totalDuration = 0) {
+  // Extract what the narrator is actually saying at this clip's timestamp
+  const clipStart = clip.start_time || 0;
+  const clipEnd = clip.end_time || clipStart + 3;
+  const isHistorical = eraContext && eraContext !== "modern" && eraContext !== "";
+
+  // FIXED Bug 1: get the specific sentence being narrated here, not the generic search_query.
+  // Before: every clip got "ancient roman empire scene: ancient roman ruins" → same image.
+  // After: each clip gets the actual narrator sentence → specific, varied prompts.
+  const narratedSentence = extractNarratedSentence(scriptText, clipStart, clipEnd, totalDuration);
+
+  const styleGuide = isHistorical
+    ? `- Style: epic historical painting meets cinematic photography, period-accurate, dramatic chiaroscuro lighting, 16:9 aspect ratio
+- CRITICAL: No modern elements — no contemporary clothing, no gym equipment, no smartphones, no modern architecture
 - Include: period-accurate costumes, ancient/medieval settings, historically accurate details
 - Mood: cinematic, epic, like a scene from Gladiator or Kingdom of Heaven`
-      : `- Style: photorealistic, cinematic, 16:9 aspect ratio
+    : `- Style: photorealistic, cinematic, 16:9 aspect ratio
 - Always include "high quality, sharp focus, professional photography"`;
 
+  try {
     const response = await axios.post(
       "https://api.anthropic.com/v1/messages",
       {
@@ -48,24 +73,25 @@ async function craftAIPrompt(basicPrompt, clip, scriptText, eraContext = "") {
         max_tokens: 200,
         messages: [{
           role: "user",
-          content: `You are an expert at writing prompts for AI image generation (Flux model).
+          content: `You are an expert at writing Flux image generation prompts for YouTube videos.
 
-Given this context from a video script, write ONE detailed image generation prompt (30-50 words) that would create the perfect visual for this moment.
-${isHistorical ? `
-ERA CONTEXT: ${eraContext} — ALL visuals must be period-accurate. This is non-negotiable.
-` : ""}
-Basic concept: "${basicPrompt}"
-Script excerpt (nearby context): "${scriptText.slice(0, 500)}"
-Clip timing: ${clipStart.toFixed(1)}s - ${clipEnd.toFixed(1)}s
+The narrator is saying: "${narratedSentence || basicPrompt}"
+${isHistorical ? `ERA: ${eraContext} — period-accurate visuals only. No modern elements ever.` : ""}
+
+Write ONE image prompt (30-50 words) showing what a viewer should SEE while hearing that sentence.
+Be SPECIFIC to what the narrator describes — not a generic era establishing shot.
+Every clip in this video must look DIFFERENT — vary subject, angle, and focus.
+
+WRONG (too generic): "Ancient Roman empire gate with soldiers, cinematic"
+RIGHT (specific): "Fourteen-year-old boy on oversized golden throne, Germanic warriors visible in archway, dramatic low-angle shot"
 
 Rules:
-- Describe a specific, concrete scene (not abstract concepts)
-- Include: subject, setting, lighting, camera angle, mood
+- Show exactly what narrator describes
+- Include: specific subject, setting, lighting, camera angle
 ${styleGuide}
-- NO text or words in the image
-- NO watermarks or logos
+- NO text or watermarks in image
 
-Return ONLY the prompt, nothing else.`
+Return ONLY the prompt.`
         }]
       },
       {
@@ -79,7 +105,10 @@ Return ONLY the prompt, nothing else.`
     );
     return response.data.content[0].text.trim();
   } catch {
-    return `${basicPrompt}, cinematic lighting, photorealistic, 16:9 aspect ratio, professional photography, high quality, sharp focus, dark moody background`;
+    const fallback = narratedSentence
+      ? `${eraContext ? eraContext + ": " : ""}${narratedSentence.slice(0, 80)}, cinematic, 16:9`
+      : `${basicPrompt}, cinematic lighting, photorealistic, 16:9`;
+    return fallback;
   }
 }
 
@@ -290,8 +319,34 @@ export async function generateVideo(scriptPath, options) {
     console.log(chalk.gray("  🌐 Web Image Search enabled (Brave)"));
   }
 
-  // Track used image paths within THIS video to prevent same image appearing twice
+  // Track used images by path AND content fingerprint to catch all duplicates.
+  // Path-only misses: same image URL downloaded twice to different filenames.
   const usedImagePaths = new Set();
+  const usedImageHashes = new Set();
+
+  const getImageFingerprint = (filePath) => {
+    try {
+      const fd = fs.openSync(filePath, 'r');
+      const buf = Buffer.alloc(4096);
+      const bytesRead = fs.readSync(fd, buf, 0, 4096, 0);
+      fs.closeSync(fd);
+      return buf.slice(0, bytesRead).toString('hex');
+    } catch { return null; }
+  };
+
+  const isImageDuplicate = (filePath) => {
+    if (!filePath) return false;
+    if (usedImagePaths.has(filePath)) return true;
+    const hash = getImageFingerprint(filePath);
+    return !!(hash && usedImageHashes.has(hash));
+  };
+
+  const markImageUsed = (filePath) => {
+    if (!filePath) return;
+    markImageUsed(filePath);
+    const hash = getImageFingerprint(filePath);
+    if (hash) usedImageHashes.add(hash);
+  };
 
   for (let i = 0; i < clips.length; i++) {
     const clip = clips[i];
@@ -319,9 +374,6 @@ export async function generateVideo(scriptPath, options) {
     const aiPath = path.join(assetsDir, `${baseName}-ai.jpg`);
     const webPath = path.join(assetsDir, `${baseName}-web.jpg`);
 
-    // Helper: check if an image path was already used in this video
-    const isAlreadyUsed = (p) => p && usedImagePaths.has(p);
-
     try {
       // Route 0: web_screenshot → treat as web_image
       if (clip.visual_type === "web_screenshot") {
@@ -333,11 +385,11 @@ export async function generateVideo(scriptPath, options) {
       if (clip.visual_type === "web_image" && clip.search_query && webImageAvailable) {
         try {
           await searchWebImage(clip.search_query, webPath, clip);
-          if (isValidImageFile(webPath) && !isAlreadyUsed(webPath)) {
+          if (isValidImageFile(webPath) && !isImageDuplicate(webPath)) {
             fixImageRotation(webPath);
             clip.imagePath = webPath;
             clip.isCutout = false;
-            usedImagePaths.add(webPath);
+            markImageUsed(webPath);
             // Multi-image b-roll for web images
             if (clip.search_queries && clip.search_queries.length > 1) {
               clip.imagePaths = [webPath];
@@ -367,7 +419,8 @@ export async function generateVideo(scriptPath, options) {
               : `Photorealistic photograph related to: ${clip.search_query}. Editorial style, high resolution.`,
             clip,
             scriptText,
-            videoBible.era_specific || videoEra
+            videoBible.era_specific || videoEra,
+            totalDuration
           );
           await generateAIImage(detailedPrompt, aiPath);
           if (isValidImageFile(aiPath)) {
@@ -375,7 +428,7 @@ export async function generateVideo(scriptPath, options) {
             clip.imagePath = aiPath;
             clip.isCutout = false;
             clip.visual_type = "ai_image";
-            usedImagePaths.add(aiPath);
+            markImageUsed(aiPath);
             s.succeed(`Clip ${i + 1}: AI 🎨 (web fallback) ${clip.display_style}`);
             continue;
           }
@@ -386,12 +439,12 @@ export async function generateVideo(scriptPath, options) {
 
       // Route 1: ai_image → Claude refines prompt → Fal.ai (always fresh)
       if (clip.visual_type === "ai_image" && clip.ai_prompt) {
-        const detailedPrompt = await craftAIPrompt(clip.ai_prompt, clip, scriptText, videoBible.era_specific || videoEra);
+        const detailedPrompt = await craftAIPrompt(clip.ai_prompt, clip, scriptText, videoBible.era_specific || videoEra, totalDuration);
         await generateAIImage(detailedPrompt, aiPath);
         fixImageRotation(aiPath);
         clip.imagePath = aiPath;
         clip.isCutout = false;
-        usedImagePaths.add(aiPath);
+        markImageUsed(aiPath);
         s.succeed(`Clip ${i + 1}: AI 🎨 ${clip.display_style}`);
         continue;
       }
@@ -402,12 +455,12 @@ export async function generateVideo(scriptPath, options) {
         try {
           await fetchPhoto(clip.search_query, photoPath);
           if (isValidImageFile(photoPath)) {
-            if (!isAlreadyUsed(photoPath)) {
+            if (!isImageDuplicate(photoPath)) {
               fixImageRotation(photoPath);
               clip.imagePath = photoPath;
               clip.isCutout = false;
               pexelsOk = true;
-              usedImagePaths.add(photoPath);
+              markImageUsed(photoPath);
               // Multi-image b-roll: fetch additional search_queries if provided
               if (clip.search_queries && clip.search_queries.length > 1) {
                 clip.imagePaths = [photoPath];
@@ -432,14 +485,14 @@ export async function generateVideo(scriptPath, options) {
         if (webImageAvailable) {
           try {
             await searchWebImage(historicalQuery, webPath, { ...clip, era: videoBible.era_specific });
-            if (isValidImageFile(webPath) && !isAlreadyUsed(webPath)) {
+            if (isValidImageFile(webPath) && !isImageDuplicate(webPath)) {
               const eraOk = await isImageEraAppropriate(webPath, historicalQuery, videoEra, videoBible.era_specific);
               if (eraOk) {
                 fixImageRotation(webPath);
                 clip.imagePath = webPath;
                 clip.isCutout = false;
                 pexelsOk = true;
-                usedImagePaths.add(webPath);
+                markImageUsed(webPath);
                 s.succeed(`Clip ${i + 1}: 🌐 historical web image ${clip.display_style}`);
               }
             }
@@ -453,13 +506,13 @@ export async function generateVideo(scriptPath, options) {
         const basePrompt = isHistoricalEra
           ? `${videoBible.era_specific || videoEra} historical scene: ${clip.search_query || "ancient scene"}. Period-accurate, no modern elements, cinematic, dramatic lighting, painterly quality.`
           : clip.search_query || "professional scene";
-        const detailedPrompt = await craftAIPrompt(basePrompt, clip, scriptText, videoBible.era_specific || videoEra);
+        const detailedPrompt = await craftAIPrompt(basePrompt, clip, scriptText, videoBible.era_specific || videoEra, totalDuration);
         await generateAIImage(detailedPrompt, aiPath);
         fixImageRotation(aiPath);
         clip.imagePath = aiPath;
         clip.isCutout = false;
         clip.visual_type = "ai_image";
-        usedImagePaths.add(aiPath);
+        markImageUsed(aiPath);
         s.succeed(`Clip ${i + 1}: AI fallback 🎨 ${clip.display_style}`);
       }
 
@@ -474,7 +527,7 @@ export async function generateVideo(scriptPath, options) {
         clip.imagePath = aiPath;
         clip.isCutout = false;
         clip.visual_type = "ai_image";
-        usedImagePaths.add(aiPath);
+        markImageUsed(aiPath);
         s.succeed(`Clip ${i + 1}: AI emergency 🎨`);
       } catch {
         clip.imagePath = null;

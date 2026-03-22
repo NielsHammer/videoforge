@@ -580,7 +580,7 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
     );
 
     // Enforce plan with persistent global counts
-    const result = enforcePlan(chunkClips, windowChunk, planChunk, scriptText, globalTypeCounts, globalAnimIdx, globalInfraIdx, nicheInfo);
+    const result = enforcePlan(chunkClips, windowChunk, planChunk, scriptText, globalTypeCounts, globalAnimIdx, globalInfraIdx, nicheInfo, videoBible);
     allClips.push(...result.clips);
     globalAnimIdx = result.animIdx;
     globalInfraIdx = result.infraIdx;
@@ -597,7 +597,7 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
 // ─── ENFORCE PLAN ────────────────────────────────────────────────────────────
 // Pass 2 often ignores the plan and returns stock for everything.
 // This re-injects planned animation/infographic with auto-generated data.
-function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, animRotationIdx = 0, infraRotationIdx = 0, nicheInfo = {}) {
+function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, animRotationIdx = 0, infraRotationIdx = 0, nicheInfo = {}, videoBible = {}) {
   const maxPerType = 3; // max per type before rotating to next
 
   // Rotation pools for variety
@@ -1821,20 +1821,39 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
     allClips.push(...hookedClips);
   }
 
-  // Break up runs of 3+ consecutive stock clips by inserting kinetic_text
+  // Break up runs of 3+ consecutive stock clips — FIXED: never use search_query words.
+  // Root cause of Bug 3/4: "ancient roman ruins" search_query → "ANCIENT ROMAN" kinetic_text
+  // on screen. Search queries are for image engines, NOT for displaying as text to viewers.
+  // Fix: vary display_style and image query instead. Only use kinetic_text if we have a real
+  // stored sentence from the script on the clip object.
   {
+    const ktStop = new Set(["the","and","but","for","with","this","that","have","from","they","their","your","you","was","are","were","has","had","not","can","will","would","could","should","what","when","where","how","why","who","which","been","being","than","then","into","just","more","most","some","such","even","also","very","show","means","nearly","about"]);
     let stockRun = 0;
     for (let i = 0; i < allClips.length; i++) {
       if (allClips[i].visual_type === "stock") {
         stockRun++;
         if (stockRun >= 3 && allClips[i].end_time - allClips[i].start_time >= 3.5) {
-          // Convert this stock clip to kinetic_text using its search_query words
-          const q = allClips[i].search_query || "";
-          const words = q.split(/\s+/).filter(w => w.length > 3 && !/^(and|the|for|with|from|into)$/.test(w)).slice(0, 2).map(w => w.toUpperCase());
-          if (words.length >= 2) {
+          // Only use kinetic_text if the clip has a real stored sentence (not a search query)
+          const sentText = allClips[i].sentence || allClips[i].text || "";
+          const isRealSentence = sentText.split(/\s+/).length > 5; // real sentences have 5+ words
+          const sentWords = sentText
+            .replace(/[^a-zA-Z\s]/g, " ").split(/\s+/)
+            .filter(w => w.length > 3 && !ktStop.has(w.toLowerCase()))
+            .slice(0, 2).map(w => w.toUpperCase());
+
+          if (isRealSentence && sentWords.length >= 2) {
+            // Real sentence words — safe to display on screen
             allClips[i].visual_type = "kinetic_text";
-            allClips[i].animation_data = { lines: words, style: "impact" };
+            allClips[i].animation_data = { lines: sentWords, style: "impact" };
             allClips[i].imagePath = null;
+            stockRun = 0;
+          } else {
+            // No sentence — just vary the image to break visual monotony
+            const niche = nicheInfo?.niche || "general";
+            const pool = nicheSafeQueries[niche] || nicheSafeQueries.general;
+            const altStyles = ["framed", "split_left", "split_right"];
+            allClips[i].search_query = pool[(i + stockRun) % pool.length];
+            allClips[i].display_style = altStyles[stockRun % altStyles.length];
             stockRun = 0;
           }
         }
