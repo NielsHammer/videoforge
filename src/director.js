@@ -89,14 +89,18 @@ function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
       }
     }
 
-    // Search for last word within sentence length + 8 buffer
+    // FIX 2: Search for last word with larger buffer (+20 instead of +8).
+    // Small buffer caused sync gaps on long sentences — real last word was outside search window.
+    // Also: take the LAST matching occurrence (scan backward from searchEnd), not the first.
+    // The last word of a sentence is near the end of the sentence in the timestamp stream.
     const lastWord = sentenceWords[sentenceWords.length - 1].toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 4);
     let endWordIdx = startWordIdx;
-    const searchEnd = Math.min(startWordIdx + sentenceWords.length + 8, filteredTimestamps.length);
+    const searchEnd = Math.min(startWordIdx + sentenceWords.length + 20, filteredTimestamps.length);
 
+    // Scan forward and keep the LAST match (most accurate end time)
     for (let i = startWordIdx; i < searchEnd; i++) {
       if (filteredTimestamps[i].word.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(lastWord)) {
-        endWordIdx = i;
+        endWordIdx = i; // keep updating — we want the last match
       }
     }
 

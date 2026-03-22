@@ -432,17 +432,28 @@ Return ONLY the search query.`
             clip.isCutout = false;
             markImageUsed(webPath);
             // Multi-image b-roll for web images
+            // FIX 1b: deduplicate Brave b-roll panels same as Pexels — prevents identical panels.
             if (clip.search_queries && clip.search_queries.length > 1) {
               clip.imagePaths = [webPath];
-              for (let qi = 1; qi < Math.min(clip.search_queries.length, 3); qi++) {
+              const panelHashesW = new Set([getImageFingerprint(webPath)].filter(Boolean));
+              for (let qi = 1; qi < Math.min(clip.search_queries.length, 4); qi++) {
                 const extraWebPath = path.join(assetsDir, `${baseName}-web-broll-${qi}.jpg`);
                 try {
-                  await searchWebImage(clip.search_queries[qi], extraWebPath, clip);
+                  const eraQ = (isHistoricalEra && imagePrefix)
+                    ? `${imagePrefix} ${clip.search_queries[qi]}`
+                    : clip.search_queries[qi];
+                  await searchWebImage(eraQ, extraWebPath, { ...clip, era: videoBible.era_specific });
                   if (isValidImageFile(extraWebPath)) {
+                    const hash = getImageFingerprint(extraWebPath);
+                    if (hash && panelHashesW.has(hash)) { try { fs.unlinkSync(extraWebPath); } catch {} continue; }
+                    if (isImageDuplicate(extraWebPath)) { try { fs.unlinkSync(extraWebPath); } catch {} continue; }
                     fixImageRotation(extraWebPath);
+                    panelHashesW.add(hash);
+                    markImageUsed(extraWebPath);
                     clip.imagePaths.push(extraWebPath);
                   }
                 } catch {}
+                if (clip.imagePaths.length >= 3) break;
               }
             }
             s.succeed(`Clip ${i + 1}: 🌐 web image ${clip.display_style}`);
@@ -503,17 +514,35 @@ Return ONLY the search query.`
               pexelsOk = true;
               markImageUsed(photoPath);
               // Multi-image b-roll: fetch additional search_queries if provided
+              // FIX 1a: deduplicate each panel image against all previous ones (path + content hash).
+              // Without this, two different queries can return the same Pexels photo → duplicate panels.
               if (clip.search_queries && clip.search_queries.length > 1) {
                 clip.imagePaths = [photoPath];
-                for (let qi = 1; qi < Math.min(clip.search_queries.length, 3); qi++) {
+                const panelHashes = new Set([getImageFingerprint(photoPath)].filter(Boolean));
+                for (let qi = 1; qi < Math.min(clip.search_queries.length, 4); qi++) {
                   const extraPath = path.join(assetsDir, `${baseName}-broll-${qi}.jpg`);
                   try {
                     await fetchPhoto(clip.search_queries[qi], extraPath);
                     if (isValidImageFile(extraPath)) {
+                      const hash = getImageFingerprint(extraPath);
+                      // Skip if same content as any panel already added
+                      if (hash && panelHashes.has(hash)) {
+                        fs.unlinkSync(extraPath);
+                        continue;
+                      }
+                      // Skip if same content as any image in this whole video
+                      if (isImageDuplicate(extraPath)) {
+                        fs.unlinkSync(extraPath);
+                        continue;
+                      }
                       fixImageRotation(extraPath);
+                      panelHashes.add(hash);
+                      markImageUsed(extraPath);
                       clip.imagePaths.push(extraPath);
                     }
                   } catch {}
+                  // Stop once we have 3 unique panels
+                  if (clip.imagePaths.length >= 3) break;
                 }
               }
               s.succeed(`Clip ${i + 1}: 📷 ${clip.display_style}${clip.imagePaths ? ` (b-roll: ${clip.imagePaths.length})` : ''}`);
@@ -586,11 +615,26 @@ Return ONLY the search query.`
   // Remove clips with null/invalid imagePath — these would crash Remotion
   // Also clean up b-roll imagePaths to remove any files that don't exist or are invalid
   const imageTypes = ['stock', 'ai_image', 'web_image', 'web_screenshot'];
-  // Clean up invalid b-roll paths
+  // Clean up invalid b-roll paths + enforce panel uniqueness by content hash
+  // FIX 1c: final deduplication pass on all imagePaths arrays.
+  // Catches any panels that slipped through with duplicate content.
   clips.forEach(clip => {
     if (clip.imagePaths) {
       clip.imagePaths = clip.imagePaths.filter(p => isValidImageFile(p));
-      if (clip.imagePaths.length === 0) clip.imagePaths = null;
+      if (clip.imagePaths.length === 0) {
+        clip.imagePaths = null;
+      } else if (clip.imagePaths.length > 1) {
+        // Deduplicate panels by content fingerprint
+        const seenHashes = new Set();
+        clip.imagePaths = clip.imagePaths.filter(p => {
+          const h = getImageFingerprint(p);
+          if (!h) return true; // can't fingerprint, keep it
+          if (seenHashes.has(h)) return false; // duplicate — remove
+          seenHashes.add(h);
+          return true;
+        });
+        if (clip.imagePaths.length === 0) clip.imagePaths = null;
+      }
     }
   });
   const badClips = clips.filter(clip => {
