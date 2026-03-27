@@ -45,7 +45,7 @@ function extractNarratedSentence(wordTimestamps, clipStart, clipEnd) {
   return wordsInWindow.map(w => w.word).join(" ").trim().slice(0, 250);
 }
 
-async function craftAIPrompt(basicPrompt, clip, scriptText, eraContext = "", totalDuration = 0, wordTimestamps = []) {
+async function craftAIPrompt(basicPrompt, clip, scriptText, eraContext = "", totalDuration = 0, wordTimestamps = [], videoTopic = "") {
   // Extract what the narrator is actually saying at this clip's timestamp
   const clipStart = clip.start_time || 0;
   const clipEnd = clip.end_time || clipStart + 3;
@@ -79,7 +79,7 @@ async function craftAIPrompt(basicPrompt, clip, scriptText, eraContext = "", tot
           role: "user",
           content: `You are a world-class cinematographer creating image prompts for a YouTube video. Match the visual style to the VIDEO TOPIC — never invent a different setting or era.
 
-VIDEO TOPIC CONTEXT: "${basicPrompt.slice(0, 120)}"
+VIDEO TOPIC: "${videoTopic || basicPrompt.slice(0, 120)}"
 NARRATOR SAYS: "${narratedSentence || basicPrompt}"
 ${isHistorical ? `ERA: ${eraContext} — period-accurate visuals ONLY. Zero modern elements whatsoever.` : topicIsModern ? `SETTING: Modern day. Use contemporary realistic imagery matching the topic. No ancient, medieval, Roman, Greek, or warrior imagery.` : /horror|scary|dark|paranormal|haunted|murder|crime|thriller/i.test(basicPrompt) ? `SETTING: Dark atmospheric modern world. Eerie, suspenseful, cinematic horror style. No ancient warrior imagery.` : `SETTING: Match the visual world of the topic. Contemporary unless the script explicitly describes a historical setting.`}
 
@@ -93,8 +93,10 @@ Think like a film director. Ask yourself:
 WRONG — literal and generic: "man hiding behind hedge at night"
 RIGHT — cinematic: "shadowy silhouette crouched low behind dense hedgerow, moonlight cutting through leaves casting dramatic shadows, extreme low angle, tense thriller atmosphere, shallow depth of field, film noir style"
 
-WRONG — wrong era for topic: generating Roman warriors for a gym video
-RIGHT — matches topic: "muscular athlete performing weighted squat in modern gym, dramatic side lighting highlighting muscle definition, low angle shot, sports photography style, shallow depth of field"
+WRONG — wrong era: Roman warriors for a gym video
+WRONG — clickbait: overdone bodybuilder posing dramatically  
+RIGHT — realistic: "ordinary person performing squat in local gym, natural overhead lighting, eye-level candid shot, documentary photography style, real gym environment"
+RIGHT — historical: "exhausted Roman soldier resting against stone wall, dust-covered armor, realistic portrait, candid documentary style"
 
 Rules:
 - Show the SPECIFIC action, exercise, object or scene the narrator describes — not a generic version
@@ -488,12 +490,13 @@ Return ONLY the search query.`
           const detailedPrompt = await craftAIPrompt(
             isHistoricalEra
               ? `${videoBible.era_specific || videoEra} historical scene: ${clip.search_query}. Period-accurate, cinematic.`
-              : `Photorealistic photograph related to: ${clip.search_query}. Editorial style, high resolution.`,
+              : `Photograph related to: ${clip.search_query}.`,
             clip,
             scriptText,
             videoBible.era_specific || videoEra,
             totalDuration,
-            wordTimestamps
+            wordTimestamps,
+            options.topic || ""
           );
           await generateAIImage(detailedPrompt, aiPath);
           if (isValidImageFile(aiPath)) {
@@ -512,7 +515,7 @@ Return ONLY the search query.`
 
       // Route 1: ai_image → Claude refines prompt → Fal.ai (always fresh)
       if (clip.visual_type === "ai_image" && clip.ai_prompt) {
-        const detailedPrompt = await craftAIPrompt(clip.ai_prompt, clip, scriptText, videoBible.era_specific || videoEra, totalDuration, wordTimestamps);
+        const detailedPrompt = await craftAIPrompt(clip.ai_prompt, clip, scriptText, videoBible.era_specific || videoEra, totalDuration, wordTimestamps, options.topic || "");
         await generateAIImage(detailedPrompt, aiPath);
         fixImageRotation(aiPath);
         clip.imagePath = aiPath;
@@ -597,7 +600,7 @@ Return ONLY the search query.`
         const basePrompt = isHistoricalEra
           ? `${videoBible.era_specific || videoEra} historical scene: ${clip.search_query || "ancient scene"}. Period-accurate, no modern elements, cinematic, dramatic lighting, painterly quality.`
           : clip.search_query || "professional scene";
-        const detailedPrompt = await craftAIPrompt(basePrompt, clip, scriptText, videoBible.era_specific || videoEra, totalDuration, wordTimestamps);
+        const detailedPrompt = await craftAIPrompt(basePrompt, clip, scriptText, videoBible.era_specific || videoEra, totalDuration, wordTimestamps, options.topic || "");
         await generateAIImage(detailedPrompt, aiPath);
         fixImageRotation(aiPath);
         clip.imagePath = aiPath;
@@ -611,8 +614,8 @@ Return ONLY the search query.`
       // Emergency fallback
       try {
         const emergency = isHistoricalEra
-          ? `${videoBible.era_specific || "historical"} scene: ${clip.search_query || "ancient scene"}, period-accurate, dramatic lighting, epic cinematic, no modern elements, 16:9`
-          : `Professional cinematic photograph, ${clip.search_query || "dramatic scene"}, clean modern aesthetic, dramatic lighting, 16:9, high quality`;
+          ? `${videoBible.era_specific || "historical"} ${clip.search_query || "historical scene"}, period-accurate, realistic, documentary style`
+          : `${clip.search_query || "scene"}, realistic documentary photography, natural lighting`;
         await generateAIImage(emergency, aiPath);
         fixImageRotation(aiPath);
         clip.imagePath = aiPath;
