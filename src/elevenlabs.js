@@ -299,11 +299,29 @@ export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath)
     const words = parseWordsFromAlignment(data, timeOffset);
     allWords.push(...words);
     // Use the last character end time for accurate offset (not word-based)
-    const lastCharEnd = data.alignment?.character_end_times_seconds;
-    const chunkDuration = lastCharEnd && lastCharEnd.length > 0
-      ? lastCharEnd[lastCharEnd.length - 1]
-      : (words.length > 0 ? words[words.length - 1].end - timeOffset : 0);
-    timeOffset += chunkDuration + 0.05;
+    // Write chunk to temp file immediately so we can probe actual audio duration
+    const tmpChunkPath = path.join(path.dirname(outputPath), `_probe_chunk_${i}.mp3`);
+    fs.writeFileSync(tmpChunkPath, buf);
+    let chunkDuration = 0;
+    try {
+      const probeOut = execSync(
+        `ffprobe -v quiet -print_format json -show_streams "${tmpChunkPath}"`,
+        { encoding: 'utf8', stdio: ['pipe','pipe','pipe'] }
+      );
+      const probeData = JSON.parse(probeOut);
+      const audioStream = probeData.streams.find(s => s.codec_type === 'audio');
+      if (audioStream?.duration) {
+        chunkDuration = parseFloat(audioStream.duration);
+      }
+    } catch(probeErr) {
+      // Fall back to character timestamps if probe fails
+      const lastCharEnd = data.alignment?.character_end_times_seconds;
+      chunkDuration = lastCharEnd && lastCharEnd.length > 0
+        ? lastCharEnd[lastCharEnd.length - 1]
+        : (words.length > 0 ? words[words.length - 1].end - timeOffset : 0);
+    }
+    try { fs.unlinkSync(tmpChunkPath); } catch(e) {}
+    timeOffset += chunkDuration;
   }
 
   // Write each chunk to temp file, then use FFmpeg to concat properly

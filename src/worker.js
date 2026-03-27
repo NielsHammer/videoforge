@@ -352,7 +352,7 @@ async function processOrder(order) {
     const baseUrl = `https://files.tubeautomate.com/output/${outputDirName}`;
     const thumbUrl = fs.existsSync(thumbFile) ? `${baseUrl}/thumbnail.png` : null;
 
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
     await supabase.from('orders').update({
       status: 'review',
       video_url: `${baseUrl}/final.mp4`,

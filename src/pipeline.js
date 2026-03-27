@@ -45,7 +45,7 @@ function extractNarratedSentence(wordTimestamps, clipStart, clipEnd) {
   return wordsInWindow.map(w => w.word).join(" ").trim().slice(0, 250);
 }
 
-async function craftAIPrompt(basicPrompt, clip, scriptText, eraContext = "", totalDuration = 0) {
+async function craftAIPrompt(basicPrompt, clip, scriptText, eraContext = "", totalDuration = 0, wordTimestamps = []) {
   // Extract what the narrator is actually saying at this clip's timestamp
   const clipStart = clip.start_time || 0;
   const clipEnd = clip.end_time || clipStart + 3;
@@ -54,7 +54,7 @@ async function craftAIPrompt(basicPrompt, clip, scriptText, eraContext = "", tot
   // FIXED Bug 1: get the specific sentence being narrated here, not the generic search_query.
   // Before: every clip got "ancient roman empire scene: ancient roman ruins" → same image.
   // After: each clip gets the actual narrator sentence → specific, varied prompts.
-  const narratedSentence = extractNarratedSentence(scriptText, clipStart, clipEnd, totalDuration);
+  const narratedSentence = extractNarratedSentence(wordTimestamps, clipStart, clipEnd);
 
   const styleGuide = isHistorical
     ? `- Style: epic historical painting meets cinematic photography, period-accurate, dramatic chiaroscuro lighting, 16:9 aspect ratio
@@ -491,7 +491,7 @@ Return ONLY the search query.`
 
       // Route 1: ai_image → Claude refines prompt → Fal.ai (always fresh)
       if (clip.visual_type === "ai_image" && clip.ai_prompt) {
-        const detailedPrompt = await craftAIPrompt(clip.ai_prompt, clip, scriptText, videoBible.era_specific || videoEra, wordTimestamps);
+        const detailedPrompt = await craftAIPrompt(clip.ai_prompt, clip, scriptText, videoBible.era_specific || videoEra, totalDuration, wordTimestamps);
         await generateAIImage(detailedPrompt, aiPath);
         fixImageRotation(aiPath);
         clip.imagePath = aiPath;
@@ -576,7 +576,7 @@ Return ONLY the search query.`
         const basePrompt = isHistoricalEra
           ? `${videoBible.era_specific || videoEra} historical scene: ${clip.search_query || "ancient scene"}. Period-accurate, no modern elements, cinematic, dramatic lighting, painterly quality.`
           : clip.search_query || "professional scene";
-        const detailedPrompt = await craftAIPrompt(basePrompt, clip, scriptText, videoBible.era_specific || videoEra, wordTimestamps);
+        const detailedPrompt = await craftAIPrompt(basePrompt, clip, scriptText, videoBible.era_specific || videoEra, totalDuration, wordTimestamps);
         await generateAIImage(detailedPrompt, aiPath);
         fixImageRotation(aiPath);
         clip.imagePath = aiPath;
@@ -700,6 +700,21 @@ Return ONLY the search query.`
   }
   await mergeAudioVideoSimple(silentPath, audioPath, finalPath, musicTrack?.path || null, audioDuration);
 
+  // --- SUBTITLE STEP: burn word-timed subtitles into the final video ---
+  const srtPath = path.join(outputDir, 'subtitles.srt');
+  const subtitledPath = path.join(outputDir, 'final-subtitled.mp4');
+  const srtGenerated = generateSRT(wordTimestamps, srtPath);
+  if (srtGenerated && fs.existsSync(srtPath)) {
+    const burned = await burnSubtitles(finalPath, srtPath, subtitledPath);
+    if (burned && fs.existsSync(subtitledPath) && fs.statSync(subtitledPath).size > 1000) {
+      // Replace final.mp4 with subtitled version
+      fs.renameSync(subtitledPath, finalPath);
+      console.log(chalk.green('  ✅ Subtitles burned into video'));
+    }
+  } else {
+    console.log(chalk.yellow('  ⚠️  No word timestamps for subtitles — skipping'));
+  }
+
   const elapsed = ((Date.now() - startTime) / 1000 / 60).toFixed(1);
 
   // --- STEP 6: Generate Thumbnail ---
@@ -759,3 +774,88 @@ async function mergeAudioVideoSimple(videoPath, audioPath, outputPath, musicPath
     s.succeed("Merged (re-encoded)");
   }
 }
+
+// ─── SUBTITLE GENERATION ─────────────────────────────────────────────────────
+// Generates an SRT file from ElevenLabs word timestamps.
+// Each subtitle entry = one word, timed exactly to when narrator says it.
+// Groups words into short phrases (max 5 words) for readability.
+function generateSRT(wordTimestamps, outputPath) {
+  if (!wordTimestamps || wordTimestamps.length === 0) return null;
+
+  const toSRTTime = (seconds) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    const ms = Math.round((seconds % 1) * 1000);
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')},${String(ms).padStart(3,'0')}`;
+  };
+
+  // Build rolling window subtitles: show a line of ~6 words at a time.
+  // The CURRENT word being spoken is shown in FULL CAPS to highlight it.
+  // This creates the typewriter/word-highlight effect from the reference images.
+  // Window: show 3 words before current + current + 2 words after = context line
+  const WINDOW_BEFORE = 3;
+  const WINDOW_AFTER = 2;
+  const entries = [];
+
+  for (let i = 0; i < wordTimestamps.length; i++) {
+    const curr = wordTimestamps[i];
+    // Build the context window around current word
+    const windowStart = Math.max(0, i - WINDOW_BEFORE);
+    const windowEnd = Math.min(wordTimestamps.length - 1, i + WINDOW_AFTER);
+    const windowWords = [];
+    for (let j = windowStart; j <= windowEnd; j++) {
+      if (j === i) {
+        // Current word — uppercase and bold via SRT formatting
+        windowWords.push(wordTimestamps[j].word.toUpperCase());
+      } else {
+        windowWords.push(wordTimestamps[j].word);
+      }
+    }
+    const text = windowWords.join(' ');
+    // Each entry lasts exactly as long as that word is spoken
+    const start = curr.start;
+    const end = i < wordTimestamps.length - 1
+      ? wordTimestamps[i + 1].start  // end when next word starts
+      : curr.end + 0.1;
+    if (end > start) {
+      entries.push({ text, start, end });
+    }
+  }
+
+  const lines = entries.map((p, idx) =>
+    `${idx + 1}\n${toSRTTime(p.start)} --> ${toSRTTime(p.end)}\n${p.text}\n`
+  );
+  fs.writeFileSync(outputPath, lines.join('\n'));
+  return outputPath;
+}
+
+// Burn subtitles into final video using FFmpeg subtitles filter
+// SRT is the cleanest approach — handles all special chars safely
+async function burnSubtitles(videoPath, srtPath, outputPath) {
+  const s = ora('Burning subtitles...').start();
+  try {
+    // Use the subtitles filter with custom styling
+    // FontName=Arial,Bold — clean, readable on any background
+    // PrimaryColour=&H00FFFFFF — white text
+    // OutlineColour=&H00000000 — black outline for contrast on any background  
+    // Shadow=1, Outline=2 — strong outline so text is readable on bright or dark frames
+    // Alignment=2 — bottom center
+    // MarginV=60 — above the bottom edge
+    const escapedSrt = srtPath.replace(/\/g, '/').replace(/:/g, '\\:');
+    execSync(
+      `ffmpeg -y -i "${videoPath}" -vf "subtitles='${escapedSrt}':force_style='FontName=Arial,Bold=1,FontSize=24,PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,Outline=2,Shadow=1,Alignment=2,MarginV=80'" -c:a copy "${outputPath}"`,
+      { stdio: 'pipe', timeout: 1800000 }
+    );
+    s.succeed('Subtitles burned');
+    return true;
+  } catch (err) {
+    s.warn('Subtitle burn failed: ' + (err?.message || 'unknown'));
+    // If subtitle burning fails, just copy the original without subtitles
+    try {
+      fs.copyFileSync(videoPath, outputPath);
+    } catch(e) {}
+    return false;
+  }
+}
+

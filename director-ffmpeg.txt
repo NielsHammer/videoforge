@@ -1100,7 +1100,7 @@ async function directClipWindows(windows, planChunk, scriptText, isFirst, isLast
     else if (cat === "infographic") instruction = `REQUIRED_TYPE: ${type} | MUST have chart_data or number_data for ${type}`;
     else if (cat === "split") instruction = `USE: stock | display: ${plan.display || "split_left"} | add panel_icon`;
     else instruction = `USE: ${type}`;
-    return `[${i}] ${w.start.toFixed(2)}s-${w.end.toFixed(2)}s (${dur}s) | NARRATOR SAYS: "${w.text}" | ${instruction}`;
+    return `[${i}] ${w.start.toFixed(2)}s-${w.end.toFixed(2)}s (${dur}s) | ${instruction} | "${w.text}"`;
   }).join("\n");
 
   try {
@@ -1164,17 +1164,12 @@ CLIP WINDOWS WITH PLAN:
 ${windowRef}
 
 SCRIPT CONTEXT (full):
-${scriptText.slice(0, 12000)}
+${scriptText.slice(0, 5000)}
 
 ═══ HOW TO FILL EACH TYPE ═══
 
 STOCK (category: stock):
-- search_query: MUST be a LITERAL visual of what the narrator is saying in that exact window
-  Example: narrator says "A man hiding behind a hedge in the dark" → search_query: "shadowy figure hiding behind hedge at night dark"
-  Example: narrator says "The Roman emperor stood before his army" → search_query: "roman emperor standing before army ancient rome"
-  Example: narrator says "She walked into the empty house" → search_query: "woman entering empty dark house interior"
-  WRONG: generic topic keywords like "horror dark atmospheric" or "history ancient scene"
-  RIGHT: literal translation of the exact sentence into a visual description
+- search_query: specific scene matching EXACTLY what narrator is saying — emotion + subject + context
 - search_queries: if clip is 5s+, add 2-3 different angles as array ["query1","query2","query3"]
 - display_style: use the PLAN display ("framed", "fullscreen", "split_left", "split_right")
 - panel_icon: for split layouts — one emoji matching the moment (🚀💰🧠🔥⚡🎯💡📈🏆✅😤🎭💪😱) or null
@@ -2016,4 +2011,14 @@ function extractFacts(scriptText) {
   const facts = [];
   for (let i = 0; i < pool.length && facts.length < 4; i += step) facts.push(pool[i]);
   return facts;
+}
+=====FFMPEG=====
+import { execSync } from "child_process";
+
+export function getAudioDuration(filePath) {
+  const result = execSync(
+    `ffprobe -v quiet -show_entries format=duration -of csv=p=0 "${filePath}"`,
+    { encoding: "utf-8" }
+  );
+  return parseFloat(result.trim());
 }
