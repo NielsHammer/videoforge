@@ -853,7 +853,7 @@ async function burnSubtitles(videoPath, srtPath, outputPath) {
     // Shadow=1, Outline=2 — strong outline so text is readable on bright or dark frames
     // Alignment=2 — bottom center
     // MarginV=60 — above the bottom edge
-    const escapedSrt = srtPath.replace(/\/g, '/').replace(/:/g, '\\:');
+    const escapedSrt = srtPath.replace(/:/g, '\\:');
     execSync(
       `ffmpeg -y -i "${videoPath}" -vf "subtitles='${escapedSrt}':force_style='FontName=Arial,Bold=1,FontSize=24,PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,Outline=2,Shadow=1,Alignment=2,MarginV=80'" -c:a copy "${outputPath}"`,
       { stdio: 'pipe', timeout: 1800000 }
