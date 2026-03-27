@@ -14,7 +14,7 @@ Read this script carefully and produce a VIDEO BIBLE — a strict set of rules t
 TOPIC: "${topic}"
 NICHE: ${niche || "auto-detect"}
 SCRIPT:
-${scriptText.slice(0, 5000)}${scriptText.length > 5000 ? "\n[...script continues for " + Math.round(scriptText.length/5) + " more words...]" : ""}
+${scriptText.slice(0, 15000)}${scriptText.length > 15000 ? "\n[...script continues — " + Math.round((scriptText.length - 15000) / 5) + " more words...]" : ""}
 
 Analyze the script and return ONLY valid JSON (no markdown, no preamble):
 
@@ -54,7 +54,7 @@ Pull infographic_opportunities directly from actual numbers in the script — re
       "https://api.anthropic.com/v1/messages",
       {
         model: "claude-sonnet-4-20250514",
-        max_tokens: 2000,
+        max_tokens: 3000,
         messages: [{ role: "user", content: prompt }],
       },
       {

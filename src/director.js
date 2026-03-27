@@ -560,9 +560,22 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
   console.log(chalk.gray(`  Analyzing script context...`));
   const videoBible = await analyzeScriptContext(scriptText, topic, nicheInfo.niche, orderBrief);
 
-  // Pass 1: Pre-flight classification (now informed by video bible)
+  // Pass 1: Pre-flight classification — chunked for long videos
+  // For videos >60 clips (roughly >10 min), chunk the pre-flight to avoid token overflow
   console.log(chalk.gray(`  Running pre-flight classification...`));
-  const plan = await classifyClipWindows(clipWindows, scriptText, nicheInfo, themeHints, budget, topic, theme, isHorror, orderBrief, videoBible);
+  let plan = [];
+  const PREFLIGHT_CHUNK = 60;
+  if (clipWindows.length <= PREFLIGHT_CHUNK) {
+    plan = await classifyClipWindows(clipWindows, scriptText, nicheInfo, themeHints, budget, topic, theme, isHorror, orderBrief, videoBible);
+  } else {
+    console.log(chalk.gray(`  Long video: chunking pre-flight into batches of ${PREFLIGHT_CHUNK}...`));
+    for (let pi = 0; pi < clipWindows.length; pi += PREFLIGHT_CHUNK) {
+      const windowChunk = clipWindows.slice(pi, pi + PREFLIGHT_CHUNK);
+      const chunkPlan = await classifyClipWindows(windowChunk, scriptText, nicheInfo, themeHints, budget, topic, theme, isHorror, orderBrief, videoBible);
+      plan.push(...chunkPlan);
+    }
+    console.log(chalk.gray(`  Pre-flight complete: ${plan.length} clips planned`));
+  }
 
   // Pass 2: Assign details in chunks of 40
   const CHUNK_SIZE = 20; // smaller chunks = faster, less likely to timeout
@@ -581,8 +594,22 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
 
     console.log(chalk.gray(`  Directing clips ${ci + 1}-${Math.min(ci + CHUNK_SIZE, clipWindows.length)} of ${clipWindows.length}...`));
 
+    // For long videos, pass the script section relevant to this chunk's time range
+    // rather than always passing the first 12000 chars.
+    // Estimate which part of the script corresponds to this chunk's timestamps.
+    let chunkScriptContext = scriptText;
+    if (scriptText.length > 12000 && clipWindows.length > 0) {
+      const chunkStartTime = windowChunk[0]?.start || 0;
+      const chunkEndTime = windowChunk[windowChunk.length - 1]?.end || totalDuration;
+      const scriptFraction_start = Math.max(0, (chunkStartTime / totalDuration) - 0.05);
+      const scriptFraction_end = Math.min(1, (chunkEndTime / totalDuration) + 0.1);
+      const charStart = Math.floor(scriptFraction_start * scriptText.length);
+      const charEnd = Math.min(scriptText.length, Math.floor(scriptFraction_end * scriptText.length) + 8000);
+      // Always include the first 2000 chars (for context/tone) plus the relevant section
+      chunkScriptContext = scriptText.slice(0, 2000) + "\n[...]\n" + scriptText.slice(charStart, charEnd);
+    }
     const chunkClips = await directClipWindows(
-      windowChunk, planChunk, scriptText, isFirst, isLast,
+      windowChunk, planChunk, chunkScriptContext, isFirst, isLast,
       nicheInfo, themeHints, budget, topic, theme, isHorror, videoBible
     );
 
@@ -1364,8 +1391,25 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
     clip.end_time = window.end;
     clip.subtitle_words = [];
     // FIX A: carry the narrated sentence onto every clip object.
-    // Without this, craftAIPrompt, stock-run-breaker, and kinetic text all get undefined.
     if (window.text && !clip.text) clip.text = window.text;
+
+    // FIX E: If video bible has a key_visual_moment matching this sentence,
+    // use its search_query directly — highest quality, director-approved
+    if (clip.visual_type === 'stock' && window.text && videoBible?.key_visual_moments?.length) {
+      const windowText = window.text.toLowerCase();
+      const match = videoBible.key_visual_moments.find(m => {
+        if (!m.moment) return false;
+        const moment = m.moment.toLowerCase().replace(/[^a-z0-9\s]/g, '').slice(0, 40);
+        const windowClean = windowText.replace(/[^a-z0-9\s]/g, '').slice(0, 40);
+        // Check if at least 3 consecutive words match
+        const momentWords = moment.split(/\s+/).filter(w => w.length > 3);
+        return momentWords.slice(0, 3).some(w => windowClean.includes(w)) &&
+               momentWords.filter(w => windowClean.includes(w)).length >= 2;
+      });
+      if (match?.search_query) {
+        clip.search_query = match.search_query;
+      }
+    }
 
     if (!validTypes.includes(clip.visual_type)) clip.visual_type = "stock";
 

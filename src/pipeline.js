@@ -72,25 +72,35 @@ async function craftAIPrompt(basicPrompt, clip, scriptText, eraContext = "", tot
         max_tokens: 200,
         messages: [{
           role: "user",
-          content: `You are an expert at writing Flux image generation prompts for YouTube videos.
+          content: `You are a world-class cinematographer and visual director for YouTube documentaries. Your job is to translate a narrated sentence into a perfect image prompt for Flux AI.
 
-The narrator is saying: "${narratedSentence || basicPrompt}"
-${isHistorical ? `ERA: ${eraContext} — period-accurate visuals only. No modern elements ever.` : ""}
+NARRATOR SAYS: "${narratedSentence || basicPrompt}"
+${isHistorical ? `ERA: ${eraContext} — period-accurate visuals ONLY. Zero modern elements.` : ""}
 
-Write ONE image prompt (30-50 words) showing what a viewer should SEE while hearing that sentence.
-Be SPECIFIC to what the narrator describes — not a generic era establishing shot.
-Every clip in this video must look DIFFERENT — vary subject, angle, and focus.
+Think like a film director. Ask yourself:
+1. What is the KEY VISUAL SUBJECT of this sentence? (the person, object, or scene)
+2. What EMOTION or TENSION should this image carry?
+3. What CAMERA ANGLE and FRAMING tells this story best?
+4. What LIGHTING conditions match the mood?
+5. What CINEMATIC STYLE fits? (noir, epic, intimate, cold clinical, warm nostalgic)
 
-WRONG (too generic): "Ancient Roman empire gate with soldiers, cinematic"
-RIGHT (specific): "Fourteen-year-old boy on oversized golden throne, Germanic warriors visible in archway, dramatic low-angle shot"
+WRONG — literal and generic: "man hiding behind hedge at night"
+RIGHT — cinematic: "shadowy silhouette crouched low behind dense hedgerow, moonlight cutting through leaves casting dramatic shadows, extreme low angle, tense thriller atmosphere, shallow depth of field, film noir style"
+
+WRONG — too generic: "ancient roman scene"
+RIGHT — specific and cinematic: "fourteen-year-old boy drowning in an oversized golden throne, Germanic warriors visible through marble archway behind him, dramatic chiaroscuro lighting, low angle looking up at throne, Ridley Scott epic style"
 
 Rules:
-- Show exactly what narrator describes
-- Include: specific subject, setting, lighting, camera angle
+- Lead with the specific subject from the narration
+- Add camera angle (low angle / aerial / close-up / wide establishing / over-shoulder)
+- Add lighting (golden hour / harsh shadows / neon glow / candlelight / overcast grey)
+- Add emotional subtext (tense / awe-inspiring / lonely / triumphant / haunting)
+- Add cinematic style reference when useful
 ${styleGuide}
-- NO text or watermarks in image
+- 35-55 words total
+- NO text, watermarks, or UI elements
 
-Return ONLY the prompt.`
+Return ONLY the prompt, nothing else.`
         }]
       },
       {
@@ -472,6 +482,7 @@ Return ONLY the search query.`
             clip,
             scriptText,
             videoBible.era_specific || videoEra,
+            totalDuration,
             wordTimestamps
           );
           await generateAIImage(detailedPrompt, aiPath);
