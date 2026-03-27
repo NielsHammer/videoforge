@@ -203,21 +203,22 @@ function detectNiche(topic, scriptText) {
 }
 
 function getThemeAnimationHints(theme) {
+  // Text-only animations removed — burned-in subtitles replace them.
   const hints = {
-    green_matrix:   { prefer: ["glitch_text","stock_ticker","typewriter_reveal","neon_sign","money_counter","alert_banner"], avoid: ["polaroid_stack","reaction_face","lightbulb_moment"] },
-    blue_tech:      { prefer: ["stock_ticker","typewriter_reveal","count_up","trend_arrow","spotlight_stat"], avoid: ["polaroid_stack","reaction_face"] },
-    cyber_purple:   { prefer: ["neon_sign","glitch_text","word_scatter","kinetic_text","alert_banner"], avoid: ["polaroid_stack"] },
-    gold_luxury:    { prefer: ["quote_overlay","spotlight_stat","money_counter","overlay_caption","count_up"], avoid: ["glitch_text","neon_sign","reaction_face"] },
-    dark_minimal:   { prefer: ["quote_overlay","kinetic_text","spotlight_stat","neon_sign","typewriter_reveal"], avoid: ["reaction_face","polaroid_stack"] },
-    orange_fire:    { prefer: ["kinetic_text","rocket_launch","reaction_face","count_up","trend_arrow"], avoid: ["polaroid_stack"] },
-    red_impact:     { prefer: ["kinetic_text","reaction_face","news_breaking","spotlight_stat"], avoid: ["polaroid_stack"] },
-    warm_sunset:    { prefer: ["reaction_face","lightbulb_moment","thumbs_up","checkmark_build","highlight_build"], avoid: ["glitch_text"] },
-    blue_minimal:   { prefer: ["highlight_build","checkmark_build","count_up","typewriter_reveal","compare_reveal"], avoid: ["glitch_text"] },
-    creator_pink:   { prefer: ["phone_screen","tweet_card","social_counter","youtube_progress","reaction_face"], avoid: ["glitch_text"] },
-    blood_red:      { prefer: ["kinetic_text","reaction_face","news_breaking","glitch_text"], avoid: ["polaroid_stack"] },
-    midnight_blue:  { prefer: ["typewriter_reveal","neon_sign","spotlight_stat","quote_overlay","kinetic_text"], avoid: ["reaction_face"] },
-    dark_horror:    { prefer: ["glitch_text","kinetic_text","neon_sign","reaction_face"], avoid: ["polaroid_stack","lightbulb_moment"] },
-    default:        { prefer: ["kinetic_text","spotlight_stat","count_up","checkmark_build","reaction_face"], avoid: [] },
+    green_matrix:   { prefer: ["stock_ticker","money_counter","alert_banner","count_up","trend_arrow","spotlight_stat"], avoid: ["polaroid_stack"] },
+    blue_tech:      { prefer: ["stock_ticker","count_up","trend_arrow","spotlight_stat","compare_reveal","before_after"], avoid: ["polaroid_stack"] },
+    cyber_purple:   { prefer: ["alert_banner","count_up","spotlight_stat","compare_reveal","before_after","highlight_build"], avoid: ["polaroid_stack"] },
+    gold_luxury:    { prefer: ["spotlight_stat","money_counter","count_up","before_after","compare_reveal","percent_fill"], avoid: ["reaction_face"] },
+    dark_minimal:   { prefer: ["spotlight_stat","count_up","before_after","compare_reveal","highlight_build","checkmark_build"], avoid: ["reaction_face"] },
+    orange_fire:    { prefer: ["rocket_launch","reaction_face","count_up","trend_arrow","alert_banner","spotlight_stat"], avoid: ["polaroid_stack"] },
+    red_impact:     { prefer: ["reaction_face","spotlight_stat","alert_banner","count_up","before_after","trend_arrow"], avoid: ["polaroid_stack"] },
+    warm_sunset:    { prefer: ["reaction_face","lightbulb_moment","thumbs_up","checkmark_build","highlight_build","before_after"], avoid: [] },
+    blue_minimal:   { prefer: ["highlight_build","checkmark_build","count_up","compare_reveal","before_after","spotlight_stat"], avoid: [] },
+    creator_pink:   { prefer: ["phone_screen","tweet_card","social_counter","youtube_progress","reaction_face","before_after"], avoid: [] },
+    blood_red:      { prefer: ["reaction_face","alert_banner","count_up","spotlight_stat","before_after","trend_arrow"], avoid: ["polaroid_stack"] },
+    midnight_blue:  { prefer: ["spotlight_stat","count_up","compare_reveal","before_after","highlight_build","checkmark_build"], avoid: ["reaction_face"] },
+    dark_horror:    { prefer: ["reaction_face","alert_banner","before_after","count_up","highlight_build","percent_fill"], avoid: ["polaroid_stack"] },
+    default:        { prefer: ["spotlight_stat","count_up","checkmark_build","reaction_face","before_after","compare_reveal"], avoid: [] },
   };
   return hints[theme] || hints.default;
 }
@@ -278,9 +279,9 @@ ANIMATION TYPES — pick the BEST fit per sentence:
 ════════════════════════════════════════════
 
 IMPACT TEXT (use when narrator makes a bold statement):
-- kinetic_text: 2-4 punchy words slam in. USE FOR: key claims, chapter titles, rhetorical points
+- stock: 2-4 punchy words slam in. USE FOR: key claims, chapter titles, rhetorical points
 - neon_sign: glowing bold phrase. USE FOR: mottos, mantras, big truths ("INVEST FIRST. ALWAYS.")
-- typewriter_reveal: text types out. USE FOR: quotes, revelations, dramatic pauses
+- stock: text types out. USE FOR: quotes, revelations, dramatic pauses
 - glitch_text: glitchy distorted text. USE FOR: tech topics, hacking, shocking system failures
 - big_number: one massive number fills screen. USE FOR: single shocking stat deserves full emphasis
 - pull_quote: large italic quote. USE FOR: direct quotes from people, memorable phrases
@@ -426,16 +427,16 @@ INFOGRAPHIC TYPES (data-heavy, need chart_data):
 - flow_diagram: A→B→C flow. USE WHEN: process or sequence of causes/effects
 
 NICHE-SPECIFIC RULES:
-${nicheInfo.niche === "horror" ? "- HORROR: PRIORITIZE static_interrupt, creep_zoom, glitch_text, neon_sign, bold_claim, dramatic_reveal, word_by_word, typewriter_reveal, news_breaking. NO data charts or financial components." : nicheInfo.niche === "true_crime" ? "- TRUE CRIME: PRIORITIZE evidence_board, crime_timeline, classified_stamp, newspaper_flash, redacted_reveal, missing_poster, stamp_reveal, redline_cross, news_headline, typewriter_reveal, bold_claim. NO data charts." : ""}
+${nicheInfo.niche === "horror" ? "- HORROR: PRIORITIZE static_interrupt, creep_zoom, dramatic_reveal, word_by_word. NO data charts or financial components." : nicheInfo.niche === "true_crime" ? "- TRUE CRIME: PRIORITIZE evidence_board, crime_timeline, classified_stamp, newspaper_flash, redacted_reveal, missing_poster, stamp_reveal, redline_cross. NO data charts." : ""}
 ${nicheInfo.niche === "creator" ? "- CREATOR: Prioritize tweet_card, phone_screen, instagram_post, youtube_card, reddit_post, google_search, social_counter, level_up, habit_chain, countdown_reveal." : ""}
 ${nicheInfo.niche === "finance" ? "- FINANCE: Prioritize stock_ticker, roi_calculator, portfolio_breakdown, candlestick_chart, wealth_ladder, money_counter, count_up, spotlight_stat." : ""}
 ${nicheInfo.niche === "business" ? "- BUSINESS: Prioritize rule_card, mindset_shift, three_points, step_reveal, bullet_list, compare_reveal, rocket_launch, lightbulb_moment." : ""}
-${nicheInfo.niche === "history" ? "- HISTORY: PRIORITIZE cold_open_date, era_timeline, ancient_scroll, quote_parchment, battle_scale, empire_rise_fall, coin_drop, population_bleed, document_reveal, vs_card, stamp_reveal, title_card, chapter_break, flashback_card, bold_claim, dramatic_reveal. Also good: typewriter_reveal, pull_quote, person_profile, map_callout, count_up. NEVER use: money_counter, stock_ticker, roi_calculator, reaction_face, instagram_post, tweet_card, phone_screen, youtube_card, loading_bar, score_card." : ""}
+${nicheInfo.niche === "history" ? "- HISTORY: PRIORITIZE cold_open_date, era_timeline, ancient_scroll, quote_parchment, battle_scale, empire_rise_fall, coin_drop, population_bleed, document_reveal, vs_card, stamp_reveal, title_card, chapter_break, flashback_card, dramatic_reveal. Also good: pull_quote, person_profile, map_callout, count_up. NEVER use: money_counter, stock_ticker, roi_calculator, reaction_face, instagram_post, tweet_card, phone_screen, youtube_card, loading_bar, score_card." : ""}
 ${nicheInfo.niche === "health" ? "- HEALTH: Prioritize score_card, loading_bar, percent_fill, vote_bar, bullet_list, three_points, step_reveal." : ""}
 ${nicheInfo.niche === "travel" ? "- TRAVEL: Prioritize map_callout, person_profile, split layouts, pull_quote." : ""}
 ${nicheInfo.niche === "creator" ? "- CREATOR: Prioritize instagram_post, youtube_card, reddit_post, google_search, conversation_bubble, social_counter, tweet_card, phone_screen, reaction_face." : ""}
-${nicheInfo.niche === "tech" ? "- TECH: Prioritize code_terminal, data_stream, zoom_stat, bold_claim, vs_card, loading_bar, speed_meter, google_search, stat_comparison, big_number, step_reveal." : ""}
-${nicheInfo.niche === "luxury" ? "- LUXURY: Prioritize net_worth_reveal, zoom_stat, vs_card, bold_claim, stamp_reveal, big_number, stat_comparison, person_profile, before_after, pull_quote, roi_calculator." : ""}
+${nicheInfo.niche === "tech" ? "- TECH: Prioritize code_terminal, data_stream, zoom_stat, vs_card, loading_bar, speed_meter, google_search, stat_comparison, big_number, step_reveal." : ""}
+${nicheInfo.niche === "luxury" ? "- LUXURY: Prioritize net_worth_reveal, zoom_stat, vs_card, stamp_reveal, big_number, stat_comparison, person_profile, before_after, pull_quote, roi_calculator." : ""}
 
 CRITICAL DISTRIBUTION RULES:
 1. Clip 0 MUST be "animation" — most dramatic type for opening line
@@ -477,7 +478,7 @@ Display: "framed", "fullscreen", "split_left", "split_right"`;
     return clipWindows.map((w, i) => {
       const cats = ["stock","stock","animation","split","stock","stock","infographic","split"];
       const cat = cats[i % cats.length];
-      const types = { stock: "stock", animation: themeHints.prefer[i % themeHints.prefer.length] || "kinetic_text", split: "stock", infographic: "stat_card" };
+      const types = { stock: "stock", animation: themeHints.prefer[i % themeHints.prefer.length] || split: "stock", infographic: "stat_card" };
       const display = cat === "split" ? (i % 2 === 0 ? "split_left" : "split_right") : (cat === "stock" && i === 0 ? "fullscreen" : "framed");
       return { i, category: cat, type: types[cat], display };
     });
@@ -623,7 +624,7 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
   // Post-processing
   // Convert any remaining text-only animations to stock/AI
   // These create double-subtitle effect with our burned-in subtitles
-  const BANNED_TEXT_TYPES = new Set(['kinetic_text','typewriter_reveal','neon_sign','glitch_text','news_breaking','word_scatter','news_headline','bold_claim']);
+  const BANNED_TEXT_TYPES = new Set(['stock','stock','neon_sign','glitch_text','news_breaking','word_scatter','news_headline','bold_claim']);
   for (const clip of allClips) {
     if (BANNED_TEXT_TYPES.has(clip.visual_type)) {
       // Let director decide: use stock with the sentence as search query
@@ -654,7 +655,7 @@ function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, ani
 
   // Rotation pools for variety
   // Text-only animations REMOVED — we now have real subtitles burned in.
-  // Pure text scenes (kinetic_text, typewriter_reveal, neon_sign, etc.) create
+  // Pure text scenes (etc.) create
   // double-subtitle effect and don't add visual value.
   const animRotation = [
     "spotlight_stat","reaction_face",
@@ -778,7 +779,7 @@ function generateAnimationData(type, sentence) {
   };
 
   switch (type) {
-    case "kinetic_text": {
+    case : {
       const truncated = new Set(["wasn","didn","don","can","won","isn","aren","couldn","shouldn","wouldn","doesn","hadn","haven","mustn","needn","shan","let"]);
       const cleanKey = key.filter(w => !truncated.has(w.toLowerCase()) && w.length > 2);
       return cleanKey.length >= 2 ? { lines: cleanKey.slice(0, 2), style: "impact" } : null;
@@ -811,10 +812,10 @@ function generateAnimationData(type, sentence) {
       // Only for genuine danger/mistake/warning sentences
       if (!/warn|danger|risk|mistake|wrong|avoid|never|stop|careful|trap|lie|myth|broke/.test(sentence.toLowerCase())) return null;
       return { headline: "WARNING", body: sentence.slice(0, 60), icon: "⚠️", color: "#ef4444" };
-    case "neon_sign": return { text: key.slice(0, 2).join(" ") || "THE TRUTH", subtitle: key[2] || "" };
-    case "typewriter_reveal": return { text: sentence.slice(0, 60), subtitle: "" };
-    case "glitch_text": return { text: key.slice(0, 2).join(" ") || "HACKED", subtitle: "" };
-    case "news_breaking":
+    case : return { text: key.slice(0, 2).join(" ") || "THE TRUTH", subtitle: key[2] || "" };
+    case : return { text: sentence.slice(0, 60), subtitle: "" };
+    case : return { text: key.slice(0, 2).join(" ") || "HACKED", subtitle: "" };
+    case :
       // Only for sentences with shocking stats — NOT section titles or numbered points
       if (/^number (one|two|three|four|five|six|seven|eight|nine|ten)\./i.test(sentence.trim())) return null;
       if (/^trap (one|two|three|four|five)/i.test(sentence.trim())) return null;
@@ -896,7 +897,7 @@ function generateAnimationData(type, sentence) {
       // Only for social/creator topics
       if (!/social|follow|subscriber|view|post|content|platform|app|notification|viral/.test(sentence.toLowerCase())) return null;
       return { app: "instagram", notification: sentence.slice(0, 50), metric: numbers[0] ? `${numbers[0]}K` : "10.2K" };
-    case "word_scatter":
+    case :
       // Works for most sentences with enough key words
       if (key.length < 4) return null;
       return { words: key.slice(0, 7).filter(Boolean), centerWord: key[0] || "" };
@@ -973,7 +974,7 @@ function generateAnimationData(type, sentence) {
     case "vote_bar":
       if (!pct && !numbers[0]) return null;
       return { question: sentence.slice(0, 80), options: [{ label: "Yes", pct: parseInt(pct?.[1]) || numbers[0] || 73, winner: true }, { label: "No", pct: 100 - (parseInt(pct?.[1]) || numbers[0] || 73) }] };
-    case "news_headline":
+    case :
       if (!numbers[0] && !/reveal|shocking|truth|secret|discover/.test(sentence.toLowerCase())) return null;
       return { outlet: "BREAKING NEWS", headline: sentence.slice(0, 70), subtext: key.slice(0, 4).join(" "), date: String(new Date().getFullYear()) };
     case "conversation_bubble": {
@@ -1180,13 +1181,12 @@ async function directClipWindows(windows, planChunk, scriptText, isFirst, isLast
       if (plan.category === "stock" || plan.category === "split") {
         return makeStockClip(w, nicheInfo);
       }
-      // For animation/infographic slots: build a kinetic_text from the sentence
+      // For animation/infographic slots: build a stock from the sentence
       const words = (w.text || "").replace(/[^a-zA-Z0-9\s]/g," ").split(/\s+/)
         .filter(w => w.length > 3 && !/^(the|and|but|for|with|this|that|from|they|your|you|was|are|were|has|just|also|more|very)$/i.test(w));
       const lines = words.slice(0, 2).map(w => w.toUpperCase());
       if (lines.length >= 1) {
-        return { start_time: w.start, end_time: w.end, visual_type: "kinetic_text",
-          display_style: "framed", animation_data: { lines, style: "impact" },
+        return { start_time: w.start, end_time: w.end, visual_type: display_style: "framed", animation_data: { lines, style: "impact" },
           search_query: "", search_queries: null, subtitle_words: [] };
       }
       return makeStockClip(w, nicheInfo);
@@ -1202,11 +1202,20 @@ VIDEO: "${topic}" | NICHE: ${nicheInfo.niche} | THEME: "${theme}"
 IMAGE STYLE: ${nicheInfo.imageStyle}
 THEME PREFERRED: ${themeHints.prefer.join(", ")}
 
-Each clip window below has a REQUIRED_TYPE. You MUST use exactly that type — do NOT substitute kinetic_text or stock unless the window explicitly says to use them.
+Each clip window below has a REQUIRED_TYPE. You MUST use exactly that type — do NOT substitute stock or stock unless the window explicitly says to use them.
 start_time and end_time are FIXED — do not change them.
 
-CRITICAL: If a window says REQUIRED_TYPE: spotlight_stat, you MUST return visual_type: "spotlight_stat" with proper animation_data. NOT kinetic_text. NOT stock.
-If a window says REQUIRED_TYPE: money_counter, return money_counter. If REQUIRED_TYPE: reaction_face, return reaction_face. Follow the type exactly.
+CRITICAL RULES:
+1. PERMANENTLY BANNED — never use these types under any circumstances:
+   text_flash, overlay_caption
+   → If you were about to use any of these, use "stock" with a descriptive search_query instead.
+
+2. Follow REQUIRED_TYPE exactly for all other types.
+   REQUIRED_TYPE: spotlight_stat → return spotlight_stat with animation_data.
+   REQUIRED_TYPE: money_counter → return money_counter. Etc.
+
+3. When uncertain what to show, choose "stock" with a specific real-world search_query.
+   Ask: what would a documentary camera show right now while the narrator says this?
 
 CLIP WINDOWS WITH PLAN:
 ${windowRef}
@@ -1228,21 +1237,21 @@ STOCK (category: stock):
 - panel_icon: for split layouts — one emoji matching the moment (🚀💰🧠🔥⚡🎯💡📈🏆✅😤🎭💪😱) or null
 
 ANIMATION (category: animation) — use the PLAN type, fill in animation_data from the exact sentence:
-- "kinetic_text" → {lines:["SHORT","PUNCH"], style:"impact"} — MAX 2 lines, MAX 4 words each, EXACT words narrator says
+- → {lines:["SHORT","PUNCH"], style:"impact"} — MAX 2 lines, MAX 4 words each, EXACT words narrator says
 - "count_up" → {value:NUMBER, prefix:"$", suffix:"", label:"what it is", decimals:0} — only if sentence has number ≥10
 - "money_counter" → {amount:NUMBER, currency:"$", label:"what the money is"}
 - "spotlight_stat" → {value:"96%", label:"exact stat description", context:"one sentence context"}
 - "reaction_face" → {emoji:"🤯", label:"exact words narrator says here", style:"slam"}
-- "neon_sign" → {text:"EXACT PHRASE MAX 4 WORDS", subtitle:"optional context"}
+- → {text:"EXACT PHRASE MAX 4 WORDS", subtitle:"optional context"}
 - "alert_banner" → {headline:"WARNING", body:"the specific mistake/danger from script", icon:"⚠️", color:"#ef4444"}
 - "alert_banner" → {type:"danger", title:"CRITICAL MISTAKE", body:"what the mistake is", stat:"X% of people", icon:"🚨"}
 - "checkmark_build" → {items:["step from script","step from script","step from script"], title:"optional"}
 - "before_after" → {before:"situation before (short)", after:"situation after (short)", label:"the transformation"}
-- "news_breaking" → {headline:"DRAMATIC FACT FROM SCRIPT", subtext:"one line context", ticker:"DEVELOPING"}
-- "news_headline" → {outlet:"BREAKING NEWS", headline:"headline from script fact", subtext:"supporting detail", date:"year if mentioned"}
+- → {headline:"DRAMATIC FACT FROM SCRIPT", subtext:"one line context", ticker:"DEVELOPING"}
+- → {outlet:"BREAKING NEWS", headline:"headline from script fact", subtext:"supporting detail", date:"year if mentioned"}
 - "highlight_build" → {lines:["key phrase from script","second phrase","third phrase"], delay:0.3}
-- "typewriter_reveal" → {text:"exact phrase narrator says", subtitle:"context"}
-- "glitch_text" → {text:"SHOCKING CLAIM MAX 4 WORDS"}
+- → {text:"exact phrase narrator says", subtitle:"context"}
+- → {text:"SHOCKING CLAIM MAX 4 WORDS"}
 - "trend_arrow" → {direction:"up", value:"340%", label:"what is growing/declining"}
 - "percent_fill" → {percent:73, label:"what the percentage represents"}
 - "loading_bar" → {label:"what the % represents", value:78, suffix:"%", color:"#ef4444", subtitle:"source or context"}
@@ -1256,7 +1265,7 @@ ANIMATION (category: animation) — use the PLAN type, fill in animation_data fr
 - "lightbulb_moment" → {text:"the insight from script (max 50 chars)", subtext:"context words"}
 - "rocket_launch" → {headline:"GROWTH CONCEPT IN CAPS", subtext:"supporting phrase", stage:"launch"}
 - "thumbs_up" → {type:"up" or "down", items:["key word","key word","key word"], verdict:"VERDICT IN CAPS"}
-- "word_scatter" → {words:["KEY","WORDS","FROM","SENTENCE","HERE"], centerWord:"MAIN CONCEPT"}
+- → {words:["KEY","WORDS","FROM","SENTENCE","HERE"], centerWord:"MAIN CONCEPT"}
 - "compare_reveal" → {items:[{label:"OPTION A",score:"Low",description:"brief",icon:"❌"},{label:"OPTION B",score:"High",description:"brief",icon:"✅"}], title:"Compare Title", winner:1}
 - "stat_comparison" → {left:{value:"96%",label:"never reach $1M",color:"#ef4444"}, right:{value:"4%",label:"achieve wealth",color:"#22c55e"}, title:"The Gap"}
 - "side_by_side" → {left:"LEFT CONCEPT", right:"RIGHT CONCEPT", leftSub:"supporting stat", rightSub:"supporting stat", vs:true}
@@ -1349,44 +1358,44 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
 
   const validTypes = [
     "stock","ai_image","web_image",
-    "number_reveal","comparison","section_break","text_flash","line_chart","donut_chart",
+    "number_reveal","comparison","section_break","line_chart","donut_chart",
     "progress_bar","timeline","leaderboard","process_flow","stat_card","quote_card",
     "checklist","horizontal_bar","vertical_bar","scale_comparison","map_highlight",
     "body_diagram","funnel_chart","growth_curve","ranking_cards","split_comparison",
     "icon_grid","flow_diagram","interrupt_card","quote_pull","countdown_corner",
-    "kinetic_text","spotlight_stat","icon_burst","typewriter_reveal","money_counter",
-    "glitch_text","checkmark_build","trend_arrow","stock_ticker","phone_screen",
-    "tweet_card","word_scatter","social_counter","before_after","lightbulb_moment",
-    "rocket_launch","news_breaking","percent_fill","compare_reveal","highlight_build",
-    "count_up","neon_sign","reaction_face","thumbs_up","side_by_side","youtube_progress",
-    "quote_overlay","overlay_caption","polaroid_stack",
+    "spotlight_stat","icon_burst","money_counter",
+    "checkmark_build","trend_arrow","stock_ticker","phone_screen",
+    "tweet_card","social_counter","before_after","lightbulb_moment",
+    "rocket_launch","percent_fill","compare_reveal","highlight_build",
+    "count_up","reaction_face","thumbs_up","side_by_side","youtube_progress",
+    "quote_overlay","polaroid_stack",
     // batch4
     "pull_quote","stat_comparison","bullet_list","myth_fact","step_reveal",
     "pro_con","score_card","person_profile","reddit_post","google_search",
     "three_points","stacked_bar","countdown_timer","vote_bar","map_callout",
-    "news_headline","instagram_post","youtube_card","quiz_card",
+    "instagram_post","youtube_card","quiz_card",
     "portfolio_breakdown","roi_calculator","timelapse_bar","speed_meter",
     "candlestick_chart","conversation_bubble","loading_bar","wealth_ladder",
     "rule_card","alert_banner","big_number","mindset_shift",
   ];
 
   const graphicTypes = new Set([
-    "number_reveal","section_break","comparison","text_flash","line_chart","donut_chart",
+    "number_reveal","section_break","comparison","line_chart","donut_chart",
     "progress_bar","timeline","leaderboard","process_flow","stat_card","quote_card",
     "checklist","horizontal_bar","vertical_bar","scale_comparison","map_highlight",
     "body_diagram","funnel_chart","growth_curve","ranking_cards","split_comparison",
     "icon_grid","flow_diagram","interrupt_card","quote_pull","countdown_corner",
-    "kinetic_text","spotlight_stat","icon_burst","typewriter_reveal","money_counter",
-    "glitch_text","checkmark_build","trend_arrow","stock_ticker","phone_screen",
-    "tweet_card","word_scatter","social_counter","before_after","lightbulb_moment",
-    "rocket_launch","news_breaking","percent_fill","compare_reveal","highlight_build",
-    "count_up","neon_sign","reaction_face","thumbs_up","side_by_side","youtube_progress",
+    "spotlight_stat","icon_burst","money_counter",
+    "checkmark_build","trend_arrow","stock_ticker","phone_screen",
+    "tweet_card","social_counter","before_after","lightbulb_moment",
+    "rocket_launch","percent_fill","compare_reveal","highlight_build",
+    "count_up","reaction_face","thumbs_up","side_by_side","youtube_progress",
     
     // batch4 — all pure graphic, no image needed
     "pull_quote","stat_comparison","bullet_list","myth_fact","step_reveal",
     "pro_con","score_card","person_profile","reddit_post","google_search",
     "three_points","stacked_bar","countdown_timer","vote_bar","map_callout",
-    "news_headline","instagram_post","youtube_card","quiz_card",
+    "instagram_post","youtube_card","quiz_card",
     "portfolio_breakdown","roi_calculator","timelapse_bar","speed_meter",
     "candlestick_chart","conversation_bubble","loading_bar","wealth_ladder",
     "rule_card","alert_banner","big_number","mindset_shift",
@@ -1436,20 +1445,20 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
 
     // Animation needs animation_data — validate schema, regenerate if missing or wrong shape
     const animTypes = new Set([
-      "kinetic_text","spotlight_stat","icon_burst","typewriter_reveal","money_counter",
-      "glitch_text","checkmark_build","trend_arrow","stock_ticker","phone_screen",
-      "tweet_card","word_scatter","social_counter","before_after","lightbulb_moment",
-      "rocket_launch","news_breaking","percent_fill","compare_reveal","highlight_build",
-      "count_up","neon_sign","reaction_face","thumbs_up","side_by_side","youtube_progress",
-      "quote_overlay","overlay_caption","polaroid_stack",
+      "spotlight_stat","icon_burst","money_counter",
+      "checkmark_build","trend_arrow","stock_ticker","phone_screen",
+      "tweet_card","social_counter","before_after","lightbulb_moment",
+      "rocket_launch","percent_fill","compare_reveal","highlight_build",
+      "count_up","reaction_face","thumbs_up","side_by_side","youtube_progress",
+      "quote_overlay","polaroid_stack",
       // batch4
       "pull_quote","stat_comparison","bullet_list","myth_fact","step_reveal",
       "pro_con","score_card","person_profile","reddit_post","google_search",
       "three_points","stacked_bar","countdown_timer","vote_bar","map_callout",
-      "news_headline","instagram_post","youtube_card","quiz_card",
+      "instagram_post","youtube_card","quiz_card",
       "portfolio_breakdown","roi_calculator","timelapse_bar","speed_meter",
       "candlestick_chart","conversation_bubble","loading_bar","wealth_ladder",
-      "rule_card","alert_banner","big_number","mindset_shift","stat_comparison","bullet_list","step_reveal","three_points","myth_fact","pro_con","score_card","loading_bar","vote_bar","pull_quote","countdown_timer","candlestick_chart","wealth_ladder","portfolio_breakdown","roi_calculator","timelapse_bar","speed_meter","stacked_bar","map_callout","news_headline","instagram_post","youtube_card","reddit_post","google_search","person_profile","conversation_bubble","quiz_card",
+      "rule_card","alert_banner","big_number","mindset_shift","stat_comparison","bullet_list","step_reveal","three_points","myth_fact","pro_con","score_card","loading_bar","vote_bar","pull_quote","countdown_timer","candlestick_chart","wealth_ladder","portfolio_breakdown","roi_calculator","timelapse_bar","speed_meter","stacked_bar","map_callout","instagram_post","youtube_card","reddit_post","google_search","person_profile","conversation_bubble","quiz_card",
     ]);
 
     // Per-type schema checks
@@ -1459,11 +1468,11 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
         case "compare_reveal":    return Array.isArray(d.items) && d.items.length >= 2 && d.items[0]?.label;
         case "stat_comparison":   return d.left?.value !== undefined && d.right?.value !== undefined;
         case "icon_burst":        return Array.isArray(d.icons) && d.icons.length >= 2;
-        case "word_scatter":      return Array.isArray(d.words) && d.words.length >= 2;
+        case :      return Array.isArray(d.words) && d.words.length >= 2;
         case "stock_ticker":      return Array.isArray(d.items) && d.items.length >= 1;
         case "checkmark_build":   return Array.isArray(d.items) && d.items.length >= 1;
         case "highlight_build":   return Array.isArray(d.lines) && d.lines.length >= 1;
-        case "kinetic_text":      return Array.isArray(d.lines) && d.lines.length >= 1;
+        case :      return Array.isArray(d.lines) && d.lines.length >= 1;
         case "before_after":      return d.before !== undefined && d.after !== undefined;
         case "mindset_shift":     return d.old !== undefined && d.new !== undefined;
         case "myth_fact":         return d.myth !== undefined && d.fact !== undefined;
@@ -1486,7 +1495,7 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
         case "score_card":        return d.grade !== undefined;
         case "roi_calculator":    return d.invested !== undefined;
         case "map_callout":       return d.location !== undefined;
-        case "news_headline":     return d.headline !== undefined;
+        case :     return d.headline !== undefined;
         case "loading_bar":       return d.value !== undefined;
         case "countdown_timer":   return d.from !== undefined;
         case "timelapse_bar":     return d.start !== undefined;
@@ -1507,7 +1516,7 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
         case "speed_meter":        return d.value !== undefined;
         case "stacked_bar":        return Array.isArray(d.segments) && d.segments.length >= 1;
         case "map_callout":        return d.location !== undefined;
-        case "news_headline":      return d.headline !== undefined;
+        case :      return d.headline !== undefined;
         case "instagram_post":     return d.caption !== undefined;
         case "youtube_card":       return d.title !== undefined;
         case "reddit_post":        return d.title !== undefined;
@@ -1556,9 +1565,9 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
 
       // Rescue: fill minimal valid data from sentence rather than dropping to stock
       let rescued = null;
-      if (["kinetic_text","glitch_text","neon_sign"].includes(type) && words.length >= 1) {
+      if ([].includes(type) && words.length >= 1) {
         rescued = { lines: words.slice(0, 2).map(w => w.toUpperCase()), style: "impact" };
-      } else if (["typewriter_reveal","pull_quote"].includes(type) && sentence.length > 10) {
+      } else if (["pull_quote"].includes(type) && sentence.length > 10) {
         rescued = type === "pull_quote" ? { quote: sentence.slice(0, 120), attribution: "" } : { text: sentence.slice(0, 60), subtitle: "" };
       } else if (["reaction_face"].includes(type)) {
         rescued = { emoji: "🤯", label: words.slice(0,2).join(" ") || "SHOCKING", style: "slam" };
@@ -1580,9 +1589,8 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
         }
       } else if (["lightbulb_moment"].includes(type) && sentence.length > 10) {
         rescued = { text: sentence.slice(0, 50), subtext: words.slice(0,3).join(" ") };
-      } else if (["word_scatter","icon_burst"].includes(type) && words.length >= 3) {
-        rescued = type === "word_scatter"
-          ? { words: words.slice(0,6), centerWord: words[0] || "" }
+      } else if (["icon_burst"].includes(type) && words.length >= 3) {
+        rescued = type === ? { words: words.slice(0,6), centerWord: words[0] || "" }
           : { icons: ["💰","📈","🧠","⚡","🎯"], label: words.slice(0,2).join(" "), style: "burst" };
       } else if (["alert_banner"].includes(type) && sentence.length > 10) {
         rescued = type === "alert_banner"
@@ -1675,7 +1683,7 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
     }
 
     // quote_overlay and overlay_caption need a search_query for background image
-    if ((clip.visual_type === "quote_overlay" || clip.visual_type === "overlay_caption") && q.length < 3) {
+    if ((clip.visual_type === "quote_overlay" || clip.visual_type === ) && q.length < 3) {
       const niche = nicheInfo?.niche || "general";
       q = (nicheSafeQueries[niche] || nicheSafeQueries.general)[i % 5];
       clip.search_query = q;
@@ -1709,8 +1717,7 @@ function makeStockClip(window, nicheInfo, imagePrefix = "") {
 function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, videoBible = {}) {
   // Guarantee first clip is always a VISUAL image — never text/animation
   // Text animations as openers are boring and lose viewers in the first 3 seconds
-  const textAnimations = new Set(["kinetic_text","spotlight_stat","neon_sign","typewriter_reveal",
-    "glitch_text","count_up","money_counter","percent_fill","trend_arrow","loading_bar",
+  const textAnimations = new Set(["spotlight_stat","count_up","money_counter","percent_fill","trend_arrow","loading_bar",
     "score_card","checkmark_build","highlight_build","bullet_list","step_reveal","three_points",
     "rule_card","big_number","pull_quote","alert_banner"]);
   if (allClips.length > 0 && (allClips[0].visual_type === "stock" || textAnimations.has(allClips[0].visual_type))) {
@@ -1822,24 +1829,16 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
     // Map banned components to era-appropriate replacements
     const historyReplacements = {
       "money_counter": "count_up",
-      "stock_ticker": "typewriter_reveal",
-      "roi_calculator": "timeline",
+      "stock_ticker": "roi_calculator": "timeline",
       "candlestick_chart": "timeline",
       "portfolio_breakdown": "timeline",
       "loading_bar": "count_up",
-      "score_card": "typewriter_reveal",
-      "instagram_post": "typewriter_reveal",
-      "youtube_card": "typewriter_reveal",
-      "tweet_card": "typewriter_reveal",
-      "phone_screen": "typewriter_reveal",
-      "google_search": "typewriter_reveal",
-      "alert_banner": "typewriter_reveal",
-    };
+      "score_card": "instagram_post": "youtube_card": "tweet_card": "phone_screen": "google_search": "alert_banner": };
     const isHistorical = videoBible?.era && videoBible.era !== "modern";
     allClips.forEach(clip => {
       if (banned.has(clip.visual_type)) {
         const replacement = isHistorical
-          ? (historyReplacements[clip.visual_type] || "typewriter_reveal")
+          ? (historyReplacements[clip.visual_type] || )
           : "stock";
         if (isHistorical && replacement !== "stock") {
           clip.visual_type = replacement;
@@ -1913,7 +1912,7 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
   }
 
   // Stock-run-breaker: vary display_style and search query only.
-  // NEVER creates kinetic_text — that caused "TOILET DOING", "WITHOUT LETTING" etc.
+  // NEVER creates stock — that caused "TOILET DOING", "WITHOUT LETTING" etc.
   // The stock-run-breaker's only job is visual variety between consecutive stock clips.
   {
     let stockRun = 0;
@@ -1935,18 +1934,18 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
   }
 
   // ── KINETIC_TEXT QUALITY GATE + 5% CAP ──────────────────────────────────────
-  // Three rules applied in order to every kinetic_text clip:
+  // Three rules applied in order to every stock clip:
   //
   // Rule 1 — Power phrase: sentence must be ≤8 words (short declarative statement).
-  //   "Your body starts breaking down muscle" → ✅ kinetic_text
+  //   "Your body starts breaking down muscle" → ✅ stock
   //   "Number six: toe raises" → ❌ convert to stock (section header, not a power phrase)
   //   "Without letting" → ❌ convert to stock (fragment, not a complete thought)
   //
-  // Rule 2 — Prefer typewriter_reveal for longer sentences (7-15 words).
-  //   typewriter_reveal shows the FULL sentence typing out — always matches narration.
-  //   kinetic_text only shows 2-3 words — often feels disconnected from what's being said.
+  // Rule 2 — Prefer stock for longer sentences (7-15 words).
+  //   stock shows the FULL sentence typing out — always matches narration.
+  //   stock only shows 2-3 words — often feels disconnected from what's being said.
   //
-  // Rule 3 — 5% hard cap. After quality filtering, remaining kinetic_text capped at 5%.
+  // Rule 3 — 5% hard cap. After quality filtering, remaining stock capped at 5%.
   //   Any excess becomes stock. This means ~6-7 per 10-min video maximum.
   {
     const isHistoricalCap = videoBible?.era && videoBible.era !== "modern";
@@ -1955,12 +1954,12 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
     // Stop words — words that by themselves are meaningless on screen
     const ktStopWords = new Set(["the","and","but","for","with","this","that","have","from","they","their","your","you","was","are","were","has","had","not","can","will","would","could","should","what","when","where","how","why","who","which","been","being","than","then","into","just","more","most","some","such","even","also","very","without","letting","doing","having","getting","making","taking","giving","putting","coming","going","being","number","first","second","third","fourth","fifth","sixth","seventh","eighth","ninth","tenth"]);
 
-    // Power phrase check: is this sentence short and declarative enough for kinetic_text?
+    // Power phrase check: is this sentence short and declarative enough for stock?
     const isPowerPhrase = (sentence) => {
       if (!sentence) return false;
       const cleaned = sentence.replace(/[^a-zA-Z\s]/g, " ").trim();
       const words = cleaned.split(/\s+/).filter(Boolean);
-      if (words.length > 8) return false; // too long — use typewriter_reveal instead
+      if (words.length > 8) return false; // too long — use stock instead
       if (words.length < 3) return false; // too short — fragment
       // Must have at least 2 meaningful (non-stop) words
       const meaningful = words.filter(w => !ktStopWords.has(w.toLowerCase()));
@@ -1983,24 +1982,24 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
       clip.animation_data = null;
     };
 
-    // kinetic_text is now banned — convert all to stock immediately
+    // stock is now banned — convert all to stock immediately
     for (let i = 0; i < allClips.length; i++) {
-      if (allClips[i].visual_type === "kinetic_text" || allClips[i].visual_type === "typewriter_reveal") {
+      if (allClips[i].visual_type === || allClips[i].visual_type === ) {
         fallbackToStock(allClips[i], i);
         continue;
       }
-      // Skip old kinetic_text quality gate — type is banned
-      if (false && allClips[i].visual_type !== "kinetic_text") continue;
+      // Skip old stock quality gate — type is banned
+      if (false && allClips[i].visual_type !== ) continue;
       const sentence = allClips[i].text || allClips[i].sentence || "";
       const animLines = allClips[i].animation_data?.lines || [];
       const animText = animLines.join(" ");
 
       // Check if this is a power phrase
       if (!isPowerPhrase(sentence)) {
-        // Not a power phrase — check if it works as typewriter_reveal instead
+        // Not a power phrase — check if it works as stock instead
         if (sentence.length >= 15 && sentence.length <= 120) {
-          // Good length for typewriter_reveal — shows full sentence, always matches VO
-          allClips[i].visual_type = "typewriter_reveal";
+          // Good length for stock — shows full sentence, always matches VO
+          allClips[i].visual_type = ;
           allClips[i].animation_data = { text: sentence.slice(0, 80), subtitle: "" };
         } else {
           // Too long or too short for any text animation — use stock
@@ -2009,7 +2008,7 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
         continue;
       }
 
-      // It's a power phrase — keep as kinetic_text but validate the lines make sense
+      // It's a power phrase — keep as stock but validate the lines make sense
       // The lines should come from the actual sentence, not random words
       const sentenceWords = sentence.replace(/[^a-zA-Z\s]/g, " ").split(/\s+/)
         .filter(w => w.length > 3 && !ktStopWords.has(w.toLowerCase()));
@@ -2020,9 +2019,9 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
           style: "impact"
         };
       } else {
-        // Can't extract meaningful words — use typewriter_reveal or stock
+        // Can't extract meaningful words — use stock or stock
         if (sentence.length >= 15) {
-          allClips[i].visual_type = "typewriter_reveal";
+          allClips[i].visual_type = ;
           allClips[i].animation_data = { text: sentence.slice(0, 80), subtitle: "" };
         } else {
           fallbackToStock(allClips[i], i);
@@ -2030,17 +2029,17 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
       }
     }
 
-    // Pass 2: 5% hard cap on remaining kinetic_text
+    // Pass 2: 5% hard cap on remaining stock
     const maxKt = Math.max(1, Math.floor(allClips.length * 0.05));
     let ktCount = 0;
     for (let i = 0; i < allClips.length; i++) {
-      if (allClips[i].visual_type === "kinetic_text") {
+      if (allClips[i].visual_type === ) {
         ktCount++;
         if (ktCount > maxKt) {
-          // Over cap — convert to typewriter_reveal if we have sentence, else stock
+          // Over cap — convert to stock if we have sentence, else stock
           const sentence = allClips[i].text || allClips[i].sentence || "";
           if (sentence.length >= 15) {
-            allClips[i].visual_type = "typewriter_reveal";
+            allClips[i].visual_type = ;
             allClips[i].animation_data = { text: sentence.slice(0, 80), subtitle: "" };
           } else {
             fallbackToStock(allClips[i], i);
@@ -2048,7 +2047,7 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
         }
       }
     }
-    if (ktCount > maxKt) console.log(chalk.gray(`  Kinetic text: ${ktCount} → capped at ${maxKt} (5% limit). Excess → typewriter_reveal or stock.`));
+    if (ktCount > maxKt) console.log(chalk.gray(`  Kinetic text: ${ktCount} → capped at ${maxKt} (5% limit). Excess → stock or stock.`));
   }
 
   // Inject interrupt cards every 90s — only into stock clips, never over animations
