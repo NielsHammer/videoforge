@@ -621,6 +621,24 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
   }
 
   // Post-processing
+  // Convert any remaining text-only animations to stock/AI
+  // These create double-subtitle effect with our burned-in subtitles
+  const BANNED_TEXT_TYPES = new Set(['kinetic_text','typewriter_reveal','neon_sign','glitch_text','news_breaking','word_scatter','news_headline','bold_claim']);
+  for (const clip of allClips) {
+    if (BANNED_TEXT_TYPES.has(clip.visual_type)) {
+      // Let director decide: use stock with the sentence as search query
+      const sentence = clip.text || clip.sentence || '';
+      const biblePrefix = videoBible?.image_search_prefix || '';
+      // Extract 3-5 key nouns from sentence for search
+      const stopWords = new Set(['the','and','but','for','with','this','that','have','from','they','their','you','was','are','were','has','not','can','will','just','very','also','more','most','when','where','what','how','who']);
+      const keyWords = sentence.replace(/[^a-zA-Zs]/g,' ').split(/s+/)
+        .filter(w => w.length > 3 && !stopWords.has(w.toLowerCase()))
+        .slice(0, 4).join(' ');
+      clip.visual_type = 'stock';
+      clip.search_query = biblePrefix ? biblePrefix + ' ' + keyWords : keyWords || (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[0];
+      clip.animation_data = null;
+    }
+  }
   let finalClips = applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, videoBible);
 
   console.log(chalk.gray(`  Storyboard: ${finalClips.length} clips`));
@@ -635,16 +653,19 @@ function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, ani
   const maxPerType = 3; // max per type before rotating to next
 
   // Rotation pools for variety
+  // Text-only animations REMOVED — we now have real subtitles burned in.
+  // Pure text scenes (kinetic_text, typewriter_reveal, neon_sign, etc.) create
+  // double-subtitle effect and don't add visual value.
   const animRotation = [
-    "kinetic_text","spotlight_stat","reaction_face","neon_sign",
-    "money_counter","count_up","typewriter_reveal","news_breaking","glitch_text",
-    "percent_fill","trend_arrow","before_after","compare_reveal","highlight_build",
-    "checkmark_build","icon_burst","lightbulb_moment","rocket_launch","tweet_card",
-    "phone_screen","word_scatter","side_by_side","thumbs_up","stock_ticker",
+    "spotlight_stat","reaction_face",
+    "money_counter","count_up","percent_fill","trend_arrow","before_after",
+    "compare_reveal","highlight_build","checkmark_build","icon_burst",
+    "lightbulb_moment","rocket_launch","tweet_card","phone_screen",
+    "side_by_side","thumbs_up","stock_ticker",
     // batch4
     "pull_quote","stat_comparison","bullet_list","myth_fact","step_reveal",
     "pro_con","score_card","mindset_shift","big_number","alert_banner",
-    "three_points","rule_card","loading_bar","vote_bar","news_headline",
+    "three_points","rule_card","loading_bar","vote_bar",
     "conversation_bubble","stacked_bar","countdown_timer",
   ];
   const infraRotation = [
@@ -1962,9 +1983,14 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
       clip.animation_data = null;
     };
 
-    // Pass 1: Quality gate — validate each kinetic_text clip before counting toward cap
+    // kinetic_text is now banned — convert all to stock immediately
     for (let i = 0; i < allClips.length; i++) {
-      if (allClips[i].visual_type !== "kinetic_text") continue;
+      if (allClips[i].visual_type === "kinetic_text" || allClips[i].visual_type === "typewriter_reveal") {
+        fallbackToStock(allClips[i], i);
+        continue;
+      }
+      // Skip old kinetic_text quality gate — type is banned
+      if (false && allClips[i].visual_type !== "kinetic_text") continue;
       const sentence = allClips[i].text || allClips[i].sentence || "";
       const animLines = allClips[i].animation_data?.lines || [];
       const animText = animLines.join(" ");

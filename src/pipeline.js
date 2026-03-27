@@ -97,11 +97,15 @@ WRONG — wrong era for topic: generating Roman warriors for a gym video
 RIGHT — matches topic: "muscular athlete performing weighted squat in modern gym, dramatic side lighting highlighting muscle definition, low angle shot, sports photography style, shallow depth of field"
 
 Rules:
-- Lead with the specific subject from the narration
-- Add camera angle (low angle / aerial / close-up / wide establishing / over-shoulder)
-- Add lighting (golden hour / harsh shadows / neon glow / candlelight / overcast grey)
-- Add emotional subtext (tense / awe-inspiring / lonely / triumphant / haunting)
-- Add cinematic style reference when useful
+- Show the SPECIFIC action, exercise, object or scene the narrator describes — not a generic version
+- REALISTIC documentary-style photography — NOT clickbait, NOT overdone stock photos
+- Show ORDINARY RELATABLE people — not fitness models, not overdone bodybuilders
+- For exercises: show the exact exercise being performed (squats = squats, pull-ups = pull-ups)
+- For history: show real struggle and humanity — not just heroic epic shots
+- For finance: real people in real situations — not luxury lifestyle imagery
+- Style: photojournalism, candid, documentary. Real lighting. Real people. Real moments.
+- Camera: natural eye-level or slight angles — avoid extreme low-angle hero shots
+- Avoid: perfect lighting, glamour photography, stock photo aesthetics, clickbait imagery
 ${styleGuide}
 - 35-55 words total
 - NO text, watermarks, or UI elements
@@ -812,7 +816,7 @@ function generateSRT(wordTimestamps, outputPath) {
 
   // Group into phrases of 4-5 words, respecting sentence boundaries
   // Never split a phrase across a sentence-ending punctuation
-  const PHRASE_SIZE = 5;
+  const PHRASE_SIZE = 4; // 4 words max — prevents line wrapping on narrow screens
   const phrases = [];
   let phraseBuffer = [];
   
@@ -842,10 +846,11 @@ ScriptType: v4.00+
 PlayResX: 1920
 PlayResY: 1080
 ScaledBorderAndShadow: yes
+WrapStyle: 1
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,56,&H00FFFFFF,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,1,0,1,3,1,2,80,80,100,1
+Style: Default,Arial,48,&H00FFFFFF,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,3,1,2,80,80,120,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
