@@ -49,7 +49,12 @@ async function craftAIPrompt(basicPrompt, clip, scriptText, eraContext = "", tot
   // Extract what the narrator is actually saying at this clip's timestamp
   const clipStart = clip.start_time || 0;
   const clipEnd = clip.end_time || clipStart + 3;
-  const isHistorical = eraContext && eraContext !== "modern" && eraContext !== "";
+  // Robust historical detection — video bible + topic string backup
+  const historicalTopicWords = /roman|greek|ancient|medieval|empire|century|dynasty|viking|pharaoh|war|revolution|battle|kingdom|civilization|historical|history|renaissance|colonial|ottoman|mongol|feudal|babylon|egypt|persia|sparta/i;
+  const modernTopicWords = /gym|workout|fitness|exercise|diet|nutrition|finance|invest|stock|crypto|business|startup|youtube|social media|instagram|tiktok|health|wellness|coding|tech|ai|entrepreneur|marketing|weight loss|muscle|bodybuilding/i;
+  const topicIsModern = modernTopicWords.test(basicPrompt);
+  const topicIsHistorical = !topicIsModern && historicalTopicWords.test(basicPrompt);
+  const isHistorical = (eraContext && eraContext !== "modern" && eraContext !== "" && !topicIsModern) || topicIsHistorical;
 
   // FIXED Bug 1: get the specific sentence being narrated here, not the generic search_query.
   // Before: every clip got "ancient roman empire scene: ancient roman ruins" → same image.
@@ -72,10 +77,11 @@ async function craftAIPrompt(basicPrompt, clip, scriptText, eraContext = "", tot
         max_tokens: 200,
         messages: [{
           role: "user",
-          content: `You are a world-class cinematographer and visual director for YouTube documentaries. Your job is to translate a narrated sentence into a perfect image prompt for Flux AI.
+          content: `You are a world-class cinematographer creating image prompts for a YouTube video. Match the visual style to the VIDEO TOPIC — never invent a different setting or era.
 
+VIDEO TOPIC CONTEXT: "${basicPrompt.slice(0, 120)}"
 NARRATOR SAYS: "${narratedSentence || basicPrompt}"
-${isHistorical ? `ERA: ${eraContext} — period-accurate visuals ONLY. Zero modern elements.` : ""}
+${isHistorical ? `ERA: ${eraContext} — period-accurate visuals ONLY. Zero modern elements whatsoever.` : topicIsModern ? `SETTING: Modern day. Use contemporary realistic imagery matching the topic. No ancient, medieval, Roman, Greek, or warrior imagery.` : /horror|scary|dark|paranormal|haunted|murder|crime|thriller/i.test(basicPrompt) ? `SETTING: Dark atmospheric modern world. Eerie, suspenseful, cinematic horror style. No ancient warrior imagery.` : `SETTING: Match the visual world of the topic. Contemporary unless the script explicitly describes a historical setting.`}
 
 Think like a film director. Ask yourself:
 1. What is the KEY VISUAL SUBJECT of this sentence? (the person, object, or scene)
@@ -87,8 +93,8 @@ Think like a film director. Ask yourself:
 WRONG — literal and generic: "man hiding behind hedge at night"
 RIGHT — cinematic: "shadowy silhouette crouched low behind dense hedgerow, moonlight cutting through leaves casting dramatic shadows, extreme low angle, tense thriller atmosphere, shallow depth of field, film noir style"
 
-WRONG — too generic: "ancient roman scene"
-RIGHT — specific and cinematic: "fourteen-year-old boy drowning in an oversized golden throne, Germanic warriors visible through marble archway behind him, dramatic chiaroscuro lighting, low angle looking up at throne, Ridley Scott epic style"
+WRONG — wrong era for topic: generating Roman warriors for a gym video
+RIGHT — matches topic: "muscular athlete performing weighted squat in modern gym, dramatic side lighting highlighting muscle definition, low angle shot, sports photography style, shallow depth of field"
 
 Rules:
 - Lead with the specific subject from the narration
@@ -715,8 +721,9 @@ Return ONLY the search query.`
   const srtPath = path.join(outputDir, 'subtitles.srt');
   const subtitledPath = path.join(outputDir, 'final-subtitled.mp4');
   const srtGenerated = generateSRT(wordTimestamps, srtPath);
-  if (srtGenerated && fs.existsSync(srtPath)) {
-    const burned = await burnSubtitles(finalPath, srtPath, subtitledPath);
+  const subFile = srtGenerated || null;
+  if (subFile && fs.existsSync(subFile)) {
+    const burned = await burnSubtitles(finalPath, subFile, subtitledPath);
     if (burned && fs.existsSync(subtitledPath) && fs.statSync(subtitledPath).size > 1000) {
       // Replace final.mp4 with subtitled version
       fs.renameSync(subtitledPath, finalPath);
@@ -793,52 +800,69 @@ async function mergeAudioVideoSimple(videoPath, audioPath, outputPath, musicPath
 function generateSRT(wordTimestamps, outputPath) {
   if (!wordTimestamps || wordTimestamps.length === 0) return null;
 
-  const toSRTTime = (seconds) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-    const ms = Math.round((seconds % 1) * 1000);
-    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')},${String(ms).padStart(3,'0')}`;
+  // Use ASS karaoke format — one phrase line stays on screen,
+  // current word highlights yellow as spoken. No flickering.
+  const toASSTime = (s) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.floor(s % 60);
+    const cs = Math.round((s % 1) * 100);
+    return h + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0') + '.' + String(cs).padStart(2,'0');
   };
 
-  // Build rolling window subtitles: show a line of ~6 words at a time.
-  // The CURRENT word being spoken is shown in FULL CAPS to highlight it.
-  // This creates the typewriter/word-highlight effect from the reference images.
-  // Window: show 3 words before current + current + 2 words after = context line
-  const WINDOW_BEFORE = 3;
-  const WINDOW_AFTER = 2;
-  const entries = [];
-
+  // Group into phrases of 4-5 words, respecting sentence boundaries
+  // Never split a phrase across a sentence-ending punctuation
+  const PHRASE_SIZE = 5;
+  const phrases = [];
+  let phraseBuffer = [];
+  
   for (let i = 0; i < wordTimestamps.length; i++) {
-    const curr = wordTimestamps[i];
-    // Build the context window around current word
-    const windowStart = Math.max(0, i - WINDOW_BEFORE);
-    const windowEnd = Math.min(wordTimestamps.length - 1, i + WINDOW_AFTER);
-    const windowWords = [];
-    for (let j = windowStart; j <= windowEnd; j++) {
-      if (j === i) {
-        // Current word — uppercase and bold via SRT formatting
-        windowWords.push(wordTimestamps[j].word.toUpperCase());
-      } else {
-        windowWords.push(wordTimestamps[j].word);
+    const w = wordTimestamps[i];
+    phraseBuffer.push(w);
+    
+    // Check if this word ends a sentence or phrase is full
+    const endsPhrase = phraseBuffer.length >= PHRASE_SIZE;
+    const endsSentence = /[.!?]$/.test(w.word.trim());
+    const isLast = i === wordTimestamps.length - 1;
+    
+    if (endsPhrase || endsSentence || isLast) {
+      if (phraseBuffer.length > 0) {
+        phrases.push({
+          words: [...phraseBuffer],
+          start: phraseBuffer[0].start,
+          end: phraseBuffer[phraseBuffer.length - 1].end + 0.15
+        });
+        phraseBuffer = [];
       }
-    }
-    const text = windowWords.join(' ');
-    // Each entry lasts exactly as long as that word is spoken
-    const start = curr.start;
-    const end = i < wordTimestamps.length - 1
-      ? wordTimestamps[i + 1].start  // end when next word starts
-      : curr.end + 0.1;
-    if (end > start) {
-      entries.push({ text, start, end });
     }
   }
 
-  const lines = entries.map((p, idx) =>
-    `${idx + 1}\n${toSRTTime(p.start)} --> ${toSRTTime(p.end)}\n${p.text}\n`
-  );
-  fs.writeFileSync(outputPath, lines.join('\n'));
-  return outputPath;
+  const header = `[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,56,&H00FFFFFF,&H0000FFFF,&H00000000,&H00000000,-1,0,0,0,100,100,1,0,1,3,1,2,80,80,100,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+
+  const lines = phrases.map(phrase => {
+    const kText = phrase.words.map((w, wi) => {
+      const nextStart = wi < phrase.words.length - 1 ? phrase.words[wi+1].start : w.end + 0.15;
+      const dur = Math.max(1, Math.round((nextStart - w.start) * 100));
+      return '{\\kf' + dur + '}' + w.word;
+    }).join(' ');
+    return 'Dialogue: 0,' + toASSTime(phrase.start) + ',' + toASSTime(phrase.end) + ',Default,,0,0,0,,' + kText;
+  });
+
+  const assPath = outputPath.replace(/\.srt$/, '.ass');
+  fs.writeFileSync(assPath, header + lines.join('\n'));
+  return assPath;
 }
 
 // Burn subtitles into final video using FFmpeg subtitles filter
@@ -853,9 +877,9 @@ async function burnSubtitles(videoPath, srtPath, outputPath) {
     // Shadow=1, Outline=2 — strong outline so text is readable on bright or dark frames
     // Alignment=2 — bottom center
     // MarginV=60 — above the bottom edge
-    const escapedSrt = srtPath.replace(/:/g, '\\:');
+    const escapedAss = srtPath.replace(/:/g, '\\:');
     execSync(
-      `ffmpeg -y -i "${videoPath}" -vf "subtitles='${escapedSrt}':force_style='FontName=Arial,Bold=1,FontSize=24,PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BackColour=&H00000000,Outline=2,Shadow=1,Alignment=2,MarginV=80'" -c:a copy "${outputPath}"`,
+      `ffmpeg -y -i "${videoPath}" -vf "ass='${escapedAss}'" -c:a copy "${outputPath}"`,
       { stdio: 'pipe', timeout: 1800000 }
     );
     s.succeed('Subtitles burned');
