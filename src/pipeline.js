@@ -45,74 +45,72 @@ function extractNarratedSentence(wordTimestamps, clipStart, clipEnd) {
   return wordsInWindow.map(w => w.word).join(" ").trim().slice(0, 250);
 }
 
-async function craftAIPrompt(basicPrompt, clip, scriptText, eraContext = "", totalDuration = 0, wordTimestamps = [], videoTopic = "") {
-  // Extract what the narrator is actually saying at this clip's timestamp
+async function craftAIPrompt(basicPrompt, clip, scriptText, eraContext = "", totalDuration = 0, wordTimestamps = [], videoTopic = "", videoBible = {}, clipIndex = 0, totalClips = 0) {
   const clipStart = clip.start_time || 0;
   const clipEnd = clip.end_time || clipStart + 3;
-  // Robust historical detection — video bible + topic string backup
-  const historicalTopicWords = /roman|greek|ancient|medieval|empire|century|dynasty|viking|pharaoh|war|revolution|battle|kingdom|civilization|historical|history|renaissance|colonial|ottoman|mongol|feudal|babylon|egypt|persia|sparta/i;
-  const modernTopicWords = /gym|workout|fitness|exercise|diet|nutrition|finance|invest|stock|crypto|business|startup|youtube|social media|instagram|tiktok|health|wellness|coding|tech|ai|entrepreneur|marketing|weight loss|muscle|bodybuilding/i;
-  const topicIsModern = modernTopicWords.test(basicPrompt);
-  const topicIsHistorical = !topicIsModern && historicalTopicWords.test(basicPrompt);
-  const isHistorical = (eraContext && eraContext !== "modern" && eraContext !== "" && !topicIsModern) || topicIsHistorical;
 
-  // FIXED Bug 1: get the specific sentence being narrated here, not the generic search_query.
-  // Before: every clip got "ancient roman empire scene: ancient roman ruins" → same image.
-  // After: each clip gets the actual narrator sentence → specific, varied prompts.
+  // Exact narrator sentence at this timestamp
   const narratedSentence = extractNarratedSentence(wordTimestamps, clipStart, clipEnd);
 
-  const styleGuide = isHistorical
-    ? `- Style: epic historical painting meets cinematic photography, period-accurate, dramatic chiaroscuro lighting, 16:9 aspect ratio
-- CRITICAL: No modern elements — no contemporary clothing, no gym equipment, no smartphones, no modern architecture
-- Include: period-accurate costumes, ancient/medieval settings, historically accurate details
-- Mood: cinematic, epic, like a scene from Gladiator or Kingdom of Heaven`
-    : `- Style: photorealistic, cinematic, 16:9 aspect ratio
-- Always include "high quality, sharp focus, professional photography"`;
+  // Surrounding context for continuity
+  const sentenceBefore = extractNarratedSentence(wordTimestamps, Math.max(0, clipStart - 6), clipStart);
+  const sentenceAfter = extractNarratedSentence(wordTimestamps, clipEnd, clipEnd + 6);
+
+  // Position in video
+  const progress = totalClips > 0 ? clipIndex / totalClips : clipStart / (totalDuration || 600);
+  const position = progress < 0.12 ? "HOOK (opening — punchy, attention-grabbing)"
+    : progress < 0.25 ? "SETUP (establishing context and stakes)"
+    : progress < 0.75 ? "MAIN CONTENT (delivering core value)"
+    : progress < 0.90 ? "CLIMAX (peak insight or revelation)"
+    : "CONCLUSION (resolution, call to action)";
+
+  // Full video bible context
+  const bibleLines = [
+    videoBible.setting            ? "Setting: "       + videoBible.setting : "",
+    videoBible.era_specific       ? "Era/Period: "    + videoBible.era_specific : "",
+    videoBible.visual_tone        ? "Visual tone: "   + videoBible.visual_tone : "",
+    videoBible.required_visual_style ? "Style: "      + videoBible.required_visual_style : "",
+    videoBible.target_audience    ? "Audience: "      + videoBible.target_audience : "",
+    videoBible.emotional_arc      ? "Emotional arc: " + videoBible.emotional_arc : "",
+    videoBible.banned_visuals?.length ? "NEVER show: " + videoBible.banned_visuals.slice(0,6).join(", ") : "",
+  ].filter(Boolean).join("\n");
+
+  // Director-specified key visual moment
+  const keyMoment = (videoBible.key_visual_moments || []).find(m =>
+    narratedSentence && m.moment &&
+    narratedSentence.toLowerCase().includes(m.moment.toLowerCase().slice(0, 25))
+  );
 
   try {
     const response = await axios.post(
       "https://api.anthropic.com/v1/messages",
       {
         model: "claude-sonnet-4-20250514",
-        max_tokens: 200,
+        max_tokens: 250,
         messages: [{
           role: "user",
-          content: `You are a world-class cinematographer creating image prompts for a YouTube video. Match the visual style to the VIDEO TOPIC — never invent a different setting or era.
+          content: `You are generating ONE image prompt for a specific moment in a YouTube video.
+Read all context carefully before deciding what to show.
 
-VIDEO TOPIC: "${videoTopic || basicPrompt.slice(0, 120)}"
-NARRATOR SAYS: "${narratedSentence || basicPrompt}"
-${isHistorical ? `ERA: ${eraContext} — period-accurate visuals ONLY. Zero modern elements whatsoever.` : topicIsModern ? `SETTING: Modern day. Use contemporary realistic imagery matching the topic. No ancient, medieval, Roman, Greek, or warrior imagery.` : /horror|scary|dark|paranormal|haunted|murder|crime|thriller/i.test(basicPrompt) ? `SETTING: Dark atmospheric modern world. Eerie, suspenseful, cinematic horror style. No ancient warrior imagery.` : `SETTING: Match the visual world of the topic. Contemporary unless the script explicitly describes a historical setting.`}
+VIDEO TITLE: "${videoTopic || basicPrompt.slice(0, 120)}"
 
-Think like a film director. Ask yourself:
-1. What is the KEY VISUAL SUBJECT of this sentence? (the person, object, or scene)
-2. What EMOTION or TENSION should this image carry?
-3. What CAMERA ANGLE and FRAMING tells this story best?
-4. What LIGHTING conditions match the mood?
-5. What CINEMATIC STYLE fits? (noir, epic, intimate, cold clinical, warm nostalgic)
+VIDEO CONTEXT (visual world of this video):
+${bibleLines || "Infer the visual world from the video title."}
 
-WRONG — literal and generic: "man hiding behind hedge at night"
-RIGHT — cinematic: "shadowy silhouette crouched low behind dense hedgerow, moonlight cutting through leaves casting dramatic shadows, extreme low angle, tense thriller atmosphere, shallow depth of field, film noir style"
+POSITION IN VIDEO: ${position}
+${sentenceBefore && sentenceBefore !== narratedSentence ? 'JUST SAID: "' + sentenceBefore.slice(0, 100) + '"' : ""}
+NARRATOR SAYS NOW: "${narratedSentence || basicPrompt}"
+${sentenceAfter && sentenceAfter !== narratedSentence ? 'COMING NEXT: "' + sentenceAfter.slice(0, 100) + '"' : ""}
+${keyMoment ? 'DIRECTOR NOTE: Show "' + keyMoment.visual_description + '"' : ""}
 
-WRONG — wrong era: Roman warriors for a gym video
-WRONG — clickbait: overdone bodybuilder posing dramatically  
-RIGHT — realistic: "ordinary person performing squat in local gym, natural overhead lighting, eye-level candid shot, documentary photography style, real gym environment"
-RIGHT — historical: "exhausted Roman soldier resting against stone wall, dust-covered armor, realistic portrait, candid documentary style"
+Generate the single best image for this exact moment:
+- Fit the visual world above — era, setting, tone, style, banned visuals
+- Show the SPECIFIC thing the narrator describes right now
+- Feature real, relatable people matching the target audience
+- Documentary/candid style — real lighting, real moments
+- 35-55 words, NO text or watermarks
 
-Rules:
-- Show the SPECIFIC action, exercise, object or scene the narrator describes — not a generic version
-- REALISTIC documentary-style photography — NOT clickbait, NOT overdone stock photos
-- Show ORDINARY RELATABLE people — not fitness models, not overdone bodybuilders
-- For exercises: show the exact exercise being performed (squats = squats, pull-ups = pull-ups)
-- For history: show real struggle and humanity — not just heroic epic shots
-- For finance: real people in real situations — not luxury lifestyle imagery
-- Style: photojournalism, candid, documentary. Real lighting. Real people. Real moments.
-- Camera: natural eye-level or slight angles — avoid extreme low-angle hero shots
-- Avoid: perfect lighting, glamour photography, stock photo aesthetics, clickbait imagery
-${styleGuide}
-- 35-55 words total
-- NO text, watermarks, or UI elements
-
-Return ONLY the prompt, nothing else.`
+Return ONLY the image prompt.`
         }]
       },
       {
@@ -126,10 +124,8 @@ Return ONLY the prompt, nothing else.`
     );
     return response.data.content[0].text.trim();
   } catch {
-    const fallback = narratedSentence
-      ? `${eraContext ? eraContext + ": " : ""}${narratedSentence.slice(0, 80)}, cinematic, 16:9`
-      : `${basicPrompt}, cinematic lighting, photorealistic, 16:9`;
-    return fallback;
+    const ctx = videoBible.era_specific || videoBible.setting || "";
+    return `${ctx ? ctx + ": " : ""}${(narratedSentence || basicPrompt).slice(0, 100)}, documentary photography, natural lighting, realistic`;
   }
 }
 
@@ -488,15 +484,9 @@ Return ONLY the search query.`
         s.text = `Clip ${i + 1}: Web miss → AI generating...`;
         try {
           const detailedPrompt = await craftAIPrompt(
-            isHistoricalEra
-              ? `${videoBible.era_specific || videoEra} historical scene: ${clip.search_query}. Period-accurate, cinematic.`
-              : `Photograph related to: ${clip.search_query}.`,
-            clip,
-            scriptText,
-            videoBible.era_specific || videoEra,
-            totalDuration,
-            wordTimestamps,
-            options.topic || ""
+            clip.search_query || basicPrompt,
+            clip, scriptText, "", totalDuration, wordTimestamps,
+            options.topic || "", videoBible, i, clips.length
           );
           await generateAIImage(detailedPrompt, aiPath);
           if (isValidImageFile(aiPath)) {
@@ -515,7 +505,7 @@ Return ONLY the search query.`
 
       // Route 1: ai_image → Claude refines prompt → Fal.ai (always fresh)
       if (clip.visual_type === "ai_image" && clip.ai_prompt) {
-        const detailedPrompt = await craftAIPrompt(clip.ai_prompt, clip, scriptText, videoBible.era_specific || videoEra, totalDuration, wordTimestamps, options.topic || "");
+        const detailedPrompt = await craftAIPrompt(clip.ai_prompt, clip, scriptText, "", totalDuration, wordTimestamps, options.topic || "", videoBible, i, clips.length);
         await generateAIImage(detailedPrompt, aiPath);
         fixImageRotation(aiPath);
         clip.imagePath = aiPath;
@@ -600,7 +590,7 @@ Return ONLY the search query.`
         const basePrompt = isHistoricalEra
           ? `${videoBible.era_specific || videoEra} historical scene: ${clip.search_query || "ancient scene"}. Period-accurate, no modern elements, cinematic, dramatic lighting, painterly quality.`
           : clip.search_query || "professional scene";
-        const detailedPrompt = await craftAIPrompt(basePrompt, clip, scriptText, videoBible.era_specific || videoEra, totalDuration, wordTimestamps, options.topic || "");
+        const detailedPrompt = await craftAIPrompt(basePrompt, clip, scriptText, "", totalDuration, wordTimestamps, options.topic || "", videoBible, i, clips.length);
         await generateAIImage(detailedPrompt, aiPath);
         fixImageRotation(aiPath);
         clip.imagePath = aiPath;
