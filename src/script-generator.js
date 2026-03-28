@@ -584,14 +584,19 @@ function getBlockRoles(totalBlocks) {
     "ESCALATION (sections 4-5). The biggest reveals. Maximum tension or most surprising data. End with 'and this brings us to the part that changes everything...'",
     "CLOSING (final section + conclusion + CTA). The full payoff. Emotional landing. Memorable final line.",
   ];
-  // 5 blocks (40-50 min)
-  return [
+  // 5+ blocks (40-60+ min)
+  const roles = [
     "OPENING (hook + strong intro + section 1). Hook must be the best of the entire video. End with a promise of what's coming.",
     "DEVELOPMENT (sections 2-3). Build the foundation. Include early surprising facts. End with 'but we're only halfway there...'",
     "CORE (sections 4-5). The heart of the video. Most important content. Most surprising data or scenes. End with major cliffhanger.",
     "ESCALATION (sections 6-7). Everything builds to a head. Major reveals. The viewer cannot stop now. End with 'one more thing...'",
     "CLOSING (final section + conclusion + CTA). Full payoff. Emotional resonance. The single most memorable line of the whole video.",
   ];
+  // For 6+ blocks, insert extra DEVELOPMENT blocks before the closing
+  while (roles.length < totalBlocks) {
+    roles.splice(roles.length - 1, 0, `CONTINUATION (block ${roles.length} of ${totalBlocks}). Continue building with fresh examples and data. Maintain energy and pacing. End with a transition to the next section.`);
+  }
+  return roles;
 }
 
 // ─── BLOCK GENERATION ────────────────────────────────────────────────────────

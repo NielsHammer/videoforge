@@ -624,20 +624,55 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
   // Post-processing
   // Convert any remaining text-only animations to stock/AI
   // These create double-subtitle effect with our burned-in subtitles
-  const BANNED_TEXT_TYPES = new Set(['kinetic_text','typewriter_reveal','neon_sign','glitch_text','news_breaking','word_scatter','news_headline','bold_claim']);
+  // All "text on screen" types are banned — we have burned-in subtitles, so text scenes = double subtitles
+  // Only actual data visualizations (numbers, charts, comparisons) are allowed
+  const BANNED_TEXT_TYPES = new Set([
+    // Original banned text types
+    'kinetic_text','typewriter_reveal','neon_sign','glitch_text','news_breaking','word_scatter','news_headline','bold_claim',
+    // Text announcement types — just display script text as the main visual
+    'lightbulb_moment','rocket_launch','pull_quote','rule_card','highlight_build',
+    'dramatic_reveal','stamp_reveal','underline_slam','word_by_word','split_text',
+    'title_card','chapter_break',
+  ]);
   for (const clip of allClips) {
     if (BANNED_TEXT_TYPES.has(clip.visual_type)) {
-      // Let director decide: use stock with the sentence as search query
       const sentence = clip.text || clip.sentence || '';
+      const lower = sentence.toLowerCase();
       const biblePrefix = videoBible?.image_search_prefix || '';
-      // Extract 3-5 key nouns from sentence for search
       const stopWords = new Set(['the','and','but','for','with','this','that','have','from','they','their','you','was','are','were','has','not','can','will','just','very','also','more','most','when','where','what','how','who']);
-      const keyWords = sentence.replace(/[^a-zA-Zs]/g,' ').split(/s+/)
+      const keyWords = sentence.replace(/[^a-zA-Z\s]/g,' ').split(/\s+/)
         .filter(w => w.length > 3 && !stopWords.has(w.toLowerCase()))
         .slice(0, 4).join(' ');
-      clip.visual_type = 'stock';
-      clip.search_query = biblePrefix ? biblePrefix + ' ' + keyWords : keyWords || (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[0];
-      clip.animation_data = null;
+      const hasNumber = /\d+/.test(sentence) || /percent|million|billion|thousand|hundred/i.test(sentence);
+      const hasComparison = /vs\.?|versus|compared|while|whereas|before.*after|instead/i.test(lower);
+      const hasList = /first|second|third|step|,.*,/.test(lower);
+
+      // Smart replacement: pick the best non-text animation for this sentence
+      if (hasNumber && !clip.animation_data) {
+        clip.visual_type = 'spotlight_stat';
+        const num = sentence.match(/\d+/);
+        const pct = sentence.match(/(\d+)\s*%/);
+        clip.animation_data = { value: pct ? pct[1] + '%' : (num ? num[0] : '?'), label: keyWords.toLowerCase().slice(0, 40), context: '' };
+      } else if (hasComparison && !clip.animation_data) {
+        clip.visual_type = 'before_after';
+        const halves = sentence.split(/but|vs|versus|instead|while/i);
+        clip.animation_data = { before: (halves[0] || '').trim().slice(0, 25), after: (halves[1] || sentence).trim().slice(0, 25), label: keyWords.toLowerCase().slice(0, 30) };
+      } else if (hasList && !clip.animation_data) {
+        clip.visual_type = 'checkmark_build';
+        const items = sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 8).slice(0, 4);
+        if (items.length >= 2) {
+          clip.animation_data = { items, title: '' };
+        } else {
+          clip.visual_type = 'stock';
+          clip.search_query = biblePrefix ? biblePrefix + ' ' + keyWords : keyWords || (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[0];
+          clip.animation_data = null;
+        }
+      } else {
+        // Default: stock with contextual search query
+        clip.visual_type = 'stock';
+        clip.search_query = biblePrefix ? biblePrefix + ' ' + keyWords : keyWords || (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[0];
+        clip.animation_data = null;
+      }
     }
   }
   let finalClips = applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, videoBible);
@@ -1382,27 +1417,30 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
 
   const isHorror = nicheInfo?.niche === "horror" || nicheInfo?.niche === "true_crime";
 
+  // Types allowed in final output — text-announcement types deliberately excluded
   const validTypes = [
     "stock","ai_image","web_image",
-    "number_reveal","comparison","section_break","line_chart","donut_chart",
-    "progress_bar","timeline","leaderboard","process_flow","stat_card","quote_card",
+    // Data infographics (show numbers/charts, not script text)
+    "number_reveal","comparison","line_chart","donut_chart",
+    "progress_bar","timeline","leaderboard","process_flow","stat_card",
     "checklist","horizontal_bar","vertical_bar","scale_comparison","map_highlight",
     "body_diagram","funnel_chart","growth_curve","ranking_cards","split_comparison",
-    "icon_grid","flow_diagram","interrupt_card","quote_pull","countdown_corner",
+    "icon_grid","flow_diagram","interrupt_card","countdown_corner",
+    // Visual animations (show data/reactions, not text)
     "spotlight_stat","icon_burst","money_counter",
     "checkmark_build","trend_arrow","stock_ticker","phone_screen",
-    "tweet_card","social_counter","before_after","lightbulb_moment",
-    "rocket_launch","percent_fill","compare_reveal","highlight_build",
+    "tweet_card","social_counter","before_after",
+    "percent_fill","compare_reveal",
     "count_up","reaction_face","thumbs_up","side_by_side","youtube_progress",
     "quote_overlay","polaroid_stack",
-    // batch4
-    "pull_quote","stat_comparison","bullet_list","myth_fact","step_reveal",
+    // batch4 — data/visual types only
+    "stat_comparison","bullet_list","myth_fact","step_reveal",
     "pro_con","score_card","person_profile","reddit_post","google_search",
     "three_points","stacked_bar","countdown_timer","vote_bar","map_callout",
     "instagram_post","youtube_card","quiz_card",
     "portfolio_breakdown","roi_calculator","timelapse_bar","speed_meter",
     "candlestick_chart","conversation_bubble","loading_bar","wealth_ladder",
-    "rule_card","alert_banner","big_number","mindset_shift",
+    "alert_banner","big_number","mindset_shift",
   ];
 
   const graphicTypes = new Set([

@@ -44,10 +44,6 @@ Analyze the script and return ONLY valid JSON (no markdown, no preamble):
   ],
   "target_audience": "who is watching this — age, background, knowledge level, e.g. 'beginner gym-goers aged 20-35' or 'history enthusiasts'",
   "emotional_arc": "the emotional journey of this video — e.g. 'starts with shock/curiosity, builds tension, resolves with empowerment'",
-  "target_audience": "who watches this — age, background, knowledge level e.g. 'beginner gym-goers aged 20-35'",
-  "emotional_arc": "emotional journey e.g. 'opens with shocking stat, builds tension, resolves with empowerment'",
-  "target_audience": "who watches this — age, background, knowledge level e.g. 'beginner gym-goers aged 20-35'",
-  "emotional_arc": "emotional journey e.g. 'opens with shocking stat, builds tension, resolves with empowerment'",
   "content_warnings": ["any topics that need sensitive image handling, e.g. 'war violence', 'poverty'"]
 }
 
@@ -86,6 +82,7 @@ Pull infographic_opportunities directly from actual numbers in the script — re
     return {
       era: "modern",
       era_specific: "",
+      setting: "",
       visual_tone: "clean_minimal",
       banned_visuals: [],
       required_visual_style: `Relevant imagery for ${topic}`,
@@ -94,6 +91,8 @@ Pull infographic_opportunities directly from actual numbers in the script — re
       preferred_components: [],
       infographic_opportunities: [],
       key_visual_moments: [],
+      target_audience: "",
+      emotional_arc: "",
       content_warnings: [],
     };
   }
