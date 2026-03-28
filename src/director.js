@@ -478,7 +478,7 @@ Display: "framed", "fullscreen", "split_left", "split_right"`;
     return clipWindows.map((w, i) => {
       const cats = ["stock","stock","animation","split","stock","stock","infographic","split"];
       const cat = cats[i % cats.length];
-      const types = { stock: "stock", animation: themeHints.prefer[i % themeHints.prefer.length] || split: "stock", infographic: "stat_card" };
+      const types = { stock: "stock", animation: themeHints.prefer[i % themeHints.prefer.length] || "spotlight_stat", split: "stock", infographic: "stat_card" };
       const display = cat === "split" ? (i % 2 === 0 ? "split_left" : "split_right") : (cat === "stock" && i === 0 ? "fullscreen" : "framed");
       return { i, category: cat, type: types[cat], display };
     });
