@@ -24,24 +24,16 @@ import chalk from "chalk";
  * @returns {string} Enhanced script with SSML breaks
  */
 export function enhanceScript(scriptText, mood = "default") {
+  // Only add paragraph breaks — consistent, predictable pacing.
+  // Full mood-based breaks (intro, dramatic, question, closing) caused uneven speed
+  // because ElevenLabs inserts literal silence gaps that make the voiceover feel
+  // like it's changing speed throughout the video. The speed parameter handles pacing.
   const pauses = getPauseDurations(mood);
-  let enhanced = scriptText;
-
-  // Apply mood-appropriate pausing in order (most important first)
-  enhanced = addParagraphBreaks(enhanced, pauses.paragraphBreak);
-  enhanced = addIntroBreak(enhanced, pauses.introBreak);
-  enhanced = addNumberedBreaks(enhanced, pauses.numberedBreak);
-  enhanced = addDramaticBreaks(enhanced, pauses.dramaticBreak, mood);
-  enhanced = addQuestionBreaks(enhanced, pauses.questionBreak);
-  enhanced = addClosingBreak(enhanced, pauses.closingBreak);
-
-  // Cap total breaks to prevent ElevenLabs glitching — scale with script length
-  const maxBreaks = Math.max(15, Math.ceil(scriptText.length / 200));
-  enhanced = trimExcessBreaks(enhanced, maxBreaks);
+  const enhanced = addParagraphBreaks(scriptText, pauses.paragraphBreak);
 
   const breakCount = (enhanced.match(/<break/g) || []).length;
   if (breakCount > 0) {
-    console.log(chalk.blue(`✨ Script enhanced (${mood}): ${breakCount} pauses added`));
+    console.log(chalk.blue(`✨ Script enhanced (${mood}): ${breakCount} paragraph pauses`));
   }
   return enhanced;
 }

@@ -332,17 +332,28 @@ ${videoBible.image_search_prefix ? `IMAGE PREFIX: All image searches must start 
 ${videoBible.preferred_components?.length ? `PREFERRED COMPONENTS FOR THIS VIDEO: ${videoBible.preferred_components.join(", ")}` : ""}
 ${videoBible.banned_components?.length ? `BANNED COMPONENTS FOR THIS VIDEO: ${videoBible.banned_components.join(", ")} — do NOT use these` : ""}
 
-TARGET MIX for ${total} total clips:
-- ${stockTarget} clips → "stock" (real images only)
-- ${animTarget} clips → "animation" (text/motion graphics)
-- ${splitTarget} clips → "split" (image + panel side by side)
-- ${infraTarget} clips → "infographic" (data charts/stats)
+DECISION FRAMEWORK — for each clip, ask: "How is this sentence BEST represented visually?"
+- If the narrator describes a SCENE, PLACE, PERSON, or ACTION → use "stock" (real photograph)
+- If the narrator cites a SPECIFIC NUMBER, PERCENTAGE, or DOLLAR AMOUNT → use "animation" or "infographic" to display that data
+- If the narrator COMPARES two things directly → use "animation" (before_after, compare_reveal, etc.)
+- If the narrator LISTS items or steps → use "animation" (checkmark_build, bullet_list, etc.)
+- If NOTHING in the sentence is better shown as data/graphics → use "stock"
+
+DO NOT force animations or infographics where a real image would be better.
+A sentence like "the market dropped sharply last Tuesday" is best shown as a stock photo of a trading floor or red stock charts — NOT as a random animation.
+Only use animations/infographics when the narrator's exact words contain data that would be MORE impactful as a graphic than as an image.
+
+ROUGH GUIDE (not a hard target — let the content decide):
+- ~${stockTarget} clips → "stock" (real images)
+- ~${animTarget} clips → "animation" (only when data/comparisons/lists are spoken)
+- ~${splitTarget} clips → "split" (image + data panel)
+- ~${infraTarget} clips → "infographic" (only when multiple data points are cited)
 
 CLIP WINDOWS:
 ${windowList}
 
 ════════════════════════════════════════════
-ANIMATION TYPES — pick the BEST fit per sentence:
+ANIMATION TYPES — ONLY use when the sentence content genuinely fits:
 ════════════════════════════════════════════
 
 IMPACT TEXT (use when narrator makes a bold statement):
@@ -505,14 +516,14 @@ ${nicheInfo.niche === "creator" ? "- CREATOR: Prioritize instagram_post, youtube
 ${nicheInfo.niche === "tech" ? "- TECH: Prioritize code_terminal, data_stream, zoom_stat, bold_claim, vs_card, loading_bar, speed_meter, google_search, stat_comparison, big_number, step_reveal." : ""}
 ${nicheInfo.niche === "luxury" ? "- LUXURY: Prioritize net_worth_reveal, zoom_stat, vs_card, bold_claim, stamp_reveal, big_number, stat_comparison, person_profile, before_after, pull_quote, roi_calculator." : ""}
 
-CRITICAL DISTRIBUTION RULES:
-1. Clip 0 MUST be "animation" — most dramatic type for opening line
-2. Clip 1 should also be "animation" or "infographic" — no stock in first 2 clips
+CRITICAL RULES:
+1. Clip 0: use "animation" ONLY if opening line contains a stat or data — otherwise "stock" is fine
 2. First 3 clips: NEVER "fullscreen", NEVER "split"
-3. Every 5 consecutive clips must have at least 2 non-stock
-4. NEVER bunch animations at the end — spread throughout
-5. "fullscreen" display: max 2 times total, only after position 4
-6. Choose animation type based on what the SENTENCE IS ACTUALLY SAYING — don't pick money_counter for a sentence with no money, don't pick before_after for a sentence with no transformation
+3. Spread animations throughout — don't bunch them all together
+4. "fullscreen" display: max 2 times total, only after position 4
+5. NEVER use an animation/infographic for a sentence that doesn't contain specific data, numbers, comparisons, or lists
+6. When in doubt, use "stock" — a relevant real image is always better than a forced animation
+7. Choose animation type based on what the SENTENCE IS ACTUALLY SAYING — don't pick money_counter for a sentence with no money, don't pick before_after for a sentence with no transformation
 
 Return ONLY a JSON array of ${total} objects:
 [{"i":0,"category":"animation","type":"spotlight_stat","display":"framed"},...]
@@ -1219,17 +1230,17 @@ function pickIconForSentence(sentence) {
 // ─── PASS 2: ASSIGN VISUAL DETAILS ───────────────────────────────────────────
 async function directClipWindows(windows, planChunk, scriptText, isFirst, isLast, nicheInfo, themeHints, budget, topic, theme, isHorror, videoBible = {}) {
 
-  // Build window reference showing each window + its REQUIRED TYPE (explicit, not just a hint)
+  // Build window reference showing each window + suggested type from pre-flight
+  // Animations are SUGGESTED, not forced — Claude should override to stock if content doesn't fit
   const windowRef = windows.map((w, i) => {
     const plan = planChunk[i] || {};
     const dur = (w.end - w.start).toFixed(1);
     const cat = plan.category || "stock";
     const type = plan.type || "stock";
-    // Make the instruction crystal clear based on category
     let instruction;
     if (cat === "stock") instruction = `USE: stock | display: ${plan.display || "framed"}`;
-    else if (cat === "animation") instruction = `REQUIRED_TYPE: ${type} | MUST have animation_data for ${type}`;
-    else if (cat === "infographic") instruction = `REQUIRED_TYPE: ${type} | MUST have chart_data or number_data for ${type}`;
+    else if (cat === "animation") instruction = `SUGGESTED: ${type} — but ONLY use if this sentence contains data/numbers/comparisons that fit ${type}. If not, use stock instead.`;
+    else if (cat === "infographic") instruction = `SUGGESTED: ${type} — but ONLY use if this sentence cites specific data points. If not, use stock instead.`;
     else if (cat === "split") instruction = `USE: stock | display: ${plan.display || "split_left"} | add panel_icon`;
     else instruction = `USE: ${type}`;
     return `[${i}] ${w.start.toFixed(2)}s-${w.end.toFixed(2)}s (${dur}s) | NARRATOR SAYS: "${w.text}" | ${instruction}`;
@@ -1305,10 +1316,13 @@ IMAGE STYLE: ${nicheInfo.imageStyle}
 THEME PREFERRED: ${themeHints.prefer.join(", ")}
 ${bibleContext ? `\nVIDEO CONTEXT (visual world of this video):\n${bibleContext}\n` : ""}
 
-Each clip window below has a REQUIRED_TYPE. You MUST use exactly that type — do NOT substitute kinetic_text or stock unless the window explicitly says to use them.
+Each clip window has a SUGGESTED type from pre-flight planning. You should use the suggested type IF the narrator's sentence genuinely contains data/numbers/comparisons that fit. If not, override to "stock" with a specific search query — a relevant real image is ALWAYS better than a forced animation.
+
 start_time and end_time are FIXED — do not change them.
 
 CRITICAL RULES:
+0. RELEVANCE OVER QUOTAS — never use an animation or infographic just because the plan says to. Ask: "Does this sentence contain specific data, a number, a comparison, or a list?" If NO → use stock. A sentence like "the economy is struggling" is NOT a stat — it's a stock photo of a struggling business or empty store.
+
 1. PERMANENTLY BANNED — never use these under any circumstances:
    kinetic_text, typewriter_reveal, neon_sign, glitch_text, news_breaking,
    word_scatter, news_headline, bold_claim, text_flash, overlay_caption,
