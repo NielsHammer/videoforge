@@ -257,7 +257,17 @@ export async function generateVideo(scriptPath, options) {
     s.succeed(`Voiceover: cached (${totalDuration.toFixed(1)}s, ${wordTimestamps.length} words)`);
   } else {
     // Analyze pacing based on niche, topic, and tone BEFORE generating voiceover
-    analyzePacing(orderBrief.niche || "", orderBrief.topic || options.topic || "", orderBrief.tone || "");
+    // Read brief file early if available so pacing gets the right niche
+    let pacingNiche = options.niche || process.env.ORDER_NICHE || "";
+    let pacingTone = options.tone || process.env.ORDER_TONE || "";
+    if (!pacingNiche && options.briefFile && fs.existsSync(options.briefFile)) {
+      try {
+        const earlyBrief = JSON.parse(fs.readFileSync(options.briefFile, "utf-8"));
+        pacingNiche = earlyBrief.niche || "";
+        pacingTone = pacingTone || earlyBrief.tone || "";
+      } catch {}
+    }
+    analyzePacing(pacingNiche, options.topic || "", pacingTone);
     const enhancedScript = enhanceScript(scriptText, mood || "default");
     const s = ora("Generating voiceover with timestamps...").start();
     const result = await generateVoiceoverWithTimestamps(enhancedScript, voiceId, audioPath);
