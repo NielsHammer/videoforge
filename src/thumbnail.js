@@ -359,8 +359,9 @@ const IMPACT_WIDTHS = {
 };
 function measureText(text, fontSize) {
   let w = 0;
-  for (const ch of text.toUpperCase()) w += (IMPACT_WIDTHS[ch] || 0.52) * fontSize;
-  return w;
+  for (const ch of text.toUpperCase()) w += (IMPACT_WIDTHS[ch] || 0.56) * fontSize;
+  // Add 10% safety margin — Impact rendering varies across browsers
+  return w * 1.1;
 }
 
 function wrapText(text, fontSize, maxWidth) {
@@ -380,8 +381,8 @@ function wrapText(text, fontSize, maxWidth) {
   return lines;
 }
 
-function bestFontSize(text, boxW, boxH, minSize = 40, maxSize = 78) {
-  const maxLineW = boxW - 48;
+function bestFontSize(text, boxW, boxH, minSize = 36, maxSize = 72) {
+  const maxLineW = boxW - 64;
   for (let fs = maxSize; fs >= minSize; fs -= 2) {
     const lines = wrapText(text, fs, maxLineW);
     const totalH = lines.length * fs * 1.2;

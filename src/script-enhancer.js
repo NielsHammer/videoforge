@@ -24,11 +24,24 @@ import chalk from "chalk";
  * @returns {string} Enhanced script with SSML breaks
  */
 export function enhanceScript(scriptText, mood = "default") {
-  // Simple: only short paragraph breaks to avoid ElevenLabs hissing/slow-pace glitches
-  const enhanced = scriptText.replace(/\n\n+/g, ' <break time="0.4s" />\n\n');
+  const pauses = getPauseDurations(mood);
+  let enhanced = scriptText;
+
+  // Apply mood-appropriate pausing in order (most important first)
+  enhanced = addParagraphBreaks(enhanced, pauses.paragraphBreak);
+  enhanced = addIntroBreak(enhanced, pauses.introBreak);
+  enhanced = addNumberedBreaks(enhanced, pauses.numberedBreak);
+  enhanced = addDramaticBreaks(enhanced, pauses.dramaticBreak, mood);
+  enhanced = addQuestionBreaks(enhanced, pauses.questionBreak);
+  enhanced = addClosingBreak(enhanced, pauses.closingBreak);
+
+  // Cap total breaks to prevent ElevenLabs glitching — scale with script length
+  const maxBreaks = Math.max(15, Math.ceil(scriptText.length / 200));
+  enhanced = trimExcessBreaks(enhanced, maxBreaks);
+
   const breakCount = (enhanced.match(/<break/g) || []).length;
   if (breakCount > 0) {
-    console.log(chalk.blue(`✨ Script enhanced: ${breakCount} paragraph pauses added`));
+    console.log(chalk.blue(`✨ Script enhanced (${mood}): ${breakCount} pauses added`));
   }
   return enhanced;
 }

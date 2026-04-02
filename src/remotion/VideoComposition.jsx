@@ -204,8 +204,15 @@ const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {
   const isSplit = style === "split_left" || style === "split_right";
   const isFramed = style === "framed" || (!isFullscreen && !isSplit);
 
-  const imgSrc = clip.imagePath ? staticFile(clip.imagePath) : null;
-  const imgPath = clip.imagePath || null;
+  // For multi-image b-roll, select the current image based on frame position
+  // SPLIT LAYOUTS: main image is ALWAYS imagePaths[0] — panel images are handled by SplitReveal
+  // Only rotate images for non-split layouts (framed, fullscreen)
+  const imgPath = (clip.imagePaths && clip.imagePaths.length > 1)
+    ? (isSplit
+      ? clip.imagePaths[0]
+      : clip.imagePaths[Math.min(Math.floor(frame / (durationInFrames / clip.imagePaths.length)), clip.imagePaths.length - 1)])
+    : (clip.imagePath || null);
+  const imgSrc = imgPath ? staticFile(imgPath) : null;
 
   // Zoom for fullscreen
   const zoomScale = style === "fullscreen_zoom"
@@ -220,14 +227,18 @@ const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {
     fadeOut = interpolate(frame, [durationInFrames - fps * 0.06, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   }
 
-  // B-roll crossfade — disable for split layouts to prevent flicker
+  // B-roll crossfade — smooth transition between multiple images
   let imgOpacity = 1;
+  let currentImageIndex = 0;
   if (clip.imagePaths && clip.imagePaths.length > 1 && !isSplit) {
-    const crossfadeEvery = fps * 3.5;
-    const posInCycle = frame % crossfadeEvery;
-    const crossfadeDur = fps * 0.35;
-    if (posInCycle < crossfadeDur && frame < durationInFrames - fps) {
-      imgOpacity = interpolate(posInCycle, [0, crossfadeDur], [0, 1], { extrapolateRight: "clamp" });
+    const imageCount = clip.imagePaths.length;
+    const holdDuration = durationInFrames / imageCount;
+    currentImageIndex = Math.min(Math.floor(frame / holdDuration), imageCount - 1);
+    const posInHold = frame - currentImageIndex * holdDuration;
+    const crossfadeDur = fps * 0.3;
+    // Only fade in at the START of image 2, 3, etc. — never on the first image
+    if (currentImageIndex > 0 && posInHold < crossfadeDur) {
+      imgOpacity = interpolate(posInHold, [0, crossfadeDur], [0, 1], { extrapolateRight: "clamp" });
     }
   }
 

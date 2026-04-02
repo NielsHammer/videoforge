@@ -47,10 +47,18 @@ export async function removeBackground(imagePath, outputPath) {
  * Higher quality than Schnell (~$0.05), sharper details, more photorealistic.
  */
 export async function generateAIImage(prompt, outputPath) {
+  // Enforce photorealistic style on EVERY prompt — Flux needs explicit style keywords
+  // or it defaults to AI-art aesthetic (glossy, exaggerated, cartoony)
+  const hasPhotoStyle = prompt.toLowerCase().includes("photograph") || prompt.toLowerCase().includes("dslr");
+  const realism = "anatomically correct humans, physically plausible objects, no extra limbs or fingers, no text or writing visible";
+  const styleEnforced = hasPhotoStyle
+    ? `${prompt}, ${realism}`
+    : `${prompt}. Shot on DSLR camera, 35mm lens, natural lighting, photorealistic photograph, editorial quality, ${realism}.`;
+
   const resp = await axios.post(
     "https://fal.run/fal-ai/flux-pro/v1.1",
     {
-      prompt: prompt,
+      prompt: styleEnforced,
       image_size: "landscape_16_9",
       num_images: 1,
     },

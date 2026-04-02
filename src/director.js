@@ -28,20 +28,42 @@ const NICHE_BUDGETS = {
   general:    { stock: 40, animation: 25, split: 20, infographic: 15, label: "balanced mix — keep variety high to maintain engagement" },
 };
 
-// Niche-safe fallback search queries — used across multiple functions
-const nicheSafeQueries = {
-  finance:    ["person reviewing budget spreadsheet home","ordinary person checking bank account phone","stressed person looking at bills kitchen","person researching investments laptop coffee shop","real person managing money notebook"],
-  business:   ["entrepreneur success workspace","confident professional achieving","startup team modern office","freelancer productive focused","business growth momentum"],
-  health:     ["person exercising local gym natural lighting","ordinary person jogging outdoor park","real person doing pushups home","people stretching yoga class candid","average person healthy meal preparation"],
-  travel:     ["scenic destination landscape","travel adventure culture","beautiful nature photography","landmark iconic","travel exploration freedom"],
-  horror:     ["dark atmospheric night","mysterious shadowy","abandoned eerie","foggy dark","suspenseful shadow"],
-  true_crime: ["detective investigation","evidence analysis","courtroom justice","newspaper headline","investigation board"],
-  history:    ["roman colosseum ancient ruins","medieval castle stone fortress","ancient rome marble columns","historical battle painting","ancient artifact museum","roman soldiers legion artwork","ancient civilization ruins","medieval illuminated manuscript"],
-  creator:    ["person scrolling phone late night blue light","social media feed scrolling smartphone","young person phone screen dopamine","phone notification alert social media","content creator recording camera studio"],
-  tech:       ["abstract technology digital data","ai artificial intelligence concept","computer code programming screen","technology innovation modern","digital transformation business"],
-  luxury:     ["luxury lifestyle mansion expensive","premium brand product elegant","wealthy person success achievement","luxury car watch jewelry","aspirational wealth success"],
-  general:    ["candid person thinking natural light","real people conversation outdoor","ordinary person working focused","documentary style human moment","person reading learning quiet space"],
-};
+// Extract meaningful search keywords from any narrator sentence — NEVER use generic/clickbait fallbacks
+const STOP_WORDS = new Set(["the","and","but","for","with","this","that","have","from","they","their","you","was","are","were","has","not","can","will","just","very","also","more","most","when","where","what","how","who","its","been","your","about","into","here","there","than","then","only","some","like","over","such","much","many","would","could","should","does","each","every","well","really","being","these","those","them","other","after","before","between","through","during","because","while","since","until","still","even","both","same","another","which","might","going","come","make","know","take","want","thing","things","time","way","year","years","day","days","one","two","three","four","five","six","seven","eight","nine","ten","number","let","talk","look","actually","point","something","everything","nothing","someone","anyone","everyone","already","getting","doing","having","saying","told","says","said","think","thought","means","mean","called","right","start","keep","put","set","show","turn","find","give","tell","ask","try","need","seem","help","feel","leave","call","use","end","last","next","didn","don","isn","aren","wasn","won","couldn","wouldn","doesn","hadn","haven","mustn","needn","shan"]);
+// Visual-priority words — nouns/adjectives that describe what you'd SEE in an image
+const VISUAL_WORDS = new Set(["person","man","woman","girl","boy","people","crowd","group","doctor","patient","athlete","worker","soldier","teacher","student","chef","driver","farmer","scientist","artist","musician","dancer","runner","swimmer","fighter","elderly","young","tall","sitting","standing","walking","running","jumping","holding","wearing","carrying","eating","drinking","sleeping","cooking","reading","writing","working","exercising","training","lifting","stretching","climbing","swimming","cycling","boxing","yoga","meditation","gym","kitchen","office","hospital","school","classroom","bedroom","bathroom","garden","park","forest","mountain","ocean","beach","river","lake","desert","city","street","road","bridge","building","house","apartment","castle","church","temple","market","restaurant","bar","cafe","stadium","airport","station","car","bus","train","plane","bicycle","boat","ship","food","meal","fruit","vegetable","meat","fish","bread","rice","coffee","tea","water","wine","beer","money","cash","coin","gold","silver","phone","computer","laptop","tablet","camera","television","book","newspaper","magazine","letter","pen","clock","mirror","chair","table","desk","bed","door","window","wall","floor","roof","stairs","sunset","sunrise","rain","snow","storm","fire","smoke","light","shadow","dark","bright","red","blue","green","white","black","golden","ancient","medieval","modern","tropical","arctic","rural","urban","military","medical","surgical","political","religious","industrial","agricultural","commercial","residential","underwater","aerial","panoramic","closeup","portrait","landscape","silhouette","reflection"]);
+function queryFromSentence(sentence, biblePrefix) {
+  const words = (sentence || "").replace(/[^a-zA-Z\s]/g, " ").split(/\s+/)
+    .filter(w => w.length > 2 && !STOP_WORDS.has(w.toLowerCase()))
+    .map(w => w.toLowerCase());
+  // Deduplicate while preserving order
+  const seen = new Set();
+  const unique = words.filter(w => { if (seen.has(w)) return false; seen.add(w); return true; });
+  // Prioritize visual/concrete words (nouns, adjectives) over abstract ones
+  const visual = unique.filter(w => VISUAL_WORDS.has(w));
+  const rest = unique.filter(w => !VISUAL_WORDS.has(w));
+  // Take up to 4 visual words + 4 context words = richer query
+  const combined = [...visual.slice(0, 4), ...rest.slice(0, 4)];
+  const keywords = combined.slice(0, 8).join(" ");
+  if (biblePrefix && keywords) return `${biblePrefix} ${keywords}`;
+  return keywords || (sentence || "").slice(0, 60).trim();
+}
+
+// Sanitize Unicode characters that render as garbled text in video overlays
+function sanitizeText(text) {
+  if (!text) return "";
+  return text
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")   // smart single quotes → ASCII
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')    // smart double quotes → ASCII
+    .replace(/[\u2013\u2014]/g, "-")                 // em/en dash → hyphen
+    .replace(/\u2026/g, "...")                        // ellipsis → three dots
+    .replace(/[\u00A0]/g, " ")                        // non-breaking space → regular space
+    .replace(/[\u2022\u2023\u25E6\u2043\u2219]/g, "-") // fancy bullets → hyphen
+    .replace(/[\u00B0]/g, " degrees")                 // degree symbol → word
+    .replace(/[^\x20-\x7E\n]/g, "")                  // strip any remaining non-ASCII
+    .replace(/\s+/g, " ")                             // collapse whitespace
+    .trim();
+}
 
 // ─── SENTENCE PARSER ─────────────────────────────────────────────────────────
 function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
@@ -69,6 +91,26 @@ function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
   const sentences = [];
   let wordIdx = 0;
 
+  // Helper: normalize a word for matching (lowercase, strip punctuation, first 4 chars)
+  const norm = w => (w || "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 4);
+  // Helper: count how many sentence words match in a timestamp range (multi-word confidence)
+  const countMatches = (sentWords, tsStart, tsEnd) => {
+    let matches = 0;
+    let tsIdx = tsStart;
+    for (const sw of sentWords) {
+      const target = norm(sw);
+      if (!target || target.length < 2) continue;
+      for (let j = tsIdx; j < Math.min(tsIdx + 5, tsEnd); j++) {
+        if (j < filteredTimestamps.length && norm(filteredTimestamps[j].word).startsWith(target)) {
+          matches++;
+          tsIdx = j + 1;
+          break;
+        }
+      }
+    }
+    return matches;
+  };
+
   for (const sentence of rawSentences) {
     const sentenceWords = sentence
       .replace(/[^a-zA-Z0-9\s\']/g, " ")
@@ -78,28 +120,52 @@ function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
     if (sentenceWords.length === 0) continue;
     if (wordIdx >= filteredTimestamps.length) break;
 
-    // Search up to 40 words ahead (was 20 — increased for better drift tolerance)
-    let startWordIdx = wordIdx;
-    const firstWord = sentenceWords[0].toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 4);
+    // Multi-word alignment: try each candidate start position and pick the one
+    // where the most sentence words match in sequence (not just the first word)
+    const firstWord = norm(sentenceWords[0]);
+    const searchLimit = Math.min(wordIdx + 40, filteredTimestamps.length);
+    let bestStartIdx = wordIdx;
+    let bestScore = -1;
 
-    for (let i = wordIdx; i < Math.min(wordIdx + 40, filteredTimestamps.length); i++) {
-      if (filteredTimestamps[i].word.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(firstWord)) {
-        startWordIdx = i;
-        break;
+    // Collect all candidate start positions where the first word matches
+    const candidates = [];
+    for (let i = wordIdx; i < searchLimit; i++) {
+      if (norm(filteredTimestamps[i].word).startsWith(firstWord)) {
+        candidates.push(i);
+      }
+    }
+    // If no first-word match, try second word as fallback anchor
+    if (candidates.length === 0 && sentenceWords.length > 1) {
+      const secondWord = norm(sentenceWords[1]);
+      for (let i = wordIdx; i < searchLimit; i++) {
+        if (norm(filteredTimestamps[i].word).startsWith(secondWord)) {
+          candidates.push(Math.max(wordIdx, i - 1)); // start one before the second word
+        }
+      }
+    }
+    if (candidates.length === 0) candidates.push(wordIdx); // absolute fallback
+
+    // Score each candidate by how many words from the sentence match in sequence
+    const checkWords = sentenceWords.slice(0, Math.min(sentenceWords.length, 8)); // check first 8 words
+    for (const candidateStart of candidates) {
+      const rangeEnd = Math.min(candidateStart + sentenceWords.length + 10, filteredTimestamps.length);
+      const score = countMatches(checkWords, candidateStart, rangeEnd);
+      if (score > bestScore) {
+        bestScore = score;
+        bestStartIdx = candidateStart;
       }
     }
 
-    // FIX 2: Search for last word with larger buffer (+20 instead of +8).
-    // Small buffer caused sync gaps on long sentences — real last word was outside search window.
-    // Also: take the LAST matching occurrence (scan backward from searchEnd), not the first.
-    // The last word of a sentence is near the end of the sentence in the timestamp stream.
-    const lastWord = sentenceWords[sentenceWords.length - 1].toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 4);
+    let startWordIdx = bestStartIdx;
+
+    // Find last word — search from startWordIdx with larger buffer
+    const lastWord = norm(sentenceWords[sentenceWords.length - 1]);
     let endWordIdx = startWordIdx;
     const searchEnd = Math.min(startWordIdx + sentenceWords.length + 20, filteredTimestamps.length);
 
     // Scan forward and keep the LAST match (most accurate end time)
     for (let i = startWordIdx; i < searchEnd; i++) {
-      if (filteredTimestamps[i].word.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(lastWord)) {
+      if (norm(filteredTimestamps[i].word).startsWith(lastWord)) {
         endWordIdx = i; // keep updating — we want the last match
       }
     }
@@ -137,13 +203,13 @@ function buildSentenceWindows(wordTimestamps, scriptText, totalDuration) {
   return filled;
 }
 
-function groupSentencesIntoClips(sentences, minDur = 2.0, maxDur = 7.5) {
+function groupSentencesIntoClips(sentences, minDur = 3.0, maxDur = 7.5) {
   const clips = [];
   let buffer = null;
 
   for (const sent of sentences) {
     if (!buffer) {
-      buffer = { ...sent, sentences: [sent.text] };
+      buffer = { ...sent, sentences: [sent.text], sentenceTimings: [{ text: sent.text, start: sent.start, end: sent.end }] };
       continue;
     }
 
@@ -153,11 +219,12 @@ function groupSentencesIntoClips(sentences, minDur = 2.0, maxDur = 7.5) {
         end: sent.end,
         text: buffer.text + " " + sent.text,
         sentences: [...buffer.sentences, sent.text],
+        sentenceTimings: [...buffer.sentenceTimings, { text: sent.text, start: sent.start, end: sent.end }],
         wordCount: buffer.wordCount + sent.wordCount,
       };
     } else {
       clips.push(buffer);
-      buffer = { ...sent, sentences: [sent.text] };
+      buffer = { ...sent, sentences: [sent.text], sentenceTimings: [{ text: sent.text, start: sent.start, end: sent.end }] };
     }
   }
   if (buffer) clips.push(buffer);
@@ -194,7 +261,7 @@ function detectNiche(topic, scriptText) {
   if (/travel|destination|country|tourism|adventure|vacation|beach|island/.test(text))
     return { niche: "travel", imageStyle: "beautiful destination, scenic landscape, cultural experience" };
   if (/health|fitness|gym|workout|diet|nutrition|body|exercise/.test(text))
-    return { niche: "health", imageStyle: "gym workout, healthy food, active lifestyle, sports" };
+    return { niche: "health", imageStyle: "close-up exercise form, gym equipment detail shots, fresh food preparation, documentary fitness photography" };
   if (/history|ancient|medieval|empire|war|civilization/.test(text))
     return { niche: "history", imageStyle: "historical ruins, ancient artifact, period architecture" };
   if (/personal brand|youtube|content creator|social media|influencer|audience|tiktok|instagram|addiction|screen time|dopamine/.test(text))
@@ -552,7 +619,7 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
 
   // Build sentence windows from actual word timestamps
   const sentences = buildSentenceWindows(wordTimestamps, scriptText, totalDuration);
-  const clipWindows = groupSentencesIntoClips(sentences, 2.0, 7.5);
+  const clipWindows = groupSentencesIntoClips(sentences, 3.0, 7.5);
 
   console.log(chalk.gray(`  Built ${clipWindows.length} clip windows from ${sentences.length} sentences`));
   console.log(chalk.gray(`  Niche: ${nicheInfo.niche} | Budget: ${budget.stock}% stock, ${budget.animation}% anim, ${budget.split}% split, ${budget.infographic}% infographic`));
@@ -595,27 +662,28 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
 
     console.log(chalk.gray(`  Directing clips ${ci + 1}-${Math.min(ci + CHUNK_SIZE, clipWindows.length)} of ${clipWindows.length}...`));
 
-    // For long videos, pass the script section relevant to this chunk's time range
-    // rather than always passing the first 12000 chars.
-    // Estimate which part of the script corresponds to this chunk's timestamps.
-    let chunkScriptContext = scriptText;
-    if (scriptText.length > 12000 && clipWindows.length > 0) {
-      const chunkStartTime = windowChunk[0]?.start || 0;
-      const chunkEndTime = windowChunk[windowChunk.length - 1]?.end || totalDuration;
-      const scriptFraction_start = Math.max(0, (chunkStartTime / totalDuration) - 0.05);
-      const scriptFraction_end = Math.min(1, (chunkEndTime / totalDuration) + 0.1);
-      const charStart = Math.floor(scriptFraction_start * scriptText.length);
-      const charEnd = Math.min(scriptText.length, Math.floor(scriptFraction_end * scriptText.length) + 8000);
-      // Always include the first 2000 chars (for context/tone) plus the relevant section
-      chunkScriptContext = scriptText.slice(0, 2000) + "\n[...]\n" + scriptText.slice(charStart, charEnd);
-    }
+    // Always pass the FULL script — Claude Sonnet 4 has 200K context, a 15K script is ~4K tokens.
+    // Truncating caused infographics in later chunks to lose context and show wrong data.
     const chunkClips = await directClipWindows(
-      windowChunk, planChunk, chunkScriptContext, isFirst, isLast,
+      windowChunk, planChunk, scriptText, isFirst, isLast,
       nicheInfo, themeHints, budget, topic, theme, isHorror, videoBible
     );
 
     // Enforce plan with persistent global counts
     const result = enforcePlan(chunkClips, windowChunk, planChunk, scriptText, globalTypeCounts, globalAnimIdx, globalInfraIdx, nicheInfo, videoBible);
+
+    // Cross-chunk boundary: don't allow same animation type at end of prev chunk and start of new chunk
+    if (allClips.length > 0 && result.clips.length > 0) {
+      const lastType = allClips[allClips.length - 1].visual_type;
+      const firstClip = result.clips[0];
+      if (firstClip.visual_type === lastType && lastType !== 'stock' && lastType !== 'ai_image' && lastType !== 'web_image') {
+        firstClip.visual_type = 'stock';
+        firstClip.display_style = 'framed';
+        firstClip.animation_data = null;
+        firstClip.chart_data = null;
+      }
+    }
+
     allClips.push(...result.clips);
     globalAnimIdx = result.animIdx;
     globalInfraIdx = result.infraIdx;
@@ -648,33 +716,122 @@ export async function createStoryboard(scriptText, wordTimestamps, totalDuration
       const hasList = /first|second|third|step|,.*,/.test(lower);
 
       // Smart replacement: pick the best non-text animation for this sentence
+      // Use generateAnimationData for proper data extraction instead of ad-hoc slicing
       if (hasNumber && !clip.animation_data) {
         clip.visual_type = 'spotlight_stat';
-        const num = sentence.match(/\d+/);
-        const pct = sentence.match(/(\d+)\s*%/);
-        clip.animation_data = { value: pct ? pct[1] + '%' : (num ? num[0] : '?'), label: keyWords.toLowerCase().slice(0, 40), context: '' };
+        clip.animation_data = generateAnimationData('spotlight_stat', sentence);
+        if (!clip.animation_data) {
+          clip.visual_type = 'stock';
+          clip.search_query = queryFromSentence(sentence, biblePrefix);
+        }
       } else if (hasComparison && !clip.animation_data) {
         clip.visual_type = 'before_after';
-        const halves = sentence.split(/but|vs|versus|instead|while/i);
-        clip.animation_data = { before: (halves[0] || '').trim().slice(0, 25), after: (halves[1] || sentence).trim().slice(0, 25), label: keyWords.toLowerCase().slice(0, 30) };
+        clip.animation_data = generateAnimationData('before_after', sentence);
+        if (!clip.animation_data) {
+          // before_after requires transformation language — try compare_reveal instead
+          clip.visual_type = 'compare_reveal';
+          clip.animation_data = generateAnimationData('compare_reveal', sentence);
+        }
+        if (!clip.animation_data) {
+          clip.visual_type = 'stock';
+          clip.search_query = queryFromSentence(sentence, biblePrefix);
+        }
       } else if (hasList && !clip.animation_data) {
         clip.visual_type = 'checkmark_build';
-        const items = sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 8).slice(0, 4);
-        if (items.length >= 2) {
-          clip.animation_data = { items, title: '' };
-        } else {
+        clip.animation_data = generateAnimationData('checkmark_build', sentence);
+        if (!clip.animation_data) {
+          clip.visual_type = 'bullet_list';
+          clip.animation_data = generateAnimationData('bullet_list', sentence);
+        }
+        if (!clip.animation_data) {
           clip.visual_type = 'stock';
-          clip.search_query = biblePrefix ? biblePrefix + ' ' + keyWords : keyWords || (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[0];
-          clip.animation_data = null;
+          clip.search_query = queryFromSentence(sentence, biblePrefix);
         }
       } else {
         // Default: stock with contextual search query
         clip.visual_type = 'stock';
-        clip.search_query = biblePrefix ? biblePrefix + ' ' + keyWords : keyWords || (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[0];
+        clip.search_query = queryFromSentence(sentence, biblePrefix);
         clip.animation_data = null;
       }
     }
   }
+  // ─── ANIMATION TIMING ALIGNMENT ──────────────────────────────────────────────
+  // Problem: a clip window covering sentences A+B (3.0s-8.5s) gets an animation
+  // for a stat in sentence B. The animation plays at 3.0s but the narrator says
+  // the stat at 5.2s → viewer sees "$47,000" 2+ seconds before hearing it.
+  //
+  // Fix: for multi-sentence windows with animations, find which sentence the
+  // animation data belongs to and split the clip so the animation aligns to it.
+  const alignedClips = [];
+  for (let ci = 0; ci < allClips.length; ci++) {
+    const clip = allClips[ci];
+    const isAnim = clip.visual_type && clip.visual_type !== 'stock' && clip.visual_type !== 'ai_image' && clip.visual_type !== 'web_image';
+    const timings = clip._sentenceTimings; // carried from the window
+
+    if (!isAnim || !timings || timings.length <= 1 || !clip.animation_data) {
+      alignedClips.push(clip);
+      continue;
+    }
+
+    // Find which sentence the animation's key data comes from
+    // Check animation_data for distinctive values (numbers, labels, text)
+    const animStr = JSON.stringify(clip.animation_data).toLowerCase();
+    let matchIdx = 0; // default to first sentence
+
+    // Extract distinctive tokens from animation data to match against sentences
+    const animNumbers = animStr.match(/\d+/g) || [];
+    const animTokens = animStr.replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(w => w.length > 4);
+
+    for (let si = 0; si < timings.length; si++) {
+      const sentLower = timings[si].text.toLowerCase();
+      // Check if this sentence contains the numbers/tokens from the animation
+      const numMatch = animNumbers.filter(n => sentLower.includes(n)).length;
+      const tokenMatch = animTokens.filter(t => sentLower.includes(t)).length;
+      if (numMatch > 0 || tokenMatch >= 2) {
+        matchIdx = si;
+        break; // take first sentence that matches
+      }
+    }
+
+    if (matchIdx === 0) {
+      // Animation matches first sentence — already aligned, no split needed
+      alignedClips.push(clip);
+      continue;
+    }
+
+    // Split: sentences 0..matchIdx-1 become stock, sentence matchIdx+ becomes animation
+    const splitTime = timings[matchIdx].start;
+    if (splitTime - clip.start_time >= 1.5 && clip.end_time - splitTime >= 1.5) {
+      // Stock clip for the lead-in sentences
+      const leadText = timings.slice(0, matchIdx).map(t => t.text).join(' ');
+      alignedClips.push({
+        ...clip,
+        end_time: splitTime,
+        visual_type: 'stock',
+        display_style: 'framed',
+        search_query: queryFromSentence(leadText, videoBible?.image_search_prefix || ''),
+        text: leadText,
+        animation_data: null,
+        chart_data: null,
+        number_data: null,
+        _sentenceTimings: timings.slice(0, matchIdx),
+      });
+      // Animation clip aligned to its source sentence
+      alignedClips.push({
+        ...clip,
+        start_time: splitTime,
+        text: timings.slice(matchIdx).map(t => t.text).join(' '),
+        _sentenceTimings: timings.slice(matchIdx),
+      });
+      // console.log(chalk.gray(`  ⏱ Aligned ${clip.visual_type} from ${clip.start_time.toFixed(1)}s → ${splitTime.toFixed(1)}s`));
+    } else {
+      // Split would create too-short clips — keep as-is
+      alignedClips.push(clip);
+    }
+  }
+  allClips.length = 0;
+  allClips.push(...alignedClips);
+
   let finalClips = applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, videoBible);
 
   console.log(chalk.gray(`  Storyboard: ${finalClips.length} clips`));
@@ -721,7 +878,7 @@ function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, ani
       // History niche: upgrade stock to ai_image for contextually correct period visuals
       if (nicheInfo?.niche === "history" && clip.search_query) {
         const histQ = clip.search_query;
-        return { ...clip, visual_type: "ai_image", ai_prompt: `Cinematic photorealistic historical scene: ${histQ}. Epic scale, dramatic lighting, period-accurate, no modern elements, painterly quality, 16:9 widescreen.` };
+        return { ...clip, visual_type: "ai_image", ai_prompt: `Historical photograph of ${histQ}. Period-accurate details, natural weathered textures, warm available light, editorial documentary style.` };
       }
       return clip;
     }
@@ -735,26 +892,31 @@ function enforcePlan(clips, windows, planChunk, scriptText, typeCounts = {}, ani
       if (clip.visual_type === "number_reveal") {
         // Ensure number_data.value is actually a number — if not, fall back to stock
         if (!clip.number_data || typeof clip.number_data.value !== "number") {
-          const stockQ = (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[i % 5];
           clip.visual_type = "stock"; clip.display_style = "framed"; clip.number_data = null;
-          if (!clip.search_query || clip.search_query.length < 3) clip.search_query = stockQ;
+          if (!clip.search_query || clip.search_query.length < 3) {
+            clip.search_query = queryFromSentence(sentence, videoBible?.image_search_prefix || "");
+          }
         }
       }
       typeCounts[clip.visual_type] = (typeCounts[clip.visual_type] || 0) + 1;
       return clip;
     }
 
-    // Pass 2 ignored the plan — fall back to stock (never generate garbage fallback data)
+    // Pass 2 ignored the plan — fall back to stock with narrator-derived query
     if (plan.category === "animation" || plan.category === "infographic") {
-      // Option A: kill fallback generators — stock is always better than word salad
-      const biblePrefix = videoBible?.image_search_prefix || "";
-          const baseQuery = (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[i % 5];
-          const stockQuery = biblePrefix ? `${biblePrefix} ${baseQuery}` : baseQuery;
+      const stockQuery = queryFromSentence(sentence, videoBible?.image_search_prefix || "");
       return { ...clip, visual_type: "stock", display_style: "framed", animation_data: null, chart_data: null, number_data: null, search_query: stockQuery };
     }
 
     if (plan.category === "split") {
-      return { ...clip, display_style: plan.display || (i % 2 === 0 ? "split_left" : "split_right"), panel_type: "icon", panel_icon: pickIconForSentence(sentence) };
+      // Generate 3 search query angles for the split panel images
+      const splitWords = sentence.replace(/[^a-zA-Z\s]/g, " ").split(/\s+/).filter(w => w.length > 3);
+      const base = queryFromSentence(sentence, videoBible?.image_search_prefix || "");
+      const sq = [base];
+      if (splitWords.length >= 4) sq.push(queryFromSentence(splitWords.slice(0, Math.ceil(splitWords.length / 2)).join(" "), videoBible?.image_search_prefix || ""));
+      if (splitWords.length >= 2) sq.push(queryFromSentence(splitWords.slice(Math.ceil(splitWords.length / 2)).join(" "), videoBible?.image_search_prefix || ""));
+      while (sq.length < 3) sq.push(base);
+      return { ...clip, display_style: plan.display || (i % 2 === 0 ? "split_left" : "split_right"), panel_type: "icon", panel_icon: pickIconForSentence(sentence), search_queries: sq };
     }
     return clip;
   });
@@ -813,6 +975,16 @@ function generateAnimationData(type, sentence) {
     return labelWords.slice(0, maxWords).join(" ");
   };
 
+  // Helper: truncate string at word boundary (never cuts mid-word)
+  const truncateAtWord = (str, maxLen) => {
+    if (!str) return "";
+    const s = sanitizeText(str.trim());
+    if (s.length <= maxLen) return s;
+    const cut = s.slice(0, maxLen);
+    const lastSpace = cut.lastIndexOf(" ");
+    return lastSpace > maxLen * 0.4 ? cut.slice(0, lastSpace) : cut;
+  };
+
   switch (type) {
     case "kinetic_text_banned": {
       const truncated = new Set(["wasn","didn","don","can","won","isn","aren","couldn","shouldn","wouldn","doesn","hadn","haven","mustn","needn","shan","let"]);
@@ -846,7 +1018,7 @@ function generateAnimationData(type, sentence) {
       if (/^\d+\./i.test(sentence.trim())) return null;
       // Only for genuine danger/mistake/warning sentences
       if (!/warn|danger|risk|mistake|wrong|avoid|never|stop|careful|trap|lie|myth|broke/.test(sentence.toLowerCase())) return null;
-      return { headline: "WARNING", body: sentence.slice(0, 60), icon: "⚠️", color: "#ef4444" };
+      return { headline: "WARNING", body: truncateAtWord(sentence, 60), icon: "⚠️", color: "#ef4444" };
     case "neon_sign": return { text: key.slice(0, 2).join(" ") || "THE TRUTH", subtitle: key[2] || "" };
     case "typewriter_reveal": return null; // banned
     case "glitch_text": return { text: key.slice(0, 2).join(" ") || "HACKED", subtitle: "" };
@@ -856,7 +1028,7 @@ function generateAnimationData(type, sentence) {
       if (/^trap (one|two|three|four|five)/i.test(sentence.trim())) return null;
       if (!numbers[0] && !/shocking|study|research|discover|reveal|scientists|experts|found/.test(sentence.toLowerCase())) return null;
       if (sentence.length < 20) return null;
-      return { headline: sentence.slice(0, 55).toUpperCase(), subtext: sentence.slice(55, 100), ticker: "DEVELOPING STORY • MORE TO COME" };
+      return { headline: truncateAtWord(sentence, 55).toUpperCase(), subtext: truncateAtWord(sentence.slice(Math.min(55, sentence.length)), 50), ticker: "DEVELOPING STORY • MORE TO COME" };
     case "highlight_build": {
       // Only for sentences with 2+ comma-separated items or list structure
       const parts = sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 8);
@@ -877,7 +1049,7 @@ function generateAnimationData(type, sentence) {
       if (!/from.*to|was.*now|before.*after|used to|instead|switch|changed|transform/.test(s)) return null;
       const fromMatch = sentence.match(/from\s+([^,]+)\s+to\s+([^,.]+)/i);
       return fromMatch
-        ? { before: fromMatch[1].trim().slice(0, 20), after: fromMatch[2].trim().slice(0, 20), label: key.slice(0, 3).join(" ").toLowerCase() }
+        ? { before: truncateAtWord(fromMatch[1], 25), after: truncateAtWord(fromMatch[2], 25), label: shortLabel(sentence, 3) }
         : { before: key[0] || "Before", after: key[1] || "After", label: key.slice(2, 5).join(" ").toLowerCase() };
     }
     case "percent_fill":
@@ -904,12 +1076,12 @@ function generateAnimationData(type, sentence) {
         labelA = key[0] || "OPTION A"; labelB = key[1] || "OPTION B";
         if (numbers[0]) { scoreA = String(numbers[0]); scoreB = numbers[1] ? String(numbers[1]) : "—"; }
       }
-      return { items: [{ label: labelA, score: scoreA, description: sentence.slice(0, 30), icon: "❌" }, { label: labelB, score: scoreB, description: sentence.slice(30, 60), icon: "✅" }], title: key.slice(2, 5).join(" ") || "The Difference", winner: 1 };
+      return { items: [{ label: labelA, score: scoreA, description: truncateAtWord(sentence, 30), icon: "❌" }, { label: labelB, score: scoreB, description: truncateAtWord(sentence.slice(Math.min(30, sentence.length)), 30), icon: "✅" }], title: key.slice(2, 5).join(" ") || "The Difference", winner: 1 };
     }
     case "side_by_side": {
       // Only for clear two-sided comparisons
       if (!/vs|versus|compared|while|or|either/.test(sentence.toLowerCase())) return null;
-      return { left: key[0] || "BEFORE", right: key[1] || "AFTER", leftSub: numbers[0] ? String(numbers[0]) : sentence.slice(0, 20), rightSub: numbers[1] ? String(numbers[1]) : sentence.slice(20, 40), vs: true, leftColor: "#ef4444", rightColor: "#22c55e" };
+      return { left: key[0] || "BEFORE", right: key[1] || "AFTER", leftSub: numbers[0] ? String(numbers[0]) : truncateAtWord(sentence, 25), rightSub: numbers[1] ? String(numbers[1]) : truncateAtWord(sentence.slice(Math.min(25, sentence.length)), 25), vs: true, leftColor: "#ef4444", rightColor: "#22c55e" };
     }
     case "icon_burst": {
       if (key.length < 3) return null;
@@ -919,7 +1091,7 @@ function generateAnimationData(type, sentence) {
     case "lightbulb_moment":
       // Only for insight/idea/tip sentences
       if (!/tip|insight|key|secret|trick|truth|real|actually|important|crucial|realize|discover/.test(sentence.toLowerCase())) return null;
-      return { text: sentence.slice(0, 50), subtext: key.slice(0, 3).join(" ") };
+      return { text: truncateAtWord(sentence, 50), subtext: key.slice(0, 3).join(" ") };
     case "rocket_launch":
       // Only for growth/success/momentum sentences
       if (!/grow|rise|launch|build|start|success|momentum|explode|scale|compound|wealth|rich/.test(sentence.toLowerCase())) return null;
@@ -927,11 +1099,11 @@ function generateAnimationData(type, sentence) {
     case "tweet_card":
       // Only for quotable claims (short, punchy sentences)
       if (sentence.length > 120 || sentence.length < 20) return null;
-      return { handle: "@viewer", text: sentence.slice(0, 100), likes: `${Math.floor(Math.random() * 90 + 10)}.${Math.floor(Math.random() * 9)}K`, retweets: `${Math.floor(Math.random() * 20 + 5)}.${Math.floor(Math.random() * 9)}K` };
+      return { handle: "@viewer", text: truncateAtWord(sanitizeText(sentence), 100), likes: `${Math.floor(Math.random() * 90 + 10)}.${Math.floor(Math.random() * 9)}K`, retweets: `${Math.floor(Math.random() * 20 + 5)}.${Math.floor(Math.random() * 9)}K` };
     case "phone_screen":
       // Only for social/creator topics
       if (!/social|follow|subscriber|view|post|content|platform|app|notification|viral/.test(sentence.toLowerCase())) return null;
-      return { app: "instagram", notification: sentence.slice(0, 50), metric: numbers[0] ? `${numbers[0]}K` : "10.2K" };
+      return { app: "instagram", notification: truncateAtWord(sentence, 50), metric: numbers[0] ? `${numbers[0]}K` : "10.2K" };
     case "word_scatter":
       // Works for most sentences with enough key words
       if (key.length < 4) return null;
@@ -948,7 +1120,7 @@ function generateAnimationData(type, sentence) {
     // ─── BATCH 4 TYPES ────────────────────────────────────────────────────────
     case "pull_quote":
       if (sentence.length < 15) return null;
-      return { quote: sentence.slice(0, 120), attribution: "" };
+      return { quote: truncateAtWord(sentence, 120), attribution: "" };
     case "big_number":
       if (!numbers[0] || numbers[0] < 5) return null;
       return { value: pct ? pct[1] + "%" : (money ? money[0] : String(numbers[0])), label: key.slice(0, 4).join(" ").toLowerCase(), context: "", prefix: "", suffix: "" };
@@ -966,7 +1138,7 @@ function generateAnimationData(type, sentence) {
     case "myth_fact": {
       if (!/think|believe|wrong|myth|actually|truth|real|but|however/.test(sentence.toLowerCase())) return null;
       const halves = sentence.split(/but|however|actually|in reality/i);
-      return { myth: (halves[0] || sentence.slice(0, 50)).trim(), fact: (halves[1] || sentence.slice(50, 100)).trim(), label: "MYTH BUSTED" };
+      return { myth: truncateAtWord(halves[0] || sentence, 60), fact: truncateAtWord(halves[1] || sentence, 60), label: "MYTH BUSTED" };
     }
     case "step_reveal": {
       const parts = sentence.split(/[,;]|first|second|third|then|next|finally/i).map(s => s.trim()).filter(s => s.length > 8).slice(0, 4);
@@ -976,7 +1148,7 @@ function generateAnimationData(type, sentence) {
     case "pro_con": {
       const halves = sentence.split(/but|however|although|while|whereas|yet/i);
       if (halves.length < 2) return null;
-      return { title: "The Trade-off", pros: [halves[0].trim().slice(0, 60)], cons: [halves[1].trim().slice(0, 60)] };
+      return { title: "The Trade-off", pros: [truncateAtWord(halves[0], 60)], cons: [truncateAtWord(halves[1], 60)] };
     }
     case "score_card": {
       const gradeMap = { great: "A", good: "B", average: "C", bad: "D", terrible: "F", failing: "F", worst: "F", poor: "D", excellent: "A" };
@@ -984,16 +1156,16 @@ function generateAnimationData(type, sentence) {
       if (!match) return null; // don't show score_card without a clear grade context
       const grade = gradeMap[match];
       const isGood = grade <= "B";
-      return { grade, label: key.slice(0, 3).join(" "), subtitle: sentence.slice(0, 50), color: isGood ? "#22c55e" : "#ef4444" };
+      return { grade, label: key.slice(0, 3).join(" "), subtitle: truncateAtWord(sentence, 50), color: isGood ? "#22c55e" : "#ef4444" };
     }
     case "mindset_shift": {
       const halves = sentence.split(/but|instead|rather|however|not.*but/i);
       if (halves.length < 2) return null;
-      return { old: halves[0].trim().slice(0, 60), new: halves[1].trim().slice(0, 60), label: "THE SHIFT" };
+      return { old: truncateAtWord(halves[0], 60), new: truncateAtWord(halves[1], 60), label: "THE SHIFT" };
     }
     case "alert_banner":
       if (!/warn|danger|risk|mistake|wrong|avoid|never|critical|important/.test(sentence.toLowerCase())) return null;
-      return { type: "danger", title: "CRITICAL MISTAKE", body: sentence.slice(0, 80), stat: "", icon: "🚨" };
+      return { type: "danger", title: "CRITICAL MISTAKE", body: truncateAtWord(sentence, 80), stat: "", icon: "🚨" };
     case "three_points": {
       const parts = sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 8).slice(0, 3);
       if (parts.length < 3) return null;
@@ -1002,20 +1174,20 @@ function generateAnimationData(type, sentence) {
     }
     case "rule_card":
       if (!/rule|law|principle|step|tip|key|secret/.test(sentence.toLowerCase())) return null;
-      return { number: "Key Rule", name: key.slice(0, 2).join(" "), description: sentence.slice(0, 80), icon: "💡" };
+      return { number: "Key Rule", name: key.slice(0, 2).join(" "), description: truncateAtWord(sentence, 80), icon: "💡" };
     case "loading_bar":
       if (!pct && !numbers[0]) return null;
       return { label: key.slice(0, 5).join(" ").toLowerCase(), value: parseInt(pct?.[1]) || numbers[0] || 73, suffix: "%", color: "#ef4444", subtitle: "" };
     case "vote_bar":
       if (!pct && !numbers[0]) return null;
-      return { question: sentence.slice(0, 80), options: [{ label: "Yes", pct: parseInt(pct?.[1]) || numbers[0] || 73, winner: true }, { label: "No", pct: 100 - (parseInt(pct?.[1]) || numbers[0] || 73) }] };
+      return { question: truncateAtWord(sentence, 80), options: [{ label: "Yes", pct: parseInt(pct?.[1]) || numbers[0] || 73, winner: true }, { label: "No", pct: 100 - (parseInt(pct?.[1]) || numbers[0] || 73) }] };
     case "news_headline":
       if (!numbers[0] && !/reveal|shocking|truth|secret|discover/.test(sentence.toLowerCase())) return null;
-      return { outlet: "BREAKING NEWS", headline: sentence.slice(0, 70), subtext: key.slice(0, 4).join(" "), date: String(new Date().getFullYear()) };
+      return { outlet: "BREAKING NEWS", headline: truncateAtWord(sentence, 70), subtext: key.slice(0, 4).join(" "), date: String(new Date().getFullYear()) };
     case "conversation_bubble": {
       const halves = sentence.split(/but|while|whereas|vs|versus/i);
       if (halves.length < 2) return null;
-      return { exchanges: [{ speaker: "Most People", text: halves[0].trim().slice(0, 60), side: "left" }, { speaker: "The Wealthy", text: halves[1].trim().slice(0, 60), side: "right" }] };
+      return { exchanges: [{ speaker: "Most People", text: truncateAtWord(halves[0], 60), side: "left" }, { speaker: "The Wealthy", text: truncateAtWord(halves[1], 60), side: "right" }] };
     }
     case "stacked_bar":
       if (numbers.length < 2) return null;
@@ -1027,132 +1199,8 @@ function generateAnimationData(type, sentence) {
   }
 }
 
-function generateInfographicData(type, sentence, scriptText) {
-  const numbers = getNumbers(sentence); // parses both digits and written numbers
-  const words = sentence.replace(/[^a-zA-Z0-9\s]/g, " ").split(/\s+/).filter(w => w.length > 2);
-  const stop = new Set(["the","and","but","for","with","this","that","have","from","they","their","your","you","was","are","were","has","had","not","can","will","would","could","should","just","also","more","very"]);
-  const key = words.filter(w => !stop.has(w.toLowerCase())).slice(0, 6);
-  const pct = sentence.match(/(\d+)\s*%/) || (numbers.length && sentence.toLowerCase().includes("percent") ? [null, String(numbers[0])] : null);
-  // Build a meaningful short title from sentence — max 4 content words, word-boundary safe
-  const titleStop = new Set(["the","and","but","for","with","this","that","have","from","they","their","your","you","was","are","were","has","had","not","can","will","would","could","should","just","also","more","very","show","means","nearly","about","these","those","that","here","what","when","where","how","why","wasn","didn","don","won","isn","aren","couldn","shouldn","wouldn","doesn","hadn","zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety","hundred","thousand","million"]);
-  const titleWords = sentence.replace(/[^a-zA-Z\s]/g, " ").split(/\s+/).filter(w => w.length > 3 && !titleStop.has(w.toLowerCase()));
-  const title = titleWords.slice(0, 4).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ") || key.slice(0, 2).join(" ");
-
-  // Pull nearby sentences from script for list-type infographics
-  const allSentences = scriptText.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 10 && s.length < 80);
-  const idx = allSentences.findIndex(s => s.includes(key[0] || ""));
-  const nearby = allSentences.slice(Math.max(0, idx - 1), idx + 4).filter(s => s.length > 10);
-
-  switch (type) {
-    case "number_reveal":
-      // Only when sentence has an actual number
-      if (!numbers[0]) return {};
-      {
-        const numLabel = titleWords.slice(0, 3).join(" ") || key.slice(0, 2).join(" ");
-        return { number_data: { value: parseFloat(numbers[0]), prefix: sentence.includes("$") ? "$" : "", suffix: pct ? "%" : "", label: numLabel, style: "counter" } };
-      }
-
-    case "stat_card":
-      // Only when sentence has at least one number or stat
-      if (!numbers[0] && !pct) return {};
-      {
-        const statLabel = titleWords.slice(0, 3).join(" ") || key.slice(0, 2).join(" ");
-        return { chart_data: { title, stats: [{ value: pct ? pct[1] + "%" : String(numbers[0]), label: statLabel }, numbers[1] ? { value: String(numbers[1]), label: titleWords.slice(2, 4).join(" ") || "" } : null].filter(Boolean) } };
-      }
-
-    case "checklist": {
-      // Only for list-like sentences or when nearby sentences form a list
-      const hasList = /first|second|third|step|,|include|following/.test(sentence.toLowerCase());
-      // Filter out section title sentences from nearby (Number X., Trap X., step X.)
-      const sectionPattern = /^(number|trap|step|part|tip|reason|way)\s+(one|two|three|four|five|six|seven|eight|nine|ten|\d+)[.:\s]/i;
-      const nearbyFiltered = nearby.filter(s => !sectionPattern.test(s.trim()) && !/^\d+\./.test(s.trim()));
-      const items = nearbyFiltered.length >= 2 ? nearbyFiltered.slice(0, 4) : hasList ? sentence.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 8).slice(0, 4) : null;
-      if (!items || items.length < 2) return {};
-      return { chart_data: { title, items, checked: true } };
-    }
-
-    case "progress_bar":
-      // Only when sentence has multiple percentages or items to compare
-      if (numbers.length < 2 && !pct) return {};
-      return { chart_data: { title, bars: [
-        { label: key[0] || "Primary", value: parseInt(numbers[0]) || 65, suffix: "%", color: "" },
-        numbers[1] ? { label: key[1] || "Secondary", value: parseInt(numbers[1]) || 35, suffix: "%", color: "" } : null,
-      ].filter(Boolean) } };
-
-    case "timeline":
-      // Only when sentence mentions years or a sequence
-      if (!numbers.some(n => n > 1900 && n < 2100) && !/year|decade|century|era|period|history|since|ago/.test(sentence.toLowerCase())) return {};
-      {
-        const years = numbers.filter(n => n > 1900 && n < 2100);
-        const yr1 = String(years[0] || "2000");
-        const yr2 = String(years[1] || String(parseInt(yr1) + 10));
-        const yr3 = String(years[2] || "2024");
-        return { chart_data: { title, events: [
-          { year: yr1, label: nearby[0]?.slice(0, 30) || "Phase one begins" },
-          { year: yr2, label: nearby[1]?.slice(0, 30) || "Turning point" },
-          { year: yr3, label: nearby[2]?.slice(0, 30) || "Present day" },
-        ] } };
-      }
-
-    case "leaderboard":
-      // Only for ranking/ordering sentences
-      if (!/rank|top|best|worst|most|least|number one|first|second|third/.test(sentence.toLowerCase())) return {};
-      {
-        const items = nearby.length >= 2 ? nearby.slice(0, 5) : key.slice(0, 5).map(k => k);
-        return { chart_data: { title, items: items.map((s, i) => ({ label: typeof s === 'string' ? s.slice(0, 25) : String(s), value: 100 - i * 15, suffix: "%" })) } };
-      }
-
-    case "horizontal_bar":
-      // Only when sentence has multiple comparable quantities
-      if (numbers.length < 2 && !nearby.some(s => /\d+%/.test(s))) return {};
-      return { chart_data: { title, items: [
-        { label: key[0] || "Category A", value: parseInt(numbers[0]) || 75, color: "" },
-        { label: key[1] || "Category B", value: parseInt(numbers[1]) || 45, color: "" },
-        numbers[2] ? { label: key[2] || "Category C", value: parseInt(numbers[2]) || 25, color: "" } : null,
-      ].filter(Boolean), suffix: "%" } };
-
-    case "growth_curve":
-      return { chart_data: { title, points: [
-        { label: "Start", value: parseInt(numbers[0]) || 10 },
-        { label: "Year 5", value: (parseInt(numbers[0]) || 10) * 3 },
-        { label: "Year 10", value: (parseInt(numbers[0]) || 10) * 10 },
-        { label: "Year 20", value: (parseInt(numbers[0]) || 10) * 50 },
-      ], suffix: "x" } };
-
-    case "donut_chart":
-      return { chart_data: { title, centerLabel: pct ? pct[1] + "%" : (numbers[0] ? `${numbers[0]}%` : key[0] || "Split"), segments: [
-        { label: key[0] || "Group A", value: parseInt(pct?.[1]) || parseInt(numbers[0]) || 60, color: "" },
-        { label: key[1] || "Group B", value: 100 - (parseInt(pct?.[1]) || parseInt(numbers[0]) || 60), color: "" },
-      ] } };
-
-    case "ranking_cards":
-      return { chart_data: { title, items: nearby.slice(0, 5).map((s, i) => ({ label: s.slice(0, 30), value: `#${i + 1}` })) } };
-
-    case "split_comparison":
-      return { chart_data: { title, left: { label: key[0] || "Option A", value: numbers[0] ? String(numbers[0]) : "Low", description: sentence.slice(0, 40) }, right: { label: key[1] || "Option B", value: numbers[1] ? String(numbers[1]) : "High", description: sentence.slice(40, 80) } } };
-
-    case "scale_comparison":
-      return { chart_data: { title, items: [{ label: key[0] || "Small", value: parseInt(numbers[0]) || 10 }, { label: key[1] || "Large", value: parseInt(numbers[1]) || 1000 }] } };
-
-    case "flow_diagram":
-      return { chart_data: { title, nodes: nearby.slice(0, 4).map((s, i) => ({ id: i + 1, label: s.slice(0, 20) })), edges: [] } };
-
-    case "process_flow":
-      return { chart_data: { title, steps: nearby.slice(0, 4).map((s, i) => ({ number: i + 1, label: s.slice(0, 25) })) } };
-
-    case "icon_grid":
-      return { chart_data: { title, items: key.slice(0, 6).map((w, i) => ({ icon: ["💰","📈","🧠","⚡","🎯","🔥"][i] || "💡", label: w })) } };
-
-    case "trend_arrow":
-      return { animation_data: { direction: sentence.includes("decreas") || sentence.includes("down") || sentence.includes("less") ? "down" : "up", value: (numbers[0] || "73") + (pct ? "%" : ""), label: key.slice(0, 4).join(" ").toLowerCase() } };
-
-    case "percent_fill":
-      return { animation_data: { percent: parseInt(pct?.[1]) || 73, label: key.slice(0, 4).join(" ").toLowerCase() } };
-
-    default:
-      return { chart_data: { title, stats: [{ value: pct ? pct[1] + "%" : (numbers[0] ? String(numbers[0]) : key[0] || "Key Stat"), label: titleWords.slice(0, 3).join(" ") || key.slice(0, 2).join(" ") }] } };
-  }
-}
+// generateInfographicData removed — was dead code (never called).
+// Animation data comes from: (1) Claude Pass 2, (2) banned-type smart replacement, (3) rescue fallback in validateAndSyncClips.
 
 function pickIconForSentence(sentence) {
   const s = sentence.toLowerCase();
@@ -1207,14 +1255,13 @@ async function directClipWindows(windows, planChunk, scriptText, isFirst, isLast
     const content = response.data.content[0].text;
     let clips = parseClipsJSON(content);
     
-    // Variety check — if any single animation type dominates, convert excess to stock
+    // Variety check — max 2 of same animation type per chunk (matches prompt rule)
     const typeCounts = {};
     for (const clip of clips) {
       const t = clip.visual_type;
       if (t !== 'stock' && t !== 'ai_image' && t !== 'web_image') {
         typeCounts[t] = (typeCounts[t] || 0) + 1;
-        // If same animation type appears 3+ times in one chunk, convert excess to stock
-        if (typeCounts[t] > 3) {
+        if (typeCounts[t] > 2) {
           clip.visual_type = 'stock';
           clip.search_query = clip.search_query || clip.text?.slice(0, 50) || '';
           clip.animation_data = null;
@@ -1240,11 +1287,23 @@ async function directClipWindows(windows, planChunk, scriptText, isFirst, isLast
 
 // ─── ASSIGNMENT PROMPT ───────────────────────────────────────────────────────
 function buildAssignmentPrompt(windowRef, windows, planChunk, scriptText, isFirst, isLast, nicheInfo, themeHints, topic, theme, isHorror, videoBible = {}) {
+  // Build video bible context for the prompt
+  const bibleContext = [
+    videoBible.setting            ? "Setting: "       + videoBible.setting : "",
+    videoBible.era_specific       ? "Era/Period: "    + videoBible.era_specific : "",
+    videoBible.visual_tone        ? "Visual tone: "   + videoBible.visual_tone : "",
+    videoBible.required_visual_style ? "Style: "      + videoBible.required_visual_style : "",
+    videoBible.target_audience    ? "Audience: "      + videoBible.target_audience : "",
+    videoBible.emotional_arc      ? "Emotional arc: " + videoBible.emotional_arc : "",
+    videoBible.banned_visuals?.length ? "NEVER show: " + videoBible.banned_visuals.slice(0,6).join(", ") : "",
+  ].filter(Boolean).join("\n");
+
   return `You are filling in the details for a pre-planned YouTube video storyboard.
 
 VIDEO: "${topic}" | NICHE: ${nicheInfo.niche} | THEME: "${theme}"
 IMAGE STYLE: ${nicheInfo.imageStyle}
 THEME PREFERRED: ${themeHints.prefer.join(", ")}
+${bibleContext ? `\nVIDEO CONTEXT (visual world of this video):\n${bibleContext}\n` : ""}
 
 Each clip window below has a REQUIRED_TYPE. You MUST use exactly that type — do NOT substitute kinetic_text or stock unless the window explicitly says to use them.
 start_time and end_time are FIXED — do not change them.
@@ -1252,7 +1311,11 @@ start_time and end_time are FIXED — do not change them.
 CRITICAL RULES:
 1. PERMANENTLY BANNED — never use these under any circumstances:
    kinetic_text, typewriter_reveal, neon_sign, glitch_text, news_breaking,
-   word_scatter, news_headline, bold_claim, text_flash, overlay_caption
+   word_scatter, news_headline, bold_claim, text_flash, overlay_caption,
+   lightbulb_moment, rocket_launch, pull_quote, rule_card, highlight_build,
+   dramatic_reveal, stamp_reveal, underline_slam, word_by_word, split_text,
+   title_card, chapter_break
+   → These are ALL text-on-screen types. We have burned-in subtitles so text animations = double subtitles.
    → If unsure what to show, use "stock" with a specific real-world search_query.
 
 2. Follow REQUIRED_TYPE exactly for all other types.
@@ -1281,41 +1344,43 @@ CRITICAL RULES:
 CLIP WINDOWS WITH PLAN:
 ${windowRef}
 
-SCRIPT CONTEXT (full):
-${scriptText.slice(0, 12000)}
+FULL SCRIPT (read this to understand what the video is about — infographic data must match exactly what narrator says):
+${scriptText}
 
 ═══ HOW TO FILL EACH TYPE ═══
 
 STOCK (category: stock):
-- search_query: MUST be a LITERAL visual of what the narrator is saying in that exact window
+- search_query: MUST be a LITERAL visual of what the narrator is saying in that exact window.
+  Ask yourself: "If I paused the video here, what SPECIFIC image would be on screen?"
+  The query must describe a CONCRETE scene — a person doing something, a place, an object, an action.
   Example: narrator says "A man hiding behind a hedge in the dark" → search_query: "shadowy figure hiding behind hedge at night dark"
   Example: narrator says "The Roman emperor stood before his army" → search_query: "roman emperor standing before army ancient rome"
   Example: narrator says "She walked into the empty house" → search_query: "woman entering empty dark house interior"
-  WRONG: generic topic keywords like "horror dark atmospheric" or "history ancient scene"
-  RIGHT: literal translation of the exact sentence into a visual description
+  Example: narrator says "Your body burns fat differently in each area" → search_query: "person exercising fitness body composition workout"
+  Example: narrator says "The wall sit targets your quads and glutes" → search_query: "person performing wall sit exercise against wall legs bent"
+  Example: narrator says "Getting enough sleep is critical for recovery" → search_query: "person sleeping peacefully dark bedroom rest recovery"
+  Example: narrator says "Colombia offers affordable healthcare" → search_query: "colombia hospital healthcare modern medical facility"
+  Example: narrator says "Krakow has beautiful medieval architecture" → search_query: "krakow poland medieval old town architecture historic buildings"
+  WRONG: generic topic keywords like "horror dark atmospheric" or "travel adventure culture" or "fitness health body"
+  WRONG: word salad from the sentence like "void challenge everything thought knew out"
+  RIGHT: literal translation of the exact sentence into a SPECIFIC visual scene description (6-12 words)
+  MINIMUM: every search_query must be at least 6 words describing a specific visual scene
 - search_queries: if clip is 5s+, add 2-3 different angles as array ["query1","query2","query3"]
 - display_style: use the PLAN display ("framed", "fullscreen", "split_left", "split_right")
 - panel_icon: for split layouts — one emoji matching the moment (🚀💰🧠🔥⚡🎯💡📈🏆✅😤🎭💪😱) or null
 
-ANIMATION (category: animation) — use the PLAN type, fill in animation_data from the exact sentence:
-- "kinetic_text" → {lines:["SHORT","PUNCH"], style:"impact"} — MAX 2 lines, MAX 4 words each, EXACT words narrator says
+ANIMATION (category: animation) — use the PLAN type, fill animation_data from the EXACT sentence the narrator says at this timestamp.
+CRITICAL: animation_data must contain ONLY information from the narrator's sentence for THIS clip. Do NOT pull data from other parts of the script.
 - "count_up" → {value:NUMBER, prefix:"$", suffix:"", label:"what it is", decimals:0} — only if sentence has number ≥10
 - "money_counter" → {amount:NUMBER, currency:"$", label:"what the money is"}
-- "spotlight_stat" → {value:"96%", label:"exact stat description", context:"one sentence context"}
+- "spotlight_stat" → {value:"EXACT_NUMBER_FROM_SCRIPT", label:"exact stat description", context:"one sentence context"}
 - "reaction_face" → {emoji:"🤯", label:"exact words narrator says here", style:"slam"}
-- "neon_sign" → {text:"EXACT PHRASE MAX 4 WORDS", subtitle:"optional context"}
 - "alert_banner" → {headline:"WARNING", body:"the specific mistake/danger from script", icon:"⚠️", color:"#ef4444"}
-- "alert_banner" → {type:"danger", title:"CRITICAL MISTAKE", body:"what the mistake is", stat:"X% of people", icon:"🚨"}
 - "checkmark_build" → {items:["step from script","step from script","step from script"], title:"optional"}
 - "before_after" → {before:"situation before (short)", after:"situation after (short)", label:"the transformation"}
-- "news_breaking" → {headline:"DRAMATIC FACT FROM SCRIPT", subtext:"one line context", ticker:"DEVELOPING"}
-- "news_headline" → {outlet:"BREAKING NEWS", headline:"headline from script fact", subtext:"supporting detail", date:"year if mentioned"}
-- "highlight_build" → {lines:["key phrase from script","second phrase","third phrase"], delay:0.3}
-- "typewriter_reveal" → {text:"exact phrase narrator says", subtitle:"context"}
-- "glitch_text" → {text:"SHOCKING CLAIM MAX 4 WORDS"}
 - "trend_arrow" → {direction:"up", value:"340%", label:"what is growing/declining"}
-- "percent_fill" → {percent:73, label:"what the percentage represents"}
-- "loading_bar" → {label:"what the % represents", value:78, suffix:"%", color:"#ef4444", subtitle:"source or context"}
+- "percent_fill" → {percent:EXACT_NUMBER, label:"what the percentage represents"}
+- "loading_bar" → {label:"what the % represents", value:EXACT_NUMBER, suffix:"%", color:"#ef4444", subtitle:"source or context"}
 - "tweet_card" → {handle:"@relevant", text:"quote from script under 100 chars", likes:"24.3K", retweets:"8.1K"}
 - "phone_screen" → {app:"instagram", notification:"notification matching script", metric:"10.2K"}
 - "reddit_post" → {subreddit:"r/relevant", username:"u/throwaway", title:"post title from script topic", upvotes:"5.2K", comments:"203"}
@@ -1323,35 +1388,29 @@ ANIMATION (category: animation) — use the PLAN type, fill in animation_data fr
 - "youtube_card" → {title:"video title matching script topic", channel:"relevant channel", views:"4.2M views", duration:"14:32", badge:"TRENDING"}
 - "google_search" → {query:"search query matching what narrator asks", results:[{title:"result 1",source:"Forbes"},{title:"result 2",source:"Inc.com"}]}
 - "stock_ticker" → {items:[{symbol:"WEALTH",price:"$340K",change:"+34%"},...], title:""}
-- "lightbulb_moment" → {text:"the insight from script (max 50 chars)", subtext:"context words"}
-- "rocket_launch" → {headline:"GROWTH CONCEPT IN CAPS", subtext:"supporting phrase", stage:"launch"}
 - "thumbs_up" → {type:"up" or "down", items:["key word","key word","key word"], verdict:"VERDICT IN CAPS"}
-- "word_scatter" → {words:["KEY","WORDS","FROM","SENTENCE","HERE"], centerWord:"MAIN CONCEPT"}
 - "compare_reveal" → {items:[{label:"OPTION A",score:"Low",description:"brief",icon:"❌"},{label:"OPTION B",score:"High",description:"brief",icon:"✅"}], title:"Compare Title", winner:1}
-- "stat_comparison" → {left:{value:"96%",label:"never reach $1M",color:"#ef4444"}, right:{value:"4%",label:"achieve wealth",color:"#22c55e"}, title:"The Gap"}
+- "stat_comparison" → {left:{value:"EXACT_NUMBER%",label:"left label",color:"#ef4444"}, right:{value:"EXACT_NUMBER%",label:"right label",color:"#22c55e"}, title:"The Gap"}
 - "side_by_side" → {left:"LEFT CONCEPT", right:"RIGHT CONCEPT", leftSub:"supporting stat", rightSub:"supporting stat", vs:true}
 - "mindset_shift" → {old:"wrong thinking from script", new:"right thinking from script", label:"THE SHIFT"}
 - "myth_fact" → {myth:"what people believe from script", fact:"the truth from script", label:"MYTH BUSTED"}
 - "pro_con" → {title:"The Trade-off", pros:["benefit from script","benefit 2"], cons:["downside from script","downside 2"]}
 - "conversation_bubble" → {exchanges:[{speaker:"Most People",text:"what average person thinks",side:"left"},{speaker:"The 1%",text:"what wealthy person does",side:"right"}]}
-- "pull_quote" → {quote:"memorable exact phrase from script", attribution:"source if mentioned"}
 - "bullet_list" → {title:"List Title", items:["item from script","item 2","item 3","item 4"], icon:"▶"}
 - "step_reveal" → {title:"How To", steps:["step from script","step 2","step 3"], active:0}
 - "three_points" → {title:"3 Key Points", points:[{icon:"💰",label:"LABEL",desc:"desc from script"},{icon:"⏰",label:"LABEL",desc:"desc"},{icon:"🎯",label:"LABEL",desc:"desc"}]}
-- "rule_card" → {number:"Rule #1", name:"Rule Name", description:"exact rule from script", icon:"💰"}
 - "score_card" → {grade:"F", label:"Financial Literacy", subtitle:"context from script", color:"#ef4444"}
 - "quiz_card" → {question:"question from script", options:["A","B","C","D"], answer:INDEX, explanation:"answer explanation"}
 - "portfolio_breakdown" → {title:"Portfolio Type", total:"$X", allocations:[{label:"Stocks",pct:60,color:"#22c55e"},...]}
 - "roi_calculator" → {invested:"$10K", returned:"$340K", years:30, rate:"10%", label:"S&P 500 average"}
 - "candlestick_chart" → {title:"Market Title", candles:[{open:100,close:150,high:160,low:90},...], labels:["year1","year2",...]}
-- "wealth_ladder" → {title:"The Wealth Ladder", rungs:[{label:"Broke",desc:"paycheck to paycheck",pct:40},{label:"Stable",pct:30},{label:"Wealthy",pct:20},{label:"Rich",pct:8},{label:"Ultra Rich",pct:2}]}
+- "wealth_ladder" → {title:"The Ladder", rungs:[{label:"Level 1",desc:"description",pct:EXACT_NUMBER},{label:"Level 2",pct:EXACT_NUMBER},{label:"Level 3",pct:EXACT_NUMBER}]}
 - "timelapse_bar" → {start:"Age 20", end:"Age 65", current:"Age 35", label:"Your Window", currentPos:0.33, events:[{pos:0.1,label:"Start investing"},...]}
 - "countdown_timer" → {from:10, label:"years until retirement", subtitle:"if you start today", urgent:true}
-- "vote_bar" → {question:"survey question from script", options:[{label:"Yes",pct:78,winner:true},{label:"No",pct:22}]}
-- "loading_bar" → already shown above
-- "map_callout" → {location:"Country/City from script", stat:"96%", statLabel:"never reach $1M", subtitle:"population studied", emoji:"🇺🇸"}
-- "stacked_bar" → {title:"Budget Breakdown", segments:[{label:"Housing",value:35,color:"#ef4444"},{label:"Food",value:15,color:"#f97316"},...]}
-- "speed_meter" → {value:73, max:100, label:"Wealth Growth Rate", unit:"%", zone:"danger"}
+- "vote_bar" → {question:"survey question from script", options:[{label:"Yes",pct:EXACT_NUMBER,winner:true},{label:"No",pct:EXACT_NUMBER}]}
+- "map_callout" → {location:"Country/City from script", stat:"EXACT_NUMBER%", statLabel:"what stat means", subtitle:"population studied", emoji:"🇺🇸"}
+- "stacked_bar" → {title:"Budget Breakdown", segments:[{label:"Housing",value:EXACT_NUMBER,color:"#ef4444"},{label:"Food",value:EXACT_NUMBER,color:"#f97316"},...]}
+- "speed_meter" → {value:EXACT_NUMBER, max:100, label:"what is being measured", unit:"%", zone:"danger"}
 - "big_number" → {value:"$8,400", label:"Average American Savings", context:"That's it. That's all.", prefix:"", suffix:""}
 - "person_profile" → {name:"Person Name from script", role:"their role/location", stats:[{value:"$0",label:"Savings"},{value:"$23K",label:"Debt"}], outcome:"what happened to them"}
 
@@ -1366,17 +1425,17 @@ SPLIT (category: split):
 
 INFOGRAPHIC (category: infographic) — MUST fill data or renders blank:
 - "number_reveal" → number_data: {value:NUMBER, prefix:"$" or "", suffix:"%" or " hours" etc, label:"what it is", style:"counter"}
-- "stat_card" → chart_data: {title:"Title", stats:[{value:"96%",label:"never reach $1M"},{value:"4%",label:"achieve wealth"}]}
+- "stat_card" → chart_data: {title:"Title", stats:[{value:"EXACT_NUMBER%",label:"what stat means"},{value:"EXACT_NUMBER%",label:"what stat means"}]}
 - "checklist" → chart_data: {title:"Title", items:["item from script","item 2","item 3"], checked:true}
-- "progress_bar" → chart_data: {title:"Title", bars:[{label:"Category",value:65,suffix:"%",color:""},...]}
-- "timeline" → chart_data: {title:"Title", events:[{year:"2004",label:"event"},{year:"2010",label:"event"},...]}
-- "leaderboard" → chart_data: {title:"Title", items:[{label:"item",value:100,suffix:"%"},...]}
-- "horizontal_bar" → chart_data: {title:"Title", items:[{label:"A",value:75,color:""},{label:"B",value:45,color:""}], suffix:"%"}
+- "progress_bar" → chart_data: {title:"Title", bars:[{label:"Category",value:EXACT_NUMBER,suffix:"%",color:""},...]}
+- "timeline" → chart_data: {title:"Title", events:[{year:"EXACT_YEAR",label:"event"},{year:"EXACT_YEAR",label:"event"},...]}
+- "leaderboard" → chart_data: {title:"Title", items:[{label:"item",value:EXACT_NUMBER,suffix:"%"},...]}
+- "horizontal_bar" → chart_data: {title:"Title", items:[{label:"A",value:EXACT_NUMBER,color:""},{label:"B",value:EXACT_NUMBER,color:""}], suffix:"%"}
 - "growth_curve" → chart_data: {title:"Title", points:[{x:0,y:10},{x:1,y:12},{x:5,y:50},{x:10,y:200},{x:20,y:1000}]}
-- "donut_chart" → chart_data: {title:"Title", segments:[{label:"A",value:60,color:""},{label:"B",value:40,color:""}]}
+- "donut_chart" → chart_data: {title:"Title", segments:[{label:"A",value:EXACT_NUMBER,color:""},{label:"B",value:EXACT_NUMBER,color:""}]}
 - "flow_diagram" → chart_data: {title:"Title", steps:["Step 1","Step 2","Step 3","Step 4"]}
 
-IMPORTANT: Use real numbers from script. If not mentioned, invent plausible ones.
+CRITICAL: Numbers in animation_data MUST match what the narrator says. If the narrator says "93%" or "ninety-three percent", use 93. If they say "three times a week", use 3. Numbers can be spoken as words — extract them. NEVER copy the example placeholder values. The data must reflect the script, whether the number appears as digits or words.
 
 ${isFirst ? `HOOK RULES (first chunk):
 - Clip 0: MUST be animation — most dramatic type for opening words. NO fullscreen. NO stock.
@@ -1394,21 +1453,44 @@ Return ONLY valid JSON array:
 }
 
 // ─── PARSE JSON ───────────────────────────────────────────────────────────────
+// Recursively sanitize all string values in an object (fixes Unicode garbling from Claude responses)
+function sanitizeStringsDeep(obj) {
+  if (!obj || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeStringsDeep);
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    out[k] = typeof v === "string" ? sanitizeText(v) : sanitizeStringsDeep(v);
+  }
+  return out;
+}
+
 function parseClipsJSON(content) {
   let str = content.trim()
     .replace(/^```(?:json)?\s*/gm, "").replace(/```\s*$/gm, "").trim();
-  try { return JSON.parse(str); } catch {}
-  const m = str.match(/\[\s*\{[\s\S]*\}\s*\]/);
-  if (m) { try { return JSON.parse(m[0]); } catch {} }
-  const lastBrace = str.lastIndexOf("}");
-  if (lastBrace > 0) {
-    let truncated = str.slice(0, lastBrace + 1);
-    if (!truncated.trim().endsWith("]")) truncated += "]";
-    const arrStart = truncated.indexOf("[");
-    if (arrStart >= 0) truncated = truncated.slice(arrStart);
-    try { return JSON.parse(truncated); } catch {}
+  let parsed;
+  try { parsed = JSON.parse(str); } catch {}
+  if (!parsed) {
+    const m = str.match(/\[\s*\{[\s\S]*\}\s*\]/);
+    if (m) { try { parsed = JSON.parse(m[0]); } catch {} }
   }
-  throw new Error("Could not parse director storyboard JSON");
+  if (!parsed) {
+    const lastBrace = str.lastIndexOf("}");
+    if (lastBrace > 0) {
+      let truncated = str.slice(0, lastBrace + 1);
+      if (!truncated.trim().endsWith("]")) truncated += "]";
+      const arrStart = truncated.indexOf("[");
+      if (arrStart >= 0) truncated = truncated.slice(arrStart);
+      try { parsed = JSON.parse(truncated); } catch {}
+    }
+  }
+  if (!parsed) throw new Error("Could not parse director storyboard JSON");
+  // Sanitize all string fields to prevent garbled Unicode in rendered text
+  return parsed.map(clip => {
+    if (clip.animation_data) clip.animation_data = sanitizeStringsDeep(clip.animation_data);
+    if (clip.chart_data) clip.chart_data = sanitizeStringsDeep(clip.chart_data);
+    if (clip.number_data) clip.number_data = sanitizeStringsDeep(clip.number_data);
+    return clip;
+  });
 }
 
 // ─── VALIDATE AND SYNC CLIPS TO WINDOWS ──────────────────────────────────────
@@ -1486,6 +1568,8 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
     clip.subtitle_words = [];
     // FIX A: carry the narrated sentence onto every clip object.
     if (window.text && !clip.text) clip.text = window.text;
+    // Carry sentence-level timings for animation alignment
+    if (window.sentenceTimings) clip._sentenceTimings = window.sentenceTimings;
 
     // FIX E: If video bible has a key_visual_moment matching this sentence,
     // use its search_query directly — highest quality, director-approved
@@ -1606,17 +1690,15 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
       }
     };
 
-    // Option A: if animation/infographic data is missing or bad schema → stock (never garbage text)
+    // Option A: if animation/infographic data is missing or bad schema → stock
+    // Derive search query from narrator's sentence, NOT generic nicheSafeQueries
     const stockFallback = () => {
-      const biblePrefix = videoBible?.image_search_prefix || "";
-          const baseQuery = (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[i % 5];
-          const stockQuery = biblePrefix ? `${biblePrefix} ${baseQuery}` : baseQuery;
       clip.visual_type = "stock";
       clip.display_style = "framed";
       clip.animation_data = null;
       clip.chart_data = null;
       clip.number_data = null;
-      if (!clip.search_query || clip.search_query.length < 3) clip.search_query = stockQuery;
+      if (!clip.search_query || clip.search_query.length < 3) clip.search_query = queryFromSentence(windows[i]?.text || clip.text || "", videoBible?.image_search_prefix || "");
     };
 
     // If animation_data is missing/invalid, attempt minimal rescue before falling to stock
@@ -1631,8 +1713,6 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
       let rescued = null;
       if (false && words.length >= 1) { // banned types
         rescued = { lines: words.slice(0, 2).map(w => w.toUpperCase()), style: "impact" };
-      } else if (["pull_quote"].includes(type) && sentence.length > 10) {
-        rescued = type === "pull_quote" ? { quote: sentence.slice(0, 120), attribution: "" } : { text: sentence.slice(0, 60), subtitle: "" };
       } else if (["reaction_face"].includes(type)) {
         rescued = { emoji: "🤯", label: words.slice(0,2).join(" ") || "SHOCKING", style: "slam" };
       } else if (["spotlight_stat","big_number"].includes(type)) {
@@ -1651,18 +1731,14 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
             ? { amount: parseInt(numMatch[0]), currency: "$", label: words.slice(0,3).join(" ").toLowerCase() }
             : { value: parseInt(numMatch[0]), prefix: "", suffix: "", label: words.slice(0,3).join(" ").toLowerCase(), decimals: 0 };
         }
-      } else if (["lightbulb_moment"].includes(type) && sentence.length > 10) {
-        rescued = { text: sentence.slice(0, 50), subtext: words.slice(0,3).join(" ") };
-      } else if (["word_scatter","icon_burst"].includes(type) && words.length >= 3) {
-        rescued = type === "word_scatter"
-          ? { words: words.slice(0,6), centerWord: words[0] || "" }
-          : { icons: ["💰","📈","🧠","⚡","🎯"], label: words.slice(0,2).join(" "), style: "burst" };
+      } else if (["icon_burst"].includes(type) && words.length >= 3) {
+        rescued = { icons: ["💰","📈","🧠","⚡","🎯"], label: words.slice(0,2).join(" "), style: "burst" };
       } else if (["alert_banner"].includes(type) && sentence.length > 10) {
         rescued = type === "alert_banner"
-          ? { headline: "WARNING", body: sentence.slice(0, 60), icon: "⚠️", color: "#ef4444" }
-          : { type: "danger", title: "CRITICAL MISTAKE", body: sentence.slice(0, 80), stat: "", icon: "🚨" };
+          ? { headline: "WARNING", body: truncateAtWord(sentence, 60), icon: "⚠️", color: "#ef4444" }
+          : { type: "danger", title: "CRITICAL MISTAKE", body: truncateAtWord(sentence, 80), stat: "", icon: "🚨" };
       } else if (["tweet_card"].includes(type) && sentence.length >= 15 && sentence.length <= 120) {
-        rescued = { handle: "@viewer", text: sentence.slice(0, 100), likes: "12.4K", retweets: "3.1K" };
+        rescued = { handle: "@viewer", text: truncateAtWord(sanitizeText(sentence), 100), likes: "12.4K", retweets: "3.1K" };
       } else if (["myth_fact"].includes(type) && sentence.length > 10) {
         const halves = sentence.split(/but|however|actually/i);
         rescued = { myth: halves[0].trim().slice(0,60), fact: (halves[1]||sentence).trim().slice(0,60), label: "MYTH BUSTED" };
@@ -1702,11 +1778,9 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
 
     let q = (clip.search_query || "").toLowerCase();
     banned.forEach(b => { q = q.replace(new RegExp(`\\b${b}\\b`, "gi"), "").trim(); });
-    if (bannedVisuals.some(b => q.includes(b))) {
-      q = (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[Math.floor(Math.random() * 5)];
-    }
-    if (q.length < 3) {
-      q = (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[i % 5];
+    // If query is banned or too short, derive from the narrator's actual sentence
+    if (bannedVisuals.some(b => q.includes(b)) || q.length < 3) {
+      q = queryFromSentence(windows[i]?.text || clip.text || "", videoBible?.image_search_prefix || "");
     }
     // FIX F3: For historical eras, prepend the era prefix to every stock search query.
     // Root cause: "doctor" → modern Pexels/Brave result in a Roman Empire video.
@@ -1725,7 +1799,9 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
       clip.search_queries = clip.search_queries.map(sq => {
         let c = (sq || "").toLowerCase();
         banned.forEach(b => { c = c.replace(new RegExp(`\\b${b}\\b`, "gi"), "").trim(); });
-        if (bannedVisuals.some(b => c.includes(b))) c = (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[0];
+        if (bannedVisuals.some(b => c.includes(b))) {
+          c = queryFromSentence(windows[i]?.text || clip.text || "", "");
+        }
         return c.length >= 3 ? c : null;
       }).filter(Boolean);
       // Deduplicate — only keep queries that are meaningfully different (>40% different words)
@@ -1749,8 +1825,7 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
 
     // quote_overlay and overlay_caption need a search_query for background image
     if ((clip.visual_type === "quote_overlay" || clip.visual_type === "overlay_caption") && q.length < 3) {
-      const niche = nicheInfo?.niche || "general";
-      q = (nicheSafeQueries[niche] || nicheSafeQueries.general)[i % 5];
+      q = queryFromSentence(windows[i]?.text || clip.text || "", videoBible?.image_search_prefix || "");
       clip.search_query = q;
     }
 
@@ -1762,17 +1837,10 @@ function validateAndSyncClips(clips, windows, nicheInfo, videoBible = {}) {
 }
 
 function makeStockClip(window, nicheInfo, imagePrefix = "") {
-  const niche = nicheInfo?.niche || "general";
-  const fallbacks = {
-    business: "confident entrepreneur professional workspace", finance: "financial growth professional business",
-    health: "fitness active healthy lifestyle", travel: "scenic destination landscape travel",
-    horror: "dark atmospheric mysterious", true_crime: "detective investigation professional",
-    history: "ancient ruins historical", creator: "content creator studio camera",
-    general: "professional aspirational confident person",
-  };
   return {
     start_time: window.start, end_time: window.end, visual_type: "stock", display_style: "framed",
-    search_query: fallbacks[niche] || fallbacks.general, search_queries: null,
+    search_query: queryFromSentence(window.text || "", imagePrefix), search_queries: null,
+    text: window.text || "", // carry narrator text so pipeline can use it for image context
     panel_text: null, panel_type: "clean", panel_icon: null, animation_data: null,
     chart_data: null, transition_speed: "fast", subtitle_words: [],
   };
@@ -1789,9 +1857,10 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
   if (allClips.length > 0 && (allClips[0].visual_type === "stock" || textAnimations.has(allClips[0].visual_type))) {
     const isHistorical = videoBible?.era && videoBible.era !== "modern" && videoBible.era !== "";
     const eraSpecific = videoBible?.era_specific || "";
+    const openingText = allClips[0].text || allClips[0].sentence || "";
     const openingPrompt = isHistorical
-      ? `${eraSpecific || "ancient historical"} dramatic scene, cinematic wide shot, epic scale, soldiers or ruins, dramatic lighting, no modern elements`
-      : `dramatic cinematic opening, ${nicheInfo?.imageStyle || "professional, aspirational"}, high impact visual, 16:9`;
+      ? `${eraSpecific} wide establishing photograph showing: ${openingText}. Period-accurate, natural light, documentary quality.`
+      : `DSLR photograph showing: ${openingText}. ${nicheInfo?.imageStyle || "documentary style"}, wide angle, natural lighting, editorial quality.`;
     allClips[0] = {
       ...allClips[0],
       visual_type: "ai_image",
@@ -1817,17 +1886,16 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
     if (allClips[i].start_time < allClips[i - 1].end_time) {
       const dur = allClips[i].end_time - allClips[i].start_time; // preserve duration
       allClips[i].start_time = allClips[i - 1].end_time;
-      allClips[i].end_time = allClips[i].start_time + Math.max(dur, 1.5); // min 1.5s
+      allClips[i].end_time = allClips[i].start_time + Math.max(dur, 3.0); // min 3s
     }
     if (allClips[i].end_time <= allClips[i].start_time) {
-      allClips[i].end_time = allClips[i].start_time + 1.5;
+      allClips[i].end_time = allClips[i].start_time + 3.0;
     }
   }
 
   // Break any clip longer than 12 seconds into multiple stock clips (prevents 77s clips)
   const MAX_CLIP_DUR = 7; // max 7s per clip — prevents frozen-looking long shots
-  // Use module-level nicheSafeQueries so all niche fallbacks stay in sync
-  const fallbacks = nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general;
+  const imgPrefix = videoBible?.image_search_prefix || "";
 
   const splitLong = [];
   for (const clip of allClips) {
@@ -1840,7 +1908,11 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
       let chunkIdx = 0;
       while (t < clip.end_time - 1) {
         const chunkEnd = Math.min(t + MAX_CLIP_DUR, clip.end_time);
-        if (chunkEnd - t < 1.5) break; // skip tiny tail clips
+        if (chunkEnd - t < 3.0) {
+          // Merge remaining time into previous chunk instead of silently dropping it
+          if (splitLong.length > 0) splitLong[splitLong.length - 1].end_time = clip.end_time;
+          break;
+        }
         const isFirst = chunkIdx === 0;
         // First chunk keeps original type, subsequent chunks become stock with varied queries
         if (isFirst && clip.visual_type !== "stock") {
@@ -1852,7 +1924,7 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
             end_time: chunkEnd,
             visual_type: "stock",
             display_style: "framed",
-            search_query: fallbacks[(Math.floor(t / MAX_CLIP_DUR)) % fallbacks.length],
+            search_query: queryFromSentence(clip.text || "", imgPrefix),
             search_queries: null,
             animation_data: null,
             chart_data: null,
@@ -1938,42 +2010,38 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
     if (clip.start_time < 5 && infraTypes.has(clip.visual_type)) {
       clip.visual_type = "stock";
       clip.display_style = "framed";
-      clip.search_query = clip.search_query || "dramatic cinematic opening";
+      clip.search_query = clip.search_query || queryFromSentence(clip.text || "", videoBible?.image_search_prefix || "");
     }
   });
 
   // ── HOOK PACING: first 15 seconds must cut fast ──────────────────────────
-  // Split stock AND ai_image clips in first 15s that are > 2.5s
+  // Split stock AND ai_image clips in first 15s that are > 5s
   // Never split pure text animations (they just duplicate)
-  // Target: 5-7 cuts in first 15 seconds
+  // Each resulting clip must be at least 2.5s — fast-paced but watchable
   {
     const HOOK_END = 15.0;
-    const MAX_HOOK_DUR = 2.5;
+    const MAX_HOOK_DUR = 5.0;
+    const MIN_HOOK_DUR = 2.5;
     const splitableTypes = new Set(["stock", "ai_image"]);
     const isHistorical = videoBible?.era && videoBible.era !== "modern";
     const eraSpec = videoBible?.era_specific || "";
-    const hookFallbacks = nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general;
+    const hookPrefix = videoBible?.image_search_prefix || "";
     const hookedClips = [];
     let hookQueryIdx = 0;
     for (const clip of allClips) {
       const dur = clip.end_time - clip.start_time;
       const inHook = clip.start_time < HOOK_END;
       const isSplitable = splitableTypes.has(clip.visual_type);
-      if (inHook && isSplitable && dur > MAX_HOOK_DUR) {
+      // Only split if both halves would be at least MIN_HOOK_DUR
+      if (inHook && isSplitable && dur > MAX_HOOK_DUR && dur / 2 >= MIN_HOOK_DUR) {
         const mid = clip.start_time + dur / 2;
         hookedClips.push({ ...clip, end_time: mid });
         const second = { ...clip, start_time: mid };
         if (clip.visual_type === "ai_image" && isHistorical) {
-          const prompts = [
-            `${eraSpec} dramatic battle scene, soldiers clashing, epic cinematic`,
-            `${eraSpec} ancient city burning, smoke and fire, dramatic`,
-            `${eraSpec} emperor throne room, marble columns, dramatic lighting`,
-            `${eraSpec} crowd of citizens, ancient marketplace, chaos`,
-            `${eraSpec} warrior close-up, weathered face, dramatic portrait`,
-          ];
-          second.ai_prompt = prompts[hookQueryIdx % prompts.length];
+          // Use narrator text, not hardcoded battle scenes
+          second.ai_prompt = `${eraSpec} photograph showing: ${queryFromSentence(clip.text || "", "")}. Period-accurate, natural textures, documentary quality.`;
         } else {
-          second.search_query = hookFallbacks[hookQueryIdx % hookFallbacks.length];
+          second.search_query = queryFromSentence(clip.text || "", hookPrefix);
         }
         hookQueryIdx++;
         hookedClips.push(second);
@@ -1994,11 +2062,20 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
       if (allClips[i].visual_type === "stock") {
         stockRun++;
         if (stockRun >= 3 && allClips[i].end_time - allClips[i].start_time >= 3.5) {
-          const niche = nicheInfo?.niche || "general";
-          const pool = nicheSafeQueries[niche] || nicheSafeQueries.general;
           const altStyles = ["framed", "split_left", "split_right"];
-          allClips[i].search_query = pool[(i + stockRun) % pool.length];
+          const runText = allClips[i].text || "";
+          const runBase = queryFromSentence(runText, videoBible?.image_search_prefix || "");
+          allClips[i].search_query = runBase;
           allClips[i].display_style = altStyles[stockRun % altStyles.length];
+          // If assigned split layout, generate search_queries for panel images
+          if (allClips[i].display_style === "split_left" || allClips[i].display_style === "split_right") {
+            const rw = runText.replace(/[^a-zA-Z\s]/g, " ").split(/\s+/).filter(w => w.length > 3);
+            const sq = [runBase];
+            if (rw.length >= 4) sq.push(queryFromSentence(rw.slice(0, Math.ceil(rw.length / 2)).join(" "), videoBible?.image_search_prefix || ""));
+            if (rw.length >= 2) sq.push(queryFromSentence(rw.slice(Math.ceil(rw.length / 2)).join(" "), videoBible?.image_search_prefix || ""));
+            while (sq.length < 3) sq.push(runBase);
+            allClips[i].search_queries = sq;
+          }
           stockRun = 0;
         }
       } else {
@@ -2045,10 +2122,10 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
     };
 
     const fallbackToStock = (clip, idx) => {
-      const fallbackQ = (nicheSafeQueries[nicheInfo?.niche] || nicheSafeQueries.general)[idx % 5];
+      const fallbackQ = queryFromSentence(clip.text || "", videoBible?.image_search_prefix || "");
       if (isHistoricalCap) {
         clip.visual_type = "ai_image";
-        clip.ai_prompt = `${eraSpecCap || "historical"} cinematic scene: ${fallbackQ}. Period-accurate, dramatic lighting.`;
+        clip.ai_prompt = `${eraSpecCap || "historical"} photograph showing: ${fallbackQ}. Period-accurate, natural textures, documentary quality.`;
       } else {
         clip.visual_type = "stock";
         clip.search_query = fallbackQ;
@@ -2138,6 +2215,26 @@ function applyPostProcessing(allClips, totalDuration, scriptText, nicheInfo, vid
       }
     }
     allClips.sort((a, b) => a.start_time - b.start_time);
+  }
+
+  // ── FINAL MINIMUM CLIP DURATION: merge any clip under 2s into its neighbor ──
+  // This catches sub-2s clips created by hook splitting or any other post-processing
+  {
+    const MIN_FINAL_DUR = 2.0;
+    for (let i = allClips.length - 1; i >= 0; i--) {
+      const dur = allClips[i].end_time - allClips[i].start_time;
+      if (dur < MIN_FINAL_DUR) {
+        if (i > 0) {
+          // Merge into previous clip by extending its end time
+          allClips[i - 1].end_time = allClips[i].end_time;
+          allClips.splice(i, 1);
+        } else if (allClips.length > 1) {
+          // First clip too short — merge into next clip
+          allClips[1].start_time = allClips[0].start_time;
+          allClips.splice(0, 1);
+        }
+      }
+    }
   }
 
   return allClips;

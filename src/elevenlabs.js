@@ -16,7 +16,6 @@ const VOICE_MAP = {
   drew:             "q0IMILNRPxOgtBTS4taI",
   frank:            "V2bPluzT7MuirpucVAKH",
   australian:       "KmnvDXRA0HU55Q0aqkPG",
-  cedric:           "BQOei2tk6QCBMHQWPhbj",
   daniel:           "9fHP3GqJWwJmIbYQwQ1V",
   casey:            "mKoqwDP2laxTdq1gEgU6",
   matt_par:         "yr43K8H5LoTp6S1QFSGg",
@@ -25,7 +24,6 @@ const VOICE_MAP = {
   ray:              "Uh6UEmMIUnnL0GOOUghh",
   archer:           "oQV06a7Gn8pbCJh5DXcO",
   carters_edge:     "pSfivq1mIHnYTVwluxnz",
-  king_chuku:       "XALcFq0WF65uNKzmpcZW",
   frederick:        "j9jfwdrw7BRfcR43Qohk",
   // Female voices
   christina:        "BuaKXS4Sv1Mccaw3flfU",
@@ -46,7 +44,6 @@ export const VOICE_CATALOG = [
   { id: "drew",          voiceId: "q0IMILNRPxOgtBTS4taI", name: "Drew",                      description: "Casual, curious, fun. Perfect for food, travel, lifestyle.",      style: "casual",        gender: "male",   accent: "american" },
   { id: "frank",         voiceId: "V2bPluzT7MuirpucVAKH", name: "Frank",                     description: "Wise, deep, motivational. Like an experienced mentor.",           style: "motivational",  gender: "male",   accent: "american" },
   { id: "australian",    voiceId: "KmnvDXRA0HU55Q0aqkPG", name: "Australian Baritone",       description: "Soft, slow, calming. Great for meditation & documentaries.",      style: "calm",          gender: "male",   accent: "australian" },
-  { id: "cedric",        voiceId: "BQOei2tk6QCBMHQWPhbj", name: "Cedric",                    description: "Slow-burn horror storyteller. Deep, deliberate, eerie.",          style: "horror",        gender: "male",   accent: "american" },
   { id: "daniel",        voiceId: "9fHP3GqJWwJmIbYQwQ1V", name: "Daniel",                    description: "Calm, natural, clear. Instructional narrator for education.",     style: "educational",   gender: "male",   accent: "american" },
   { id: "casey",         voiceId: "mKoqwDP2laxTdq1gEgU6", name: "Countdown Casey",          description: "Vintage radio DJ. Energetic, fun, great for countdowns.",         style: "entertainment", gender: "male",   accent: "american" },
   { id: "aaron",         voiceId: "3DR8c2yd30eztg65o4jV", name: "Aaron",                     description: "Clear, tech-focused, modern. AI & tech news style.",              style: "tech",          gender: "male",   accent: "american" },
@@ -54,7 +51,6 @@ export const VOICE_CATALOG = [
   { id: "ray",           voiceId: "Uh6UEmMIUnnL0GOOUghh", name: "Ray",                       description: "Scary stories narrator. Grunge, breathy, horror delivery.",       style: "horror",        gender: "male",   accent: "american" },
   { id: "archer",        voiceId: "oQV06a7Gn8pbCJh5DXcO", name: "Archer",                    description: "Storytelling & narration. Smooth, engaging voice.",               style: "storytelling",  gender: "male",   accent: "american" },
   { id: "carters_edge",  voiceId: "pSfivq1mIHnYTVwluxnz", name: "Carter's Edge",            description: "Rugged, masculine, authoritative. Commands the room.",            style: "authority",     gender: "male",   accent: "american" },
-  { id: "king_chuku",    voiceId: "XALcFq0WF65uNKzmpcZW", name: "King Chuku",               description: "Deep, powerful, stoic. Perfect for speeches & motivation.",        style: "motivational",  gender: "male",   accent: "american" },
   { id: "frederick",     voiceId: "j9jfwdrw7BRfcR43Qohk", name: "Frederick Surrey",         description: "Professional British narrator. Nature, science, mystery.",         style: "documentary",   gender: "male",   accent: "british" },
   // Female voices
   { id: "christina",     voiceId: "BuaKXS4Sv1Mccaw3flfU", name: "Christina",              description: "Energetic, commercial, upbeat. Lifestyle & business.",            style: "lifestyle",     gender: "female", accent: "american" },
@@ -75,9 +71,9 @@ const STYLE_VOICES = {
   finance:       { primary: "heisenberg",   backup: "daniel" },
   business:      { primary: "heisenberg",   backup: "aaron" },
   tech:          { primary: "aaron",         backup: "daniel" },
-  horror:        { primary: "cedric",        backup: "ray" },
-  true_crime:    { primary: "ray",           backup: "cedric" },
-  motivational:  { primary: "frank",         backup: "king_chuku" },
+  horror:        { primary: "ray",            backup: "archer" },
+  true_crime:    { primary: "ray",           backup: "archer" },
+  motivational:  { primary: "frank",         backup: "carters_edge" },
   documentary:   { primary: "frederick",     backup: "archer" },
   science:       { primary: "frederick",     backup: "daniel" },
   travel:        { primary: "drew",          backup: "australian" },
@@ -243,9 +239,72 @@ function parseWordsFromAlignment(data, timeOffset = 0) {
   return words;
 }
 
+// ═══════════════════════════════════════════
+// PACING: niche/topic-aware voice speed + style
+// ═══════════════════════════════════════════
+// Speed: 0.7 (slow, contemplative) → 1.0 (normal) → 1.2 (fast, energetic)
+// Stability: lower = more expressive, higher = more consistent
+const NICHE_PACING = {
+  horror:        { speed: 0.85, stability: 0.60, style: 0.45, label: "slow, suspenseful, deliberate" },
+  true_crime:    { speed: 0.88, stability: 0.55, style: 0.40, label: "measured, serious, investigative" },
+  history:       { speed: 0.88, stability: 0.60, style: 0.30, label: "slow, authoritative, documentary" },
+  documentary:   { speed: 0.90, stability: 0.60, style: 0.30, label: "measured, calm, informative" },
+  science:       { speed: 0.92, stability: 0.60, style: 0.25, label: "clear, measured, educational" },
+  finance:       { speed: 0.95, stability: 0.55, style: 0.30, label: "confident, steady, professional" },
+  business:      { speed: 0.97, stability: 0.50, style: 0.35, label: "dynamic, authoritative" },
+  health:        { speed: 0.93, stability: 0.55, style: 0.30, label: "calm, reassuring, steady" },
+  education:     { speed: 0.92, stability: 0.55, style: 0.25, label: "clear, patient, instructional" },
+  travel:        { speed: 0.95, stability: 0.50, style: 0.40, label: "warm, inviting, conversational" },
+  luxury:        { speed: 0.92, stability: 0.55, style: 0.35, label: "smooth, polished, aspirational" },
+  tech:          { speed: 1.00, stability: 0.50, style: 0.35, label: "crisp, modern, confident" },
+  creator:       { speed: 1.08, stability: 0.45, style: 0.45, label: "energetic, authentic, fast-paced" },
+  entertainment: { speed: 1.10, stability: 0.45, style: 0.50, label: "upbeat, exciting, high-energy" },
+  motivational:  { speed: 1.02, stability: 0.50, style: 0.45, label: "powerful, rhythmic, building" },
+  gaming:        { speed: 1.10, stability: 0.45, style: 0.50, label: "energetic, hyped, fast" },
+  default:       { speed: 0.97, stability: 0.55, style: 0.35, label: "natural, conversational" },
+};
+
+let _currentPacing = null;
+
+export function analyzePacing(niche, topic, tone) {
+  // Determine pacing from niche first, then refine from topic/tone keywords
+  let pacing = { ...(NICHE_PACING[niche] || NICHE_PACING.default) };
+
+  // Tone overrides — if the order specifies a tone, adjust accordingly
+  const toneLC = (tone || "").toLowerCase();
+  if (/slow|calm|relaxed|meditat|contemplat|peaceful/.test(toneLC)) {
+    pacing.speed = Math.min(pacing.speed, 0.88);
+    pacing.stability = Math.max(pacing.stability, 0.60);
+  } else if (/fast|energetic|upbeat|exciting|hype|urgent|intense/.test(toneLC)) {
+    pacing.speed = Math.max(pacing.speed, 1.08);
+    pacing.style = Math.max(pacing.style, 0.45);
+  } else if (/serious|grave|somber|dark|heavy/.test(toneLC)) {
+    pacing.speed = Math.min(pacing.speed, 0.90);
+    pacing.stability = Math.max(pacing.stability, 0.58);
+  } else if (/casual|friendly|conversational|chatty/.test(toneLC)) {
+    pacing.speed = Math.max(pacing.speed, 0.97);
+    pacing.style = Math.max(pacing.style, 0.40);
+  }
+
+  // Topic-based fine-tuning
+  const topicLC = (topic || "").toLowerCase();
+  if (/death|tragedy|disaster|crisis|war|collapse|scandal/.test(topicLC)) {
+    pacing.speed = Math.min(pacing.speed, 0.90);
+  } else if (/top 10|ranking|countdown|best|worst|fastest|craziest/.test(topicLC)) {
+    pacing.speed = Math.max(pacing.speed, 1.02);
+    pacing.style = Math.max(pacing.style, 0.40);
+  }
+
+  console.log(chalk.blue(`🎙️  Pacing: ${pacing.label} (speed=${pacing.speed}, stability=${pacing.stability}, style=${pacing.style})`));
+  _currentPacing = pacing;
+  return pacing;
+}
+
 async function ttsChunk(rawText, voiceId) {
   // Strip SSML tags before sending - ElevenLabs multilingual v2 can glitch on them
   const text = rawText.replace(/<break\s[^>]*\/>/g, ' ').replace(/<break\/>/g, ' ').replace(/<[^>]+>/g, '').replace(/  +/g, ' ').trim();
+  // Use analyzed pacing or defaults
+  const pacing = _currentPacing || NICHE_PACING.default;
   // Retry up to 3 times on rate limit or server error
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -254,7 +313,13 @@ async function ttsChunk(rawText, voiceId) {
         {
           text,
           model_id: "eleven_multilingual_v2",
-    
+          voice_settings: {
+            stability: pacing.stability,
+            similarity_boost: 0.78,     // strong voice character without artifacts
+            style: pacing.style,
+            use_speaker_boost: true,    // 3D audio enhancement for clarity
+          },
+          speed: pacing.speed,           // ElevenLabs v2 speed control (0.7-1.3)
         },
         { headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY, "Content-Type": "application/json" }, timeout: 60000 } // 60s per chunk
       );
@@ -363,8 +428,10 @@ export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath)
       // Fall back to single-pass if JSON parse fails — still better than per-chunk
     }
 
-    // Step 3: Apply normalization with measured values
-    execSync(`ffmpeg -y -i "${rawConcatPath}" -af "${loudnormFilter}" -acodec libmp3lame -b:a 192k "${outputPath}"`, { stdio: 'pipe', timeout: 120000 });
+    // Step 3: Apply normalization with measured values + voice clarity EQ
+    // EQ: gentle high-pass at 80Hz (remove rumble), presence boost at 3kHz, air at 8kHz, de-ess at 6kHz
+    const voiceEQ = "highpass=f=80,equalizer=f=3000:t=q:w=1.2:g=2.5,equalizer=f=8000:t=q:w=1.5:g=1.5,equalizer=f=6000:t=q:w=2.0:g=-1.5";
+    execSync(`ffmpeg -y -i "${rawConcatPath}" -af "${voiceEQ},${loudnormFilter}" -acodec libmp3lame -b:a 192k "${outputPath}"`, { stdio: 'pipe', timeout: 120000 });
     try { fs.unlinkSync(rawConcatPath); } catch(e) {}
   } catch (e) {
     execSync(`ffmpeg -y -f concat -safe 0 -i "${listPath}" -c copy "${outputPath}"`, { stdio: 'pipe', timeout: 120000 });
