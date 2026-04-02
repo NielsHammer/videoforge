@@ -256,8 +256,8 @@ export async function generateVideo(scriptPath, options) {
     cachedEnhanced = cached.enhancedScript || null;
     s.succeed(`Voiceover: cached (${totalDuration.toFixed(1)}s, ${wordTimestamps.length} words)`);
   } else {
-    // Analyze pacing based on niche, topic, and tone BEFORE generating voiceover
-    // Read brief file early if available so pacing gets the right niche
+    // Analyze pacing — Claude decides optimal speed/style for THIS specific video
+    // Read brief file early if available so Claude gets full context
     let pacingNiche = options.niche || process.env.ORDER_NICHE || "";
     let pacingTone = options.tone || process.env.ORDER_TONE || "";
     if (!pacingNiche && options.briefFile && fs.existsSync(options.briefFile)) {
@@ -267,7 +267,7 @@ export async function generateVideo(scriptPath, options) {
         pacingTone = pacingTone || earlyBrief.tone || "";
       } catch {}
     }
-    analyzePacing(pacingNiche, options.topic || "", pacingTone);
+    await analyzePacing(pacingNiche, options.topic || "", pacingTone, scriptText.slice(0, 500));
     const enhancedScript = enhanceScript(scriptText, mood || "default");
     const s = ora("Generating voiceover with timestamps...").start();
     const result = await generateVoiceoverWithTimestamps(enhancedScript, voiceId, audioPath);

@@ -240,64 +240,75 @@ function parseWordsFromAlignment(data, timeOffset = 0) {
 }
 
 // ═══════════════════════════════════════════
-// PACING: niche/topic-aware voice speed + style
+// PACING: Claude decides per-video voice settings
 // ═══════════════════════════════════════════
-// Speed: 0.7 (slow, contemplative) → 1.0 (normal) → 1.2 (fast, energetic)
-// Stability: lower = more expressive, higher = more consistent
-const NICHE_PACING = {
-  horror:        { speed: 0.85, stability: 0.60, style: 0.45, label: "slow, suspenseful, deliberate" },
-  true_crime:    { speed: 0.88, stability: 0.55, style: 0.40, label: "measured, serious, investigative" },
-  history:       { speed: 0.88, stability: 0.60, style: 0.30, label: "slow, authoritative, documentary" },
-  documentary:   { speed: 0.90, stability: 0.60, style: 0.30, label: "measured, calm, informative" },
-  science:       { speed: 0.92, stability: 0.60, style: 0.25, label: "clear, measured, educational" },
-  finance:       { speed: 1.03, stability: 0.50, style: 0.35, label: "confident, punchy, fast-paced" },
-  business:      { speed: 1.02, stability: 0.50, style: 0.35, label: "dynamic, authoritative" },
-  health:        { speed: 0.93, stability: 0.55, style: 0.30, label: "calm, reassuring, steady" },
-  education:     { speed: 0.92, stability: 0.55, style: 0.25, label: "clear, patient, instructional" },
-  travel:        { speed: 0.95, stability: 0.50, style: 0.40, label: "warm, inviting, conversational" },
-  luxury:        { speed: 0.92, stability: 0.55, style: 0.35, label: "smooth, polished, aspirational" },
-  tech:          { speed: 1.00, stability: 0.50, style: 0.35, label: "crisp, modern, confident" },
-  creator:       { speed: 1.08, stability: 0.45, style: 0.45, label: "energetic, authentic, fast-paced" },
-  entertainment: { speed: 1.10, stability: 0.45, style: 0.50, label: "upbeat, exciting, high-energy" },
-  motivational:  { speed: 1.02, stability: 0.50, style: 0.45, label: "powerful, rhythmic, building" },
-  gaming:        { speed: 1.10, stability: 0.45, style: 0.50, label: "energetic, hyped, fast" },
-  default:       { speed: 0.97, stability: 0.55, style: 0.35, label: "natural, conversational" },
-};
+// Speed: 0.85 (slow) → 1.0 (normal) → 1.15 (fast) — safe range for ElevenLabs v2
+// Stability: 0.3 (very expressive) → 0.7 (very consistent)
+// Style: 0.1 (flat) → 0.6 (very expressive)
 
 let _currentPacing = null;
 
-export function analyzePacing(niche, topic, tone) {
-  // Determine pacing from niche first, then refine from topic/tone keywords
-  let pacing = { ...(NICHE_PACING[niche] || NICHE_PACING.default) };
+export async function analyzePacing(niche, topic, tone, scriptPreview) {
+  try {
+    const resp = await axios.post(
+      "https://api.anthropic.com/v1/messages",
+      {
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 150,
+        messages: [{
+          role: "user",
+          content: `You are setting the voiceover pacing for a YouTube video. Decide the optimal speed and delivery style based on this specific video — not generic niche rules.
 
-  // Tone overrides — if the order specifies a tone, adjust accordingly
-  const toneLC = (tone || "").toLowerCase();
-  if (/slow|calm|relaxed|meditat|contemplat|peaceful/.test(toneLC)) {
-    pacing.speed = Math.min(pacing.speed, 0.88);
-    pacing.stability = Math.max(pacing.stability, 0.60);
-  } else if (/fast|energetic|upbeat|exciting|hype|urgent|intense/.test(toneLC)) {
-    pacing.speed = Math.max(pacing.speed, 1.08);
-    pacing.style = Math.max(pacing.style, 0.45);
-  } else if (/serious|grave|somber|dark|heavy/.test(toneLC)) {
-    pacing.speed = Math.min(pacing.speed, 0.90);
-    pacing.stability = Math.max(pacing.stability, 0.58);
-  } else if (/casual|friendly|conversational|chatty/.test(toneLC)) {
-    pacing.speed = Math.max(pacing.speed, 0.97);
-    pacing.style = Math.max(pacing.style, 0.40);
+VIDEO TOPIC: "${topic || "unknown"}"
+CHANNEL NICHE: ${niche || "general"}
+REQUESTED TONE: ${tone || "not specified"}
+SCRIPT PREVIEW: "${(scriptPreview || "").slice(0, 300)}"
+
+Think about what pacing a top YouTube creator would use for THIS specific video:
+- A horror story about a haunted house → slow, deliberate, building tension (0.85-0.90)
+- A finance news video about a market crash → urgent, punchy, fast-paced (1.05-1.10)
+- A retirement planning guide → calm, trustworthy, measured (0.95-1.00)
+- A "top 10 craziest moments" → high energy, rapid-fire (1.08-1.12)
+- A documentary about ancient Rome → authoritative, steady, cinematic (0.90-0.95)
+- A meditation/wellness guide → very slow, calming, peaceful (0.85-0.90)
+
+Return ONLY a JSON object, nothing else:
+{"speed": NUMBER, "stability": NUMBER, "style": NUMBER, "label": "2-4 word description"}
+
+speed: 0.85-1.15 (how fast the narrator speaks)
+stability: 0.35-0.65 (lower = more expressive, higher = more consistent)
+style: 0.15-0.55 (emotional intensity — low for educational, high for entertainment)`
+        }]
+      },
+      {
+        headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        timeout: 10000,
+      }
+    );
+
+    const text = resp.data.content[0].text.trim();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      const pacing = {
+        speed: Math.max(0.85, Math.min(1.15, parseFloat(parsed.speed) || 1.0)),
+        stability: Math.max(0.35, Math.min(0.65, parseFloat(parsed.stability) || 0.50)),
+        style: Math.max(0.15, Math.min(0.55, parseFloat(parsed.style) || 0.35)),
+        label: parsed.label || "custom pacing",
+      };
+      console.log(chalk.blue(`🎙️  Pacing (Claude): ${pacing.label} (speed=${pacing.speed}, stability=${pacing.stability}, style=${pacing.style})`));
+      _currentPacing = pacing;
+      return pacing;
+    }
+  } catch (err) {
+    console.log(chalk.yellow(`  Pacing analysis failed (${err.message}), using defaults`));
   }
 
-  // Topic-based fine-tuning
-  const topicLC = (topic || "").toLowerCase();
-  if (/death|tragedy|disaster|crisis|war|collapse|scandal/.test(topicLC)) {
-    pacing.speed = Math.min(pacing.speed, 0.90);
-  } else if (/top 10|ranking|countdown|best|worst|fastest|craziest/.test(topicLC)) {
-    pacing.speed = Math.max(pacing.speed, 1.02);
-    pacing.style = Math.max(pacing.style, 0.40);
-  }
-
-  console.log(chalk.blue(`🎙️  Pacing: ${pacing.label} (speed=${pacing.speed}, stability=${pacing.stability}, style=${pacing.style})`));
-  _currentPacing = pacing;
-  return pacing;
+  // Fallback — neutral defaults
+  const fallback = { speed: 1.0, stability: 0.50, style: 0.35, label: "natural, conversational" };
+  console.log(chalk.blue(`🎙️  Pacing (default): ${fallback.label}`));
+  _currentPacing = fallback;
+  return fallback;
 }
 
 async function ttsChunk(rawText, voiceId) {
