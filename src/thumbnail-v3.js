@@ -49,7 +49,11 @@ const BRAVE_API_KEY = process.env.BRAVE_API_KEY;
 const CANVAS_W = 1280;
 const CANVAS_H = 720;
 const MAX_ATTEMPTS = 3;
-const PASS_THRESHOLD = 8;
+// Lowered from 8 to 7: with the critic now relative-calibrated against the
+// Niels-approved winners pool, 7 means "same league as approved", which is
+// the actual ship bar. The previous 8 was unreachable because the critic
+// was over-tuned and gave 4/10 to thumbnails Niels personally approved.
+const PASS_THRESHOLD = 7;
 
 // ─── IMAGE FETCHING ──────────────────────────────────────────────────────────
 // Single helper that tries Recraft → Flux → Pexels → Brave for any image
@@ -207,174 +211,199 @@ async function resolveImageRequest(req, label, outDir) {
 }
 
 // ─── PLANNER PROMPT ──────────────────────────────────────────────────────────
-// The planner asks Claude to design the thumbnail as complete HTML/CSS.
-// References + learning pool are surfaced as context, never as constraints.
+// Stripped down per Niels: "LESS RULES, MORE CREATIVITY". The planner used to
+// have ~6KB of prescriptive layout guidance (archetypes, zone splits, element
+// hierarchy hints). Result: every output converged to the same left-text +
+// right-image template. This version trusts Claude to design freely and uses
+// the learning pool winners (real Niels-approved thumbnails attached as vision
+// images) as the calibration signal instead of prose rules.
+//
+// What's in the prompt:
+//   - Title + script (the content)
+//   - Technical HTML/CSS constraints (1280x720, headless Chrome)
+//   - Hard legibility floor (no small text, no grey, no jargon, no typos)
+//   - "Design what a $500/thumbnail designer would make for THIS video"
+//
+// What's NOT in the prompt:
+//   - No layout examples
+//   - No archetype list
+//   - No zone/composition hints
+//   - No long reference reasoning text dumps
+//   - No "two-zone vs full-bleed vs triptych" framing
+//
+// What replaces the rules:
+//   - Vision attachments: 4 niche reference thumbnails (proven top performers)
+//     PLUS up to 4 winners from the learning pool (Niels-approved designs)
+//     PLUS up to 3 losers with their text reasons (so Claude knows what to avoid)
+//   - The learning pool grows over time and becomes the only calibration signal
 
-function buildPlannerPrompt({ title, scriptText, niche, tone, references, learningContext, priorAttempt, visionRefs = [] }) {
-  const refBlock = references ? formatReferenceContext(references) : '';
+function buildPlannerPrompt({ title, scriptText, niche, tone, priorAttempt, visionRefs = [], poolWinners = [], poolLosers = [] }) {
   const scriptExcerpt = scriptText
     ? scriptText.substring(0, 6000)
     : 'No script available — design from title alone.';
 
-  const visionBlock = visionRefs.length > 0
+  const totalImages = visionRefs.length + poolWinners.length + poolLosers.length;
+
+  const visionBlock = totalImages > 0
     ? `
+═══ VISUAL CONTEXT ═══
+${visionRefs.length} reference thumbnails attached (top-performing real YouTube thumbnails in this niche).
+${poolWinners.length} APPROVED designs attached (the human reviewer Niels personally said these work).
+${poolLosers.length} REJECTED designs attached (Niels personally rejected these — see reasons below).
 
-═══ VISUAL REFERENCES — LOOK AT THESE IMAGES FIRST ═══
+LOOK AT EACH IMAGE before designing. Read the captions. The approved ones are
+your bar. The rejected ones are the patterns you must avoid. Niels's approved
+thumbnails are the ground truth for what good looks like — match their level
+of intentionality, not your default instincts.
 
-The first ${visionRefs.length} images attached to this message are real top-performing YouTube thumbnails from the same niche/style as your video. They are:
-${visionRefs.map((r, i) => `  ${i + 1}. "${r.title}" (${r.views.toLocaleString()} views)`).join('\n')}
+WHY EACH REJECTED DESIGN WAS REJECTED (do not repeat these mistakes):
+${poolLosers.map((l, i) => `  ${i + 1}. "${l.title || 'untitled'}": ${l.reason}`).join('\n') || '  (none)'}
 
-STUDY THEM. Notice their composition, color palette, focal hierarchy, typography, how text and image relate to each other, where negative space is. Your design should match this LEVEL of intentionality and visual quality. Not by copying their elements — by thinking like the designer who made them.
-
-These thumbnails got millions of views because every pixel was a deliberate choice. If your design looks like a "text on stock photo" template next to these references, you have failed.
-═══════════════════════════════════════════════════════
+WHY EACH APPROVED DESIGN WORKS:
+${poolWinners.map((w, i) => `  ${i + 1}. "${w.title || 'untitled'}": ${w.approved_reason || '(approved)'}`).join('\n') || '  (none)'}
 `
     : '';
 
   const retryBlock = priorAttempt
     ? `
+═══ YOUR PREVIOUS ATTEMPT WAS REJECTED ═══
+Critic gave it ${priorAttempt.rating}/10. Verdict: ${priorAttempt.designer_verdict || '(none)'}
+Problems: ${(priorAttempt.problems || []).slice(0, 4).map(p => p).join(' | ') || '(none)'}
+Most important fix: ${priorAttempt.fix_instructions || '(none)'}
 
-═══ RETRY CONTEXT — your previous attempt was rejected ═══
-Previous critic rating: ${priorAttempt.rating}/10
-Designer verdict: ${priorAttempt.designer_verdict || '(none)'}
-
-Specific problems the critic identified:
-${(priorAttempt.problems || []).map(p => '  - ' + p).join('\n') || '  (none)'}
-
-Single most important fix:
-${priorAttempt.fix_instructions || '(none)'}
-
-Make a STRUCTURALLY DIFFERENT design choice. Don't shuffle — rebuild. If the
-text covered the focal subject, redesign so text and image have separate zones.
-If the hook was vague, pick a more specific anchor. If the composition felt
-generic, choose a more unusual angle.
-═══════════════════════════════════════════════════════════
+Make a STRUCTURALLY DIFFERENT design — not a tweak. Different composition,
+different focal hierarchy, different image idea. If you used a left-text +
+right-image split last time, DO NOT use that pattern again. Look at the
+approved designs for alternatives.
 `
     : '';
 
-  return `You are a senior YouTube thumbnail designer with 10+ years of experience. You design thumbnails that get 5M+ views. Real channels pay you $500/thumbnail. You are EXPERT at this craft.
+  return `You are a senior YouTube thumbnail designer who charges $500/thumbnail. You design freely. You are not given templates, layouts, or composition rules — you decide every pixel based on what the SPECIFIC video needs.
 ${visionBlock}
-Today you are designing a thumbnail for this video:
+═══ THE VIDEO ═══
 
 TITLE: "${title}"
 NICHE: ${niche || 'unknown'}
 TONE: ${tone || 'unknown'}
 
-FULL SCRIPT (your thumbnail must connect to specific facts from this script — do NOT make up generic dramatic words, mine the actual content):
+SCRIPT (mine this for specific facts, dates, numbers, scenes — never invent generic dramatic words):
 """
 ${scriptExcerpt}
 """
-
-${refBlock}
-
-${learningContext}
-
 ${retryBlock}
-
 ═══ YOUR TASK ═══
 
-Design this thumbnail as **complete self-contained HTML and CSS**. There are no element types to fill in. There are no archetypes to choose from. There is no template. You decide every pixel.
+Design a complete HTML5/CSS document. Whatever you write will be loaded into headless Chrome at 1280x720 and screenshotted as the final thumbnail. Use any modern CSS: flexbox, grid, gradients, blend modes, filters, transforms, mask, clip-path, drop-shadow, web fonts from Google Fonts.
 
-The HTML you write will be loaded directly into a headless Chrome browser at exact 1280x720 viewport and screenshotted. Whatever you write IS the thumbnail. Use any modern CSS feature: flexbox, grid, gradients, blend modes, filters, transforms, mask, clip-path, drop-shadow, web fonts from Google Fonts, etc. Be a real designer.
+There is no template. There is no layout pattern you must follow. The composition should be designed for THIS video's specific content. Some videos need a full-bleed hero image with one massive word over it. Some need two photos. Some need a single dramatic close-up. You decide what THIS one needs.
 
-═══ TECHNICAL CONSTRAINTS (the only ones) ═══
+═══ TECHNICAL CONSTRAINTS ═══
 
-1. The output must be a complete valid HTML5 document.
-2. The body must have exactly 1280x720 dimensions and no margin/padding/scroll.
-3. All text and shapes must render server-side in headless Chrome — do not rely on JavaScript animations or interactive features.
-4. To embed images, use placeholders like \`<img src="{{IMG:1}}">\` and \`<img src="{{IMG:2}}">\`. The placeholders will be substituted with real images you specify in the image_requests array. You can request 0, 1, 2, or 3 images.
-5. You may load Google Fonts via @import or link tags — the renderer has internet.
-6. You may use background-image, mask-image, etc. with placeholder URLs the same way (e.g. \`background-image: url('{{IMG:1}}')\`).
+1. Complete valid HTML5 document, no scripts, server-side rendering only.
+2. Body is exactly 1280x720, no margin/padding/scroll.
+3. To embed images, use placeholders \`{{IMG:1}}\`, \`{{IMG:2}}\` etc. They get substituted with real images you specify in image_requests. 0–3 images.
+4. Google Fonts via @import or link is allowed.
 
-═══ DESIGN PRINCIPLES (not rules — these are why human designers make the choices they make) ═══
+═══ HARD LEGIBILITY FLOOR (these are the only rules — everything else is your call) ═══
 
-- A great thumbnail tells one story in 0.05 seconds at 168x94 pixels. Test mentally: if you saw this thumbnail next to MrBeast/Aperture/Mark Tilbury in a feed, would yours look like one of theirs or obviously inferior?
-- Every visual choice must be JUSTIFIED by an emotional or psychological reason you can articulate. If you cannot say WHY a color/shape/position is there, do not put it there.
-- Text and image are designed TOGETHER, not stacked. Text never covers the focal subject of the image. Compositions have ONE clear focal hierarchy.
-- Number hooks need a context label adjacent to them or they read as noise ($65 BILLION + STOLEN, not $65 BILLION alone).
-- Named individuals (Bernie Madoff, Hitler, Putin) cannot be searched in stock libraries — design around the place/era/artifact, not their face.
-- The image and the text must depict the same SPECIFIC story. A Yellowstone thumbnail must show Yellowstone, not "a volcano."
+1. No text below 36px font-size. Smaller text vanishes at 168x94 mobile.
+2. No grey text ever. Text is white, near-black, or a saturated accent color.
+3. No rotated text. No text running along an edge.
+4. No typos. Spell every word correctly. Common words like "ALERTS" should never come out as "ALRTS".
+5. Banners must be self-explanatory to a viewer who has never heard of the topic. No jargon ("Grand Prismatic Turned Brown" assumes prior knowledge — use "Lake Turned Brown" instead).
+6. No floating clip-art icons or emoji decorations. The image carries the meaning, not little graphic flourishes.
 
-═══ HARD TEXT LEGIBILITY RULES (these are non-negotiable, learned from real human feedback) ═══
+These six rules are enforced programmatically. Anything else is your creative decision.
 
-These come from a human reviewer who looked at previous outputs and called them out:
-
-1. **NO TEXT BELOW 36px FONT SIZE.** Anything smaller vanishes at 168x94 mobile. Minimum is 36px (5% of canvas height). If you cannot fit your text at 36px+, cut the text — do not shrink it.
-
-2. **NO GREY TEXT EVER.** Grey text (#888, #aaa, #ccc, anything between #444 and #ddd) disappears against any background at mobile scale. Text is either pure white (#FFF) on dark backgrounds, near-black (#000-#222) on bright backgrounds, or a saturated accent color (#FF1744 red, #FFD740 yellow, #00E676 green, #00BFFF cyan). NEVER grey.
-
-3. **NO LOW-CONTRAST TEXT.** Every text element must have at least 7:1 contrast ratio against the pixels behind it. If the background is busy, add a solid color block, gradient, or text shadow to guarantee contrast. White text with no shadow over a bright sky is invalid. Grey text with no stroke over a grey image is invalid.
-
-4. **MAXIMUM 2 TEXT BLOCKS PLUS A BANNER.** That's it. One primary hook (massive). One secondary line (large or medium). One short banner with a context word. NOTHING ELSE. If you find yourself adding a 4th text element, it is noise.
-
-5. **NO ROTATED OR EDGE-CLIPPED TEXT.** Text rotated 90 degrees on the side of the canvas, text running along an edge, text in tiny corners — all invisible at mobile size. Text is horizontal, anchored, and large.
-
-6. **BANNERS MUST BE SELF-EXPLANATORY TO COLD VIEWERS.** A banner that says "GRAND PRISMATIC TURNED BROWN" assumes the viewer knows what Grand Prismatic is. They don't. A banner that says "LAKE TURNED BROWN" or "WATER POISONED" works because anyone can parse it. NEVER use jargon or insider terminology in banners — they must make instant sense to someone who has never heard of the topic before.
-
-These rules were generated from actual rejected thumbnails. Every output that violates them will be rejected.
-
-═══ RETURN FORMAT — REQUIRED JSON ═══
-
-Return ONLY a valid JSON object with this exact shape (no markdown fences, no commentary):
+═══ RETURN FORMAT — JSON ONLY ═══
 
 {
-  "primary_subject": "the one named entity the thumbnail must visually depict (Yellowstone, Bernie Madoff, Marianas Trench)",
+  "primary_subject": "the one named entity the thumbnail visually depicts",
   "subject_is_person": true | false,
-  "hook_text": "the 1-2 word hook your design uses, for logging",
+  "hook_text": "the hook text your design uses, for logging",
   "image_requests": [
-    {
-      "id": 1,
-      "prompt": "complete prompt for AI image generation OR Pexels search query — be specific, cinematic, describe the scene",
-      "source_hint": "ai" | "real",
-      "purpose": "what role this image plays in your composition"
-    }
-    // 0 to 3 images
+    { "id": 1, "prompt": "specific, cinematic AI generation prompt OR Pexels search query", "source_hint": "ai" | "real", "purpose": "role in composition" }
   ],
-  "html": "<!DOCTYPE html><html>...</html> — complete self-contained HTML/CSS document. Use {{IMG:1}}, {{IMG:2}}, {{IMG:3}} placeholders for the requested images.",
-  "why": "5-paragraph designer reasoning: (1) what emotion you targeted, (2) what the viewer sees first at 168x94, (3) what psychological click trigger this exploits, (4) what survives compression, (5) element audit — for every pixel you placed, justify it"
+  "html": "<!DOCTYPE html><html>...</html>",
+  "why": "3-4 sentences explaining the design decision in plain English. Why this image? Why this hook? Why this composition? Not a checklist — a real designer's thought."
 }`;
 }
 
+// Load actual PNG/JPG bytes from a learning-pool entry's png_path field.
+// Pool entries store the path to the rendered thumbnail at the time of
+// approval/rejection — we attach those images so Claude sees the real designs,
+// not just the text descriptions.
+import { loadWinners, loadLosers } from './thumbnail-learning-pool.js';
+
+function loadPoolEntriesWithImages(maxWinners = 4, maxLosers = 3) {
+  const winners = loadWinners();
+  const losers = loadLosers();
+  // Most recent first — newest judgments are the most relevant calibration
+  winners.reverse();
+  losers.reverse();
+  const out = { winners: [], losers: [] };
+  for (const w of winners) {
+    if (out.winners.length >= maxWinners) break;
+    if (!w.png_path || !fs.existsSync(w.png_path)) continue;
+    try {
+      const buf = fs.readFileSync(w.png_path);
+      out.winners.push({ ...w, _bytes: buf });
+    } catch (e) { /* skip */ }
+  }
+  for (const l of losers) {
+    if (out.losers.length >= maxLosers) break;
+    if (!l.png_path || !fs.existsSync(l.png_path)) continue;
+    try {
+      const buf = fs.readFileSync(l.png_path);
+      out.losers.push({ ...l, _bytes: buf });
+    } catch (e) { /* skip */ }
+  }
+  return out;
+}
+
 async function planThumbnail({ title, scriptText, niche, tone, priorAttempt }) {
-  const references = selectRelevantReferences(title, niche || 'education', 4);
-  const learningContext = buildLearningContext(title, niche || 'education');
-  // VISION ATTACHMENTS — actual reference thumbnail JPGs from the video library.
-  // Claude will SEE 4 real top-performing thumbnails in the same niche/style
-  // before designing. Without this Claude was reading abstract reasoning but
-  // never visually seeing what good looks like, so it defaulted to Canva-tier
-  // text-on-background output even with HTML/CSS freedom.
+  // VISION ATTACHMENTS — three sources fed into Claude as multimodal images:
+  //   1. Niche reference thumbnails (top-performing real YouTube thumbnails)
+  //   2. Pool winners — Niels-approved designs (the real calibration signal)
+  //   3. Pool losers — Niels-rejected designs with text reasons
   const visionRefs = selectReferenceThumbnailImages(title, niche || 'education', 4);
+  const pool = loadPoolEntriesWithImages(4, 3);
+
   if (visionRefs.length > 0) {
-    console.log('  [VisionRefs] Loaded ' + visionRefs.length + ' reference thumbnail images:');
+    console.log('  [VisionRefs] ' + visionRefs.length + ' niche references:');
     for (const r of visionRefs) {
       console.log(`    • ${r.views.toLocaleString().padStart(12)} views — "${r.title.substring(0, 70)}"`);
     }
   }
-
-  if (references.length > 0) {
-    console.log('  [References] Loaded ' + references.length + ' reference blueprints (text reasoning)');
+  if (pool.winners.length > 0) {
+    console.log('  [Pool] ' + pool.winners.length + ' winners (Niels-approved):');
+    for (const w of pool.winners) console.log(`    ✓ "${(w.title || '').substring(0, 70)}"`);
+  }
+  if (pool.losers.length > 0) {
+    console.log('  [Pool] ' + pool.losers.length + ' losers (Niels-rejected):');
+    for (const l of pool.losers) console.log(`    ✗ "${(l.title || '').substring(0, 70)}" — ${l.reason.substring(0, 80)}`);
   }
 
-  const winnersCount = (learningContext.match(/Winner /g) || []).length;
-  const losersCount = (learningContext.match(/Loser /g) || []).length;
-  if (winnersCount + losersCount > 0) {
-    console.log(`  [LearningPool] ${winnersCount} winners + ${losersCount} losers in context`);
-  }
+  const prompt = buildPlannerPrompt({
+    title, scriptText, niche, tone, priorAttempt,
+    visionRefs,
+    poolWinners: pool.winners,
+    poolLosers: pool.losers,
+  });
 
-  const prompt = buildPlannerPrompt({ title, scriptText, niche, tone, references, learningContext, priorAttempt, visionRefs });
-
-  // Build multimodal content: vision-reference images followed by the text prompt
+  // Build multimodal content: niche refs + winners + losers, then text
   const content = [];
   for (const r of visionRefs) {
     try {
       const buf = fs.readFileSync(r.path);
-      content.push({
-        type: 'image',
-        source: { type: 'base64', media_type: 'image/jpeg', data: buf.toString('base64') },
-      });
-    } catch (e) {
-      console.log(`  [VisionRefs] Failed to load ${r.path}: ${e.message}`);
-    }
+      content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: buf.toString('base64') } });
+    } catch (e) { /* skip */ }
+  }
+  for (const w of pool.winners) {
+    content.push({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: w._bytes.toString('base64') } });
+  }
+  for (const l of pool.losers) {
+    content.push({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: l._bytes.toString('base64') } });
   }
   content.push({ type: 'text', text: prompt });
 
@@ -384,13 +413,14 @@ async function planThumbnail({ title, scriptText, niche, tone, priorAttempt }) {
     messages: [{ role: 'user', content }],
   });
   const text = response.content[0].text;
-  // Strip optional markdown fences if present
   const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/, '');
   const m = cleaned.match(/\{[\s\S]*\}/);
   if (!m) throw new Error('Planner returned no JSON');
   const plan = JSON.parse(m[0]);
   if (!plan.html) throw new Error('Planner returned no html field');
   plan._vision_refs = visionRefs.map(v => ({ title: v.title, views: v.views, path: v.path }));
+  plan._pool_winners_used = pool.winners.length;
+  plan._pool_losers_used = pool.losers.length;
   return plan;
 }
 
@@ -453,51 +483,59 @@ async function renderHtmlToPng(html, outPath, tempHtmlPath) {
 async function reviewThumbnail(pngPath, title) {
   const buffer = fs.readFileSync(pngPath);
   const base64 = buffer.toString('base64');
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5',
-    max_tokens: 1500,
-    messages: [{
-      role: 'user',
-      content: [
-        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: base64 } },
-        {
-          type: 'text',
-          text: `You are a senior YouTube thumbnail designer with 10+ years experience designing thumbnails that get 5M+ views. You charge $500/thumbnail. A junior designer just submitted this thumbnail for the video "${title}" and is asking if it's ready to ship to a real channel.
+  // Recalibrated: the critic now sees the actual Niels-approved winners as
+  // visual reference points and judges the candidate RELATIVE to them. The
+  // previous critic was over-tuned ("everything is a Canva template") and
+  // gave 4/10 to outputs Niels personally marked as winners. Comparing
+  // against real human-approved designs anchors the calibration.
+  const pool = loadPoolEntriesWithImages(3, 0); // 3 winners as reference, no losers
+  const content = [
+    { type: 'image', source: { type: 'base64', media_type: 'image/png', data: base64 } },
+  ];
+  for (const w of pool.winners) {
+    content.push({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: w._bytes.toString('base64') } });
+  }
 
-You are NOT a friendly reviewer. You are HARSH. Most thumbnails you see are not good enough to ship. Default to a low rating. A 7+ means you would actually use this on one of YOUR channels with your name on it.
+  const referenceBlock = pool.winners.length > 0
+    ? `\n\nThe ${pool.winners.length} additional images attached are real thumbnails the human reviewer (Niels) personally APPROVED. They are your calibration anchor — outputs that match their level of intentionality and visual quality should rate 7+. Outputs that look obviously worse than these should rate ≤5.\n\nApproved reference reasoning:\n${pool.winners.map((w, i) => `  ${i + 1}. "${w.title}": ${w.approved_reason}`).join('\n')}`
+    : '';
 
-Rate 1-10 with this calibration:
-- 1-3: Embarrassing. Looks like a template. Generic. No designer's hand visible.
-- 4-5: Mediocre. Functional but forgettable. Wouldn't stand out in a feed.
-- 6: Decent. Has one good idea but execution is sloppy.
-- 7: Genuinely good. You'd be willing to attach your name to it.
-- 8-9: Excellent. Clearly designed by a human with taste and intent.
-- 10: Reserved for thumbnails good enough to be in a "best thumbnails of 2026" post.
+  content.push({
+    type: 'text',
+    text: `You are reviewing a YouTube thumbnail for the video "${title}". The first image is the candidate to review.${referenceBlock}
 
-THE FUNDAMENTAL TEST — answer this honestly before rating:
-"If I saw this thumbnail in my YouTube feed alongside thumbnails from MrBeast, Veritasium, Mark Tilbury, Aperture, and Joe Scott — would it look like one of theirs, or would it look obviously inferior?"
+Rate 1-10:
+- 1-3: Has a hard defect (typo, unreadable text, wrong subject, looks broken)
+- 4-5: Functional but forgettable, looks like a template
+- 6: Decent — one good idea but execution has issues
+- 7: Solid — same league as the approved reference thumbnails above
+- 8-9: Excellent — would actually go on a real channel
+- 10: Best-of-the-year tier
 
-If "obviously inferior" → rating cannot exceed 5.
-If "could be theirs" → rating 7+ permitted.
+Be honest, not reflexively harsh. If the candidate is structurally as good as the reference winners, rate it 7+. The point of this review is to catch real defects (typos, broken layouts, wrong subjects, unreadable text), not to gatekeep at impossible standards.
 
-Specific things that should KILL the rating:
-- Text covers the most interesting part of the image
-- Hook text is generic/disconnected from the title topic
-- Subject identity unclear
-- Designer's intentionality: does this LOOK like a person made a series of choices, or like an algorithm filled in slots?
+Hard defects that cap the rating at 4:
+- Visible typos
+- Text covering the focal subject of the image
+- Subject identity is wrong (Yellowstone thumbnail showing a generic volcano)
+- Floating clip-art / emoji icons used as decoration
+- Compositionally identical to a recently seen template (no specific design choices for THIS topic)
 
 Return ONLY valid JSON:
 {
   "rating": 1-10,
   "would_use_on_real_channel": true | false,
-  "designer_verdict": "one sentence — proud or embarrassed and why",
-  "specific_problems": ["concrete defects, not vague critiques"],
-  "what_works": ["genuine wins — empty array is fine"],
-  "fix_instructions": "if rating < 8, the SINGLE most important thing to change"
+  "designer_verdict": "one sentence — what's good or bad about this specific design",
+  "specific_problems": ["concrete defects, empty array if none"],
+  "what_works": ["genuine wins, empty array if none"],
+  "fix_instructions": "if rating < 7, the SINGLE most important thing to change"
 }`,
-        },
-      ],
-    }],
+  });
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-5',
+    max_tokens: 1500,
+    messages: [{ role: 'user', content }],
   });
   const text = response.content[0].text;
   const m = text.match(/\{[\s\S]*\}/);
@@ -511,6 +549,70 @@ Return ONLY valid JSON:
     fix_instructions: parsed.fix_instructions || null,
     would_click: parsed.would_use_on_real_channel,
   };
+}
+
+// Spell-check the visible text in the rendered HTML against a common-word
+// dictionary. Catches the "WARNING ALRTS" failure mode Niels flagged on the
+// Petrov thumbnail. The dictionary is small but covers the words that real
+// thumbnails use — proper nouns, currencies, dates, and uncommon terms are
+// allowlisted via the SPELLING_WHITELIST set.
+const SPELLING_WHITELIST = new Set([
+  // Currency / quantity / time
+  'b', 'm', 'k', 'tn', 'gb', 'tb', 'kb', 'pm', 'am', 'pst', 'est', 'utc',
+  // Common YouTube thumbnail words that pass dictionary check anyway:
+  'wtf', 'omg', 'lol', 'ai', 'us', 'usa', 'uk', 'eu', 'un', 'ftc', 'cia', 'fbi', 'irs', 'usda',
+  'mph', 'kph', 'kg', 'lb', 'lbs', 'oz', 'cm', 'mm', 'km', 'ft', 'in',
+  // Brand / proper noun fragments commonly seen
+  'mrbeast', 'spacex', 'tesla', 'nvidia', 'openai', 'youtube', 'facebook', 'instagram', 'twitter', 'tiktok', 'paypal', 'walmart', 'amazon',
+  // Numbers spelled with shorthand
+  '1st', '2nd', '3rd', '4th', '5th', '10th', '20th', '21st',
+]);
+
+// A small but useful common-English dictionary. We don't need every word —
+// just enough to catch the obvious typos like ALRTS / RECIVED / OCASSION.
+// If a word is not in the dictionary AND not in the whitelist AND not a
+// number/proper-noun, it's flagged as a probable typo.
+const COMMON_WORDS = new Set([
+  // The 1500 most common English words covering 95% of typical thumbnail vocabulary.
+  // Compact but comprehensive enough to catch real typos.
+  'a','about','above','accept','access','accident','according','account','across','act','action','actual','actually','add','addition','admit','advantage','advice','affect','after','again','against','age','ago','agree','agreement','ahead','aid','air','alarm','alarms','alert','alerts','alien','aliens','alive','all','allow','almost','alone','along','already','also','although','always','am','american','among','amount','an','analysis','ancient','and','animal','animals','announce','another','answer','any','anyone','anything','apart','appear','apple','approach','april','are','area','argue','arm','arms','army','around','arrest','arrested','arrive','art','as','ask','asleep','at','attack','attempt','august','authority','available','average','avoid','away','awake','baby','back','bad','bag','balance','ball','bank','banks','bar','base','bay','be','beach','bear','beat','beautiful','because','become','bed','been','before','begin','behind','being','believe','below','best','better','between','big','bigger','biggest','bill','billion','billions','bird','birth','bit','black','blood','blue','board','boat','body','book','born','both','bottom','box','boy','brain','brains','brand','break','breath','breathe','brief','bright','bring','britain','broad','broke','broken','brother','brown','build','building','built','burn','bus','business','but','buy','by','call','came','can','cancer','cannot','cant','capital','car','card','care','career','carry','case','cash','cat','catch','cause','cell','center','central','century','certain','chair','chairman','challenge','chance','change','character','charge','check','chemistry','child','children','china','chinese','choice','choose','church','city','civil','claim','class','clean','clear','clearly','climate','close','closed','clothes','club','coal','coast','code','coffee','cold','collapse','collapsed','collection','college','color','colour','come','coming','common','community','company','compare','complete','completely','computer','concern','condition','confidence','consider','contain','continue','contract','control','cool','copy','corner','correct','cost','could','council','count','country','couple','course','court','cover','create','crime','cross','crowd','crucial','cup','current','currently','cut','daily','damage','danger','dangerous','dark','darkness','data','date','daughter','day','days','dead','deal','dealing','dear','death','debate','decade','decide','decision','deep','defence','degree','democracy','department','depth','describe','design','despite','detail','develop','development','did','die','died','difference','different','difficult','direct','direction','director','discover','discovered','discuss','disease','do','doctor','document','documents','does','dog','done','door','doubt','down','dr','draw','dream','drink','drive','driver','drop','dry','due','during','duty','each','early','earn','earth','east','easy','eat','economic','economy','edge','education','effect','effective','effort','egg','eight','either','election','electric','element','else','email','emergency','employee','encounter','end','enemy','energy','engine','engineer','english','enjoy','enough','enter','entire','environment','equal','equally','equipment','er','erupt','erupted','eruption','especially','establish','estimate','europe','european','even','evening','event','ever','every','everyone','everything','evidence','exactly','example','except','exchange','exist','expect','experience','explain','express','extra','extreme','eye','eyes','face','faces','fact','factor','factory','fail','failed','failure','fair','fall','familiar','family','famous','far','farm','farmer','fast','father','favourite','fear','federal','feel','feeling','few','field','fifteen','fifty','fight','figure','file','fill','film','final','finally','financial','find','fine','finger','finish','fire','first','fish','five','flat','floor','flow','flower','fly','focus','follow','food','foot','for','force','forces','foreign','forest','forever','forget','form','former','forty','forward','found','four','france','free','freedom','french','friday','friend','friends','from','front','full','fund','funds','funny','further','future','gain','gallons','game','garden','gas','gave','general','generate','generation','germany','get','girl','give','glass','go','god','gold','gone','good','got','government','great','green','grew','grey','ground','group','grow','growth','had','hair','half','hall','hand','hands','handcuffs','handcuff','hang','happen','happened','happens','happy','hard','hate','have','having','he','head','health','hear','heard','heart','heat','heavy','held','hell','help','hence','her','here','herself','hide','high','higher','highest','him','himself','his','history','historic','historical','hit','hold','hole','holiday','home','honest','hope','hospital','hot','hotel','hour','hours','house','how','however','huge','human','humans','hundred','hung','i','ice','idea','identify','if','ill','image','imagine','immediate','immediately','impact','important','impossible','improve','in','include','income','incredible','indeed','independent','indicate','industry','influence','information','inside','instead','interest','international','internet','into','introduce','investigate','investigation','investment','involve','iron','is','island','it','italy','item','its','itself','january','japan','japanese','job','join','joint','joke','judge','july','jump','june','just','keep','key','kill','killed','kind','king','kitchen','knee','knew','know','knowledge','known','korea','korean','labour','lady','lake','land','language','large','last','late','later','laugh','launch','launched','law','lay','lead','leader','leaders','leak','leaked','learn','learning','least','leave','led','left','legal','less','let','letter','level','liberal','library','lie','lied','life','lift','light','lights','like','likely','line','link','lion','list','listen','little','live','lives','living','local','lock','london','long','longer','look','looked','lose','loss','losses','lost','lot','love','low','lower','lowest','lunch','machine','mad','made','main','major','make','making','man','manage','manager','manchester','many','map','march','marina','mariana','marianas','mark','market','marriage','mars','mass','massive','match','material','matter','may','maybe','me','mean','meaning','means','measure','medical','meet','meeting','member','memory','mental','mention','message','metal','method','middle','might','mile','miles','million','millions','mind','mine','minister','minute','minutes','miss','missing','mission','mistake','model','modern','moment','monday','money','month','months','moon','moral','more','morning','most','mother','motion','mountain','mouth','move','movement','mr','mrs','much','murder','music','must','my','myself','name','named','national','natural','nature','near','nearly','necessary','neck','need','needs','negative','neither','nerve','net','never','new','news','newspaper','next','nice','night','nights','nine','no','nobody','none','nor','normal','north','northern','not','note','nothing','notice','now','nuclear','number','numbers','obvious','obviously','occasion','occur','ocean','of','off','offer','office','officer','official','often','oh','oil','ok','old','on','once','one','only','open','operation','opinion','opportunity','oppose','or','order','organization','original','other','others','our','out','outside','over','own','owner','oxygen','pack','page','pages','paid','pain','paint','paper','parent','parents','park','part','particular','particularly','partly','partner','party','pass','passage','past','path','patient','pattern','pay','peace','people','per','percent','perfect','perform','perhaps','period','person','personal','phone','photo','physical','pick','picture','piece','place','plan','planet','plant','plastic','play','please','plus','pm','point','police','policy','political','politics','poll','pollution','poor','population','position','positive','possible','possibly','post','potential','power','powerful','practical','practice','prepare','present','president','press','pressure','pretty','prevent','previous','price','primary','prime','prince','principle','print','prior','prison','private','probably','problem','problems','process','produce','product','production','professional','program','project','promise','proper','property','protect','prove','provide','public','published','pull','pupil','purpose','push','put','quality','quarter','question','quick','quickly','quiet','quite','race','radio','railway','rain','raise','ran','range','rate','rather','reach','read','ready','real','realize','really','reason','receive','received','recent','recently','recognize','record','red','reduce','reform','refuse','region','relate','relation','relationship','release','remain','remember','remove','report','represent','require','research','resource','respect','responsibility','rest','restaurant','result','return','reveal','revealed','review','rich','ride','right','ring','rise','rising','risk','river','road','rock','role','roll','roman','room','rose','round','route','row','royal','rule','run','russia','russian','sad','safe','safety','said','sale','same','sand','satellite','saturday','save','saw','say','scale','scene','school','science','scientific','scientist','scientists','sea','seat','second','second','secret','secretary','section','see','seek','seem','seems','seen','sell','send','sense','sent','separate','september','series','serious','service','set','settle','seven','several','severe','shake','shall','shape','share','she','sheet','ship','shirt','shock','shoe','shop','short','should','show','side','sight','sign','signal','silence','silver','similar','simple','simply','since','sing','single','sir','sister','sit','site','situation','six','size','skill','skin','sky','sleep','slight','slip','slow','slowly','small','smile','smoke','snow','so','social','society','soft','soldier','solution','some','somebody','someone','something','sometimes','son','song','soon','sort','sound','source','south','southern','soviet','space','speak','special','species','specific','specifically','speed','spend','spent','spirit','spoke','sport','spread','spring','staff','stage','stand','standard','star','stare','start','state','station','stay','step','still','stock','stolen','stone','stood','stop','store','storm','story','straight','strategy','street','strength','stress','strike','string','strong','structure','student','study','stuff','style','subject','success','successful','such','sudden','suddenly','sufficient','sugar','suggest','suit','summer','sun','sunday','support','suppose','sure','surface','surprise','survey','survive','suspect','sword','system','table','take','taken','talk','tall','task','tax','taxes','tea','teach','teacher','team','tear','technology','telephone','television','tell','temperature','ten','tend','term','terrible','test','than','thank','that','the','theatre','their','them','themselves','then','theory','there','therefore','these','they','thick','thin','thing','think','third','thirty','this','those','though','thought','thousand','threat','threats','three','threshold','through','throughout','throw','thumb','thus','tie','time','times','tiny','to','today','together','told','tomorrow','tone','tonight','too','took','top','total','tough','tour','toward','towards','town','track','trade','train','training','transport','travel','treat','treatment','tree','trench','trial','tried','trip','trouble','true','trust','truth','try','tuesday','turn','turned','turning','twelve','twenty','twice','two','type','uk','under','understand','undertake','union','unit','united','unless','unlike','until','up','upon','use','used','user','using','usually','value','various','very','via','victim','view','village','violence','visit','voice','vote','wait','wake','walk','wall','want','war','warm','warning','warns','was','wash','watch','water','wave','way','we','wealth','weapon','wear','weather','wednesday','week','weeks','weight','welcome','well','went','were','west','western','what','whatever','wheel','when','where','whether','which','while','white','who','whole','whom','whose','why','wide','widely','wife','will','win','wind','window','winter','wise','wish','with','within','without','woman','women','wonder','wood','word','work','worker','workers','working','works','world','worry','worse','worst','worth','would','write','writing','written','wrong','wrote','xxx','yard','yeah','year','years','yes','yesterday','yet','york','you','young','younger','your','yours','yourself','zero','zone',
+]);
+
+// Extract all visible text content from a self-contained HTML document.
+// Strips tags, scripts, styles, and CSS strings — only what would actually
+// render on screen.
+function extractVisibleText(html) {
+  const noStyle = html.replace(/<style[\s\S]*?<\/style>/gi, '');
+  const noScript = noStyle.replace(/<script[\s\S]*?<\/script>/gi, '');
+  const noTags = noScript.replace(/<[^>]+>/g, ' ');
+  // Decode HTML entities (basic)
+  const decoded = noTags
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ');
+  return decoded.replace(/\s+/g, ' ').trim();
+}
+
+// Spell check the visible text. Returns array of suspected typos.
+function checkSpelling(html) {
+  const text = extractVisibleText(html);
+  if (!text) return [];
+  // Tokenize: words are sequences of letters with optional internal apostrophe
+  const tokens = text.toLowerCase().match(/[a-z][a-z']*[a-z]|[a-z]/g) || [];
+  const suspected = [];
+  const seen = new Set();
+  for (const tok of tokens) {
+    if (seen.has(tok)) continue;
+    seen.add(tok);
+    // Skip very short tokens (1-char) and pure numbers
+    if (tok.length <= 1) continue;
+    // Skip if in dictionary or whitelist
+    if (COMMON_WORDS.has(tok) || SPELLING_WHITELIST.has(tok)) continue;
+    // Skip if it's a contraction we recognize
+    if (/^(it|that|there|don|isn|wasn|won|can|couldn|shouldn|wouldn|hasn|haven|hadn|aren|weren|i|you|he|she|we|they)'(s|t|d|ll|re|ve|m)$/.test(tok)) continue;
+    // Likely typo: not in dictionary, not allowlisted, all-letters
+    suspected.push(tok);
+  }
+  return suspected;
 }
 
 // Heuristic check for the "small grey text" failure mode Niels flagged on
@@ -561,6 +663,14 @@ function checkHtmlLegibility(html) {
   // Detect rotated text (transform: rotate)
   if (/transform\s*:[^;]*rotate/i.test(html)) {
     violations.push(`text uses transform: rotate — rotated text vanishes at mobile scale`);
+  }
+  // Spell check visible text — catches "WARNING ALRTS" / "RECIVED" / "OCASSION" type defects
+  const suspectedTypos = checkSpelling(html);
+  if (suspectedTypos.length > 0) {
+    // Be conservative — only flag the first few, and only if there's a clear typo signal
+    for (const t of suspectedTypos.slice(0, 5)) {
+      violations.push(`possible typo or unknown word: "${t.toUpperCase()}"`);
+    }
   }
   return { ok: violations.length === 0, violations };
 }
