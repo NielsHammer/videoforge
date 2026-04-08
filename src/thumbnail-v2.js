@@ -400,6 +400,26 @@ async function analyzeScript(title, scriptText, niche, tone, priorFeedback = nul
     ? scriptText.substring(0, 4000)
     : "No script available — use title only.";
 
+  // REFERENCE-GROUNDED PLANNING — pick the 4 most-relevant blueprints from
+  // the 140 reference library and feed their actual design_reasoning into
+  // the planner's context. This is the key shift Niels asked for: stop
+  // using references as numerical distance metrics, start using them as
+  // design intelligence. Claude will see how real designers thought about
+  // similar topics and apply the same intentionality to its own design.
+  let referenceBlock = '';
+  try {
+    const refs = selectRelevantReferences(title, niche || 'education', 4);
+    if (refs.length > 0) {
+      referenceBlock = formatReferenceContext(refs);
+      console.log("  [References] Loaded " + refs.length + " relevant blueprints for design context");
+      for (const r of refs) {
+        console.log(`    • ${r.niche}/${r.file} — "${(r.meta?.title_reference || '').substring(0, 60)}"`);
+      }
+    }
+  } catch (e) {
+    console.log("  [References] Failed to load: " + e.message);
+  }
+
   // RETRY CONTEXT — when a previous attempt was rejected by self-review,
   // surface the specific failures so the planner does not repeat them.
   const retryBlock = priorFeedback
@@ -557,6 +577,8 @@ TONE: ${tone || "unknown"}
 
 SCRIPT EXCERPT:
 ${scriptExcerpt}
+
+${referenceBlock}
 
 ${principlesBlock}
 
@@ -2294,6 +2316,23 @@ function applyBrightnessFloor(canvas, targetMinLum = 50) {
   }
 }
 
+// Determine which side of the image holds the main subject so text can be
+// placed on the opposite side. Compares total busyness (edge density) of the
+// left half vs the right half of the canvas. Returns "left" / "right" / "even".
+// Used to enforce "text BESIDE subject, not OVER subject" — Niels feedback:
+// "Text covers the entire focal subject making the person unidentifiable."
+function detectSubjectSide(ctx) {
+  const W = ctx.canvas.width;
+  const H = ctx.canvas.height;
+  const halfW = Math.floor(W / 2);
+  const leftBusy = regionBusyness(ctx, 0, 0, halfW, H);
+  const rightBusy = regionBusyness(ctx, halfW, 0, halfW, H);
+  const ratio = leftBusy / (rightBusy || 1);
+  if (ratio > 1.25) return { side: "left", leftBusy, rightBusy };
+  if (ratio < 0.8) return { side: "right", leftBusy, rightBusy };
+  return { side: "even", leftBusy, rightBusy };
+}
+
 // ─── SALIENCY: find calm zones to place text where it won't cover focal points ──
 // Coarse busyness estimator: computes mean |Δlum| across a region. High values
 // mean lots of detail/edges (faces, complex objects). Low values mean sky,
@@ -2555,6 +2594,26 @@ function renderFreeformComposition(ctx, elements, mainImage, suppImage, thirdIma
             }
             console.log(`    [Collision] Nudged text "${content}" ${isRelatedText(content, region.content) ? 'adjacent to' : 'below'} existing ${region.type}`);
           }
+        }
+
+        // SUBJECT-SIDE PLACEMENT: detect which half of the image holds the
+        // dominant subject and force text to the opposite half. This is the
+        // fix for "text covers the entire focal subject making the person
+        // unidentifiable." Only applies if Claude didn't deliberately specify
+        // a center alignment (which signals the planner WANTS text over the image).
+        if (align !== "center") {
+          const subjSide = detectSubjectSide(ctx);
+          if (subjSide.side === "left" && textX < W / 2) {
+            // Subject is on left, text wants left — push it right
+            textX = Math.round(W * 0.55);
+            console.log(`    [SubjectSide] Subject on left (busy ${subjSide.leftBusy.toFixed(1)} vs ${subjSide.rightBusy.toFixed(1)}) — pushed text to right half`);
+          } else if (subjSide.side === "right" && textX + maxW > W / 2) {
+            // Subject is on right, text wants right — push it left
+            textX = margin;
+            console.log(`    [SubjectSide] Subject on right (busy ${subjSide.rightBusy.toFixed(1)} vs ${subjSide.leftBusy.toFixed(1)}) — pushed text to left half`);
+          }
+          // Re-clamp width after shift
+          maxW = Math.min(maxW, W - textX - margin);
         }
 
         // SALIENCY-AWARE PLACEMENT: if the requested position is sitting on the
@@ -2883,6 +2942,7 @@ function renderFreeformComposition(ctx, elements, mainImage, suppImage, thirdIma
 // ─── MAIN ENTRY POINT ──────────────────────────────────────────────────────────
 
 import { scoreThumbnailStructure } from './thumbnail-structural-scorer.js';
+import { selectRelevantReferences, formatReferenceContext } from './thumbnail-reference-loader.js';
 
 const MAX_THUMBNAIL_ATTEMPTS = 3;
 // PASS_THRESHOLD raised to 8: per Niels feedback that 7/10 outputs were

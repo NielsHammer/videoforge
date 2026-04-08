@@ -32,9 +32,12 @@ const BASE = '/opt/videoforge/output/batch-e2e';
 if (fs.existsSync(BASE)) fs.rmSync(BASE, { recursive: true, force: true });
 fs.mkdirSync(BASE, { recursive: true });
 
-// Force Pexels — fal.ai has been returning 504s/500s on every endpoint this week
-// and each AI attempt burns ~2 min per provider. Pexels is faster and works.
-process.env.THUMBNAIL_FORCE_REAL_PHOTO = "1";
+// AI image generation is the PRIMARY path per Niels: "we usually dont need
+// pexels, we prefer ai generated because we can hit it spot on." Stock photos
+// are only for "real things, real people, real places" (e.g. Barcelona for
+// a travel video). Force-real-photo is only enabled if the env var is set
+// explicitly — by default we use AI (Recraft → Flux → Pexels fallback).
+// fal.ai is back up as of this session.
 
 const results = [];
 
