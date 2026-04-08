@@ -2621,8 +2621,12 @@ function renderFreeformComposition(ctx, elements, mainImage, suppImage, thirdIma
 import { scoreThumbnailStructure } from './thumbnail-structural-scorer.js';
 
 const MAX_THUMBNAIL_ATTEMPTS = 3;
-const PASS_THRESHOLD = 7;
-const STRUCTURAL_PASS_THRESHOLD = 6;
+// PASS_THRESHOLD raised to 8: per Niels feedback that 7/10 outputs were
+// "pretty bad", we now require the harsh critic to call it actually shippable.
+const PASS_THRESHOLD = 8;
+// Structural scorer is a HINT not a gate. It feeds into the retry context
+// but doesn't block shipping. Reference distributions measure shape not soul.
+const STRUCTURAL_HINT_FLOOR = 4;
 
 export async function generateThumbnailV2(outputDir, title, topic, scriptText = "", niche = "", tone = "", _attempt = 1, _priorFeedback = null) {
   console.log("============================================================");
@@ -2929,14 +2933,18 @@ export async function generateThumbnailV2(outputDir, title, topic, scriptText = 
     for (const p of reviewResult.problems) console.log("    - " + p);
   }
 
-  // Combined rating: weighted blend of structural (60%) and Claude critic (40%).
-  // Structural gets the higher weight because it doesn't gaslight itself.
-  const combinedRating = Math.round(structuralScore.score * 0.6 + reviewResult.rating * 0.4);
+  // The harsh critic is now the SOLE pass gate. Structural is a hint that
+  // gets logged and fed into the retry context, but it doesn't block shipping.
+  // Reference distributions measure structural shape, not "would a designer
+  // ship this." Niels caught the scorer's blind spot when 7/10 / 9.26 outputs
+  // were called "pretty bad" — we now trust the visual critic, not the math.
   reviewResult.structural_score = structuralScore.score;
   reviewResult.structural_notes = structuralScore.notes;
   reviewResult.structural_deltas = structuralScore.deltas;
-  reviewResult.combined_rating = combinedRating;
-  console.log("  Combined: " + combinedRating + "/10 (60% structural + 40% critic)");
+  reviewResult.combined_rating = reviewResult.rating; // critic IS the rating
+  if (reviewResult.designer_verdict) {
+    console.log("  Designer verdict: " + reviewResult.designer_verdict);
+  }
 
   // Save review
   const reviewPath = path.join(outputDir, "thumbnail-v2-review.json");
@@ -2946,20 +2954,16 @@ export async function generateThumbnailV2(outputDir, title, topic, scriptText = 
   // element is a hard failure even if the visual reviewer rates it high.
   const archetypeViolations = plan._archetype_violations || [];
   const archetypeOk = archetypeViolations.length === 0;
-  const structuralOk = structuralScore.score >= STRUCTURAL_PASS_THRESHOLD;
 
-  if (combinedRating >= PASS_THRESHOLD && archetypeOk && structuralOk) {
-    console.log("\n✅ Thumbnail v2 PASSED! (combined " + combinedRating + "/10, structural " + structuralScore.score + "/10) on attempt " + _attempt);
+  if (reviewResult.rating >= PASS_THRESHOLD && archetypeOk) {
+    console.log("\n✅ Thumbnail v2 PASSED designer review! (" + reviewResult.rating + "/10) on attempt " + _attempt);
     return pngPath;
   }
 
   if (!archetypeOk) {
     console.log("\n⚠️  Archetype contract violations: " + archetypeViolations.join("; "));
   }
-  if (!structuralOk) {
-    console.log("\n⚠️  Structural score below threshold (" + structuralScore.score + " < " + STRUCTURAL_PASS_THRESHOLD + ")");
-  }
-  console.log("\n⚠️  Thumbnail v2 below threshold (combined " + combinedRating + "/10) on attempt " + _attempt);
+  console.log("\n⚠️  Thumbnail v2 below pass threshold (" + reviewResult.rating + "/10, need " + PASS_THRESHOLD + ") on attempt " + _attempt);
 
   if (_attempt < MAX_THUMBNAIL_ATTEMPTS) {
     console.log(`   Retrying with reviewer feedback (attempt ${_attempt + 1}/${MAX_THUMBNAIL_ATTEMPTS})...`);
@@ -3008,7 +3012,7 @@ async function selfReviewThumbnail(imageBuffer, title, plan) {
     const base64 = imageBuffer.toString("base64");
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
+      max_tokens: 1500,
       messages: [{
         role: "user",
         content: [
@@ -3018,27 +3022,52 @@ async function selfReviewThumbnail(imageBuffer, title, plan) {
           },
           {
             type: "text",
-            text: `You are a YouTube thumbnail quality reviewer. This thumbnail was generated for the video: "${title}"
+            text: `You are a senior YouTube thumbnail designer with 10+ years experience designing thumbnails that get 5M+ views. You charge $500/thumbnail. A junior designer just submitted this thumbnail for the video "${title}" and is asking if it's ready to ship to a real channel.
 
-Rate this thumbnail 1-10 and list EVERY problem you see. Be brutally honest.
+You are NOT a friendly reviewer. You are HARSH. Most thumbnails you see are not good enough to ship. Default to a low rating. A 7+ means you would actually use this on one of YOUR channels with your name on it.
 
-Check for:
-1. TEXT OVERLAP: Is any text overlapping other text or important visual elements?
-2. READABILITY: At 168x94px mobile size, can you read the main hook text? Is any text too small?
-3. ANNOTATIONS: Are there circles/arrows pointing at nothing meaningful? (If so, they should be removed)
-4. COLOR ISSUES: Is the color treatment wrong? (e.g. greyscale when it should be full color, mismatched banner colors)
-5. MISSING CONTEXT: Does the thumbnail tell a complete story? Is anything missing (subject name, unit for numbers)?
-6. COMPOSITION: Does the text cover the most interesting part of the image? Should it be repositioned?
-7. AI ARTIFACTS: Is there gibberish text baked into the AI-generated image?
-8. CLICK APPEAL: Would YOU click this thumbnail on YouTube? Why or why not?
+Rate 1-10 with this calibration:
+- 1-3: Embarrassing. Looks like a template. Generic. No designer's hand visible.
+- 4-5: Mediocre. Functional but forgettable. Wouldn't stand out in a feed.
+- 6: Decent. Has one good idea but execution is sloppy.
+- 7: Genuinely good. You'd be willing to attach your name to it.
+- 8-9: Excellent. Clearly designed by a human with taste and intent.
+- 10: Reserved for thumbnails good enough to be in a "best thumbnails of 2026" post.
+
+THE FUNDAMENTAL TEST — answer this honestly before rating:
+"If I saw this thumbnail in my YouTube feed alongside thumbnails from MrBeast, Veritasium, Mark Tilbury, Aperture, and Joe Scott — would it look like one of theirs, or would it look obviously inferior?"
+
+If "obviously inferior" → rating cannot exceed 5.
+If "could be theirs" → rating 7+ permitted.
+
+Specific things that should KILL the rating:
+- Text covers the most interesting part of the image (face, focal subject, color contrast zone)
+- Hook text is generic/disconnected from the title topic ("OVERDUE", "$847", "2030" with no clear subject anchor)
+- Subject identity unclear (the title says "Yellowstone" but image could be any volcano)
+- Banner labels that just restate the obvious ("ROME" on a colosseum image)
+- Annotation circles/arrows pointing at nothing meaningful
+- Visual hierarchy: two elements competing for the eye instead of ONE clear focal point
+- Color palette feels random or uncoordinated
+- Image looks like generic stock photography with no editorial intent
+- Composition is "centered text + image background" with no design idea
+- Designer's intentionality: does this LOOK like a person made a series of choices, or like an algorithm filled in slots?
+
+Specific things that EARN higher ratings:
+- A specific surprising visual hook that ties directly to the title's promise
+- Text and image telling ONE coherent story together
+- Restraint: 1-2 elements doing all the work, nothing extra
+- A surprising image choice (unusual angle, unexpected subject framing)
+- Color palette that supports the emotional tone with intent
+- The viewer can tell what the video is about in 0.05 seconds without reading the title
 
 Return ONLY valid JSON:
 {
   "rating": 1-10,
-  "would_click": true/false,
-  "problems": ["list of specific problems"],
-  "strengths": ["list of what works well"],
-  "fix_instructions": "if rating < 7, specific instructions for regeneration"
+  "would_use_on_real_channel": true/false,
+  "designer_verdict": "one sentence — would a senior designer be proud or embarrassed and why",
+  "specific_problems": ["concrete defects, not vague critiques"],
+  "what_works": ["only list things that are genuinely good — empty array is fine"],
+  "fix_instructions": "if rating < 8, the SINGLE most important thing to change. Not a list — the one thing."
 }`
           }
         ]
@@ -3047,7 +3076,18 @@ Return ONLY valid JSON:
 
     const text = response.content[0].text;
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) return JSON.parse(jsonMatch[0]);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      // Normalize field names back to what the rest of the pipeline expects
+      return {
+        rating: parsed.rating,
+        would_click: parsed.would_use_on_real_channel,
+        designer_verdict: parsed.designer_verdict,
+        problems: parsed.specific_problems || [],
+        strengths: parsed.what_works || [],
+        fix_instructions: parsed.fix_instructions || null,
+      };
+    }
     return { rating: 5, problems: ["Could not parse review"], strengths: [], fix_instructions: null };
   } catch (e) {
     console.log("  [Review] Failed: " + e.message);
