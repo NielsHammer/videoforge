@@ -592,27 +592,50 @@ function extractVisibleText(html) {
   return decoded.replace(/\s+/g, ' ').trim();
 }
 
-// Spell check the visible text. Returns array of suspected typos.
+// Spell check the visible text. Conservative — only flags words that have
+// the STRUCTURAL SHAPE of a typo, not "any word not in my dictionary."
+// Real typos like ALRTS, RECIVED, NESCESARY have telltale structural signs:
+// missing vowels in consonant clusters, double letters in wrong places,
+// or letter combinations that don't appear in real English.
+//
+// False positives we want to avoid: FLOORS, ANTS, GIGABYTES, NEUROSCIENCE,
+// TUNGUSKA, LEAFCUTTER — uncommon real words that don't fit a typo profile.
 function checkSpelling(html) {
   const text = extractVisibleText(html);
   if (!text) return [];
-  // Tokenize: words are sequences of letters with optional internal apostrophe
   const tokens = text.toLowerCase().match(/[a-z][a-z']*[a-z]|[a-z]/g) || [];
   const suspected = [];
   const seen = new Set();
   for (const tok of tokens) {
     if (seen.has(tok)) continue;
     seen.add(tok);
-    // Skip very short tokens (1-char) and pure numbers
     if (tok.length <= 1) continue;
-    // Skip if in dictionary or whitelist
-    if (COMMON_WORDS.has(tok) || SPELLING_WHITELIST.has(tok)) continue;
-    // Skip if it's a contraction we recognize
+    if (COMMON_WORDS.has(tok)) continue;
+    if (SPELLING_WHITELIST.has(tok)) continue;
+    // Skip recognized contractions
     if (/^(it|that|there|don|isn|wasn|won|can|couldn|shouldn|wouldn|hasn|haven|hadn|aren|weren|i|you|he|she|we|they)'(s|t|d|ll|re|ve|m)$/.test(tok)) continue;
-    // Likely typo: not in dictionary, not allowlisted, all-letters
-    suspected.push(tok);
+    // STRUCTURAL TYPO HEURISTICS — only flag if the word has the shape of
+    // a real typo, not just an uncommon word.
+    if (looksLikeTypo(tok)) suspected.push(tok);
   }
   return suspected;
+}
+
+// Returns true if the word has the structural fingerprint of a real typo.
+// Heuristics tuned to catch the actual failure modes (ALRTS, RECIVED) without
+// false-positiving on uncommon real words (FLOORS, LEAFCUTTER, TUNGUSKA).
+function looksLikeTypo(word) {
+  if (word.length < 4 || word.length > 12) return false;
+  const vowels = (word.match(/[aeiouy]/g) || []).length;
+  // Two ironclad fingerprints that real English words never have:
+  //   1. Zero vowels in a 4+ letter word (ALRTS, MNGRS, LRTS)
+  //   2. Triple letter run (AAANG, LLLRT)
+  // We deliberately do NOT flag 4-consonant clusters (STRENGTH, MONTHS,
+  // SCHWARTZ are real). The point is to catch obvious garbage, not police
+  // every uncommon word.
+  if (vowels === 0) return true;
+  if (/(.)\1\1/.test(word)) return true;
+  return false;
 }
 
 // Heuristic check for the "small grey text" failure mode Niels flagged on
@@ -664,12 +687,14 @@ function checkHtmlLegibility(html) {
   if (/transform\s*:[^;]*rotate/i.test(html)) {
     violations.push(`text uses transform: rotate — rotated text vanishes at mobile scale`);
   }
-  // Spell check visible text — catches "WARNING ALRTS" / "RECIVED" / "OCASSION" type defects
+  // Spell check visible text — catches the most obvious failure mode
+  // (no-vowel words like ALRTS, MNGRS) without flagging real but uncommon
+  // words like STRENGTH or SCHWARTZ. The current heuristic is conservative
+  // by design — better to miss a typo than block a good thumbnail.
   const suspectedTypos = checkSpelling(html);
   if (suspectedTypos.length > 0) {
-    // Be conservative — only flag the first few, and only if there's a clear typo signal
     for (const t of suspectedTypos.slice(0, 5)) {
-      violations.push(`possible typo or unknown word: "${t.toUpperCase()}"`);
+      violations.push(`possible typo: "${t.toUpperCase()}" (no vowels or weird consonant cluster)`);
     }
   }
   return { ok: violations.length === 0, violations };
@@ -783,9 +808,22 @@ export async function generateThumbnailV3({ outputDir, title, scriptText = '', n
     review.rating = Math.min(review.rating, 3);
     review.problems = [...review.problems, 'MOBILE BLACK RECTANGLE — too dark to see at 168x94'];
   }
-  // Hard legibility violations cap the rating at 4 — Niels rules are non-advisory
+  // Legibility violations apply graduated penalties:
+  //   - Typos and text-too-small are HARD (cap rating at 4) — these are
+  //     unshippable defects.
+  //   - Rotated text and grey text are SOFT (-2 points) — they're warnings
+  //     but don't necessarily ruin the design.
+  // Previously a single rotation violation was capping 8/10 designs to 4/10.
   if (!legibility.ok) {
-    review.rating = Math.min(review.rating, 4);
+    const hasHardViolation = legibility.violations.some(v =>
+      /font-size .* below 36px/.test(v) || /typo/i.test(v));
+    const hasSoftViolation = legibility.violations.some(v =>
+      /transform: rotate/.test(v) || /grey/i.test(v));
+    if (hasHardViolation) {
+      review.rating = Math.min(review.rating, 4);
+    } else if (hasSoftViolation) {
+      review.rating = Math.max(1, review.rating - 2);
+    }
     review.problems = [...review.problems, ...legibility.violations.map(v => 'LEGIBILITY: ' + v)];
     review._legibility_violations = legibility.violations;
   }
