@@ -561,6 +561,30 @@ ${scriptExcerpt}
 ${principlesBlock}
 
 ${archetypePromptBlock()}
+
+═══ NAMED-PERSON SUBJECTS — CRITICAL RULE ═══
+If the primary_subject is a NAMED INDIVIDUAL HUMAN (Bernie Madoff, Elon Musk, Hitler, Putin, Epstein, etc.), you MUST set subject_is_person: true AND design the image around the PLACE/ERA/ARTIFACT, never their face. Stock photo libraries do not have specific celebrities — searching "Bernie Madoff" returns a random stock guy. Searching "Elon Musk" returns a random office worker. The viewer ends up looking at the wrong person, which destroys the thumbnail's credibility.
+
+Instead, anchor on the SCENE:
+- Bernie Madoff → 2008 Manhattan trading floor, abandoned NYC office, Wall Street at dusk
+- Hitler → 1940s Berlin streets, Reichstag, Nuremberg rally architecture (no faces)
+- Putin → Kremlin spires, Red Square at night, dark Russian government interior
+- Elon Musk → SpaceX rocket on launchpad, Tesla factory floor, Mars Starship rendering
+- Epstein → Manhattan townhouse exterior, private island aerial, prison interior
+
+The image_prompt and photo_search_query for person-subjects must describe the SCENE — never the person. The hook text and a banner can name the person, but the image carries the place/era.
+
+═══ HOOK CONTEXT — CRITICAL RULE ═══
+Every numeric hook ($65 BILLION, 60 GALLONS, 11KM DOWN, 18 MONTHS) MUST be paired with a 1-2 word context label that tells the viewer WHAT the number measures. Without context, a number is just scroll-past noise.
+
+GOOD: "$65 BILLION" + banner: "STOLEN" → viewer instantly understands the story
+GOOD: "60 GALLONS" + banner: "PER AVOCADO" → viewer understands the comparison
+GOOD: "11KM DOWN" + banner: "NO LIGHT" → viewer feels the depth
+BAD: "$1.5 BILLION" with no context → viewer thinks "of what?"
+BAD: "60 GALLONS" with no context → viewer has no idea what this video is about
+
+Set hook_context to the 1-2 word "why" label. The system will auto-promote it into a banner element adjacent to the hook text. Numeric hooks without hook_context will be REJECTED and force a retry.
+
 ${retryBlock}
 STEP 1 — DESIGN THE HOOK TEXT (most important decision):
 Before designing anything visual, identify the PRIMARY SUBJECT of this video from the title. The hook text MUST relate to the main subject, NOT to tangential topics mentioned in the script.
@@ -664,6 +688,8 @@ Return ONLY valid JSON:
 {
   "archetype": "REQUIRED — exactly one of: ${Object.keys(ARCHETYPES).join(' | ')}. Pick the one whose contract best matches the video. The renderer will silently drop any element your archetype forbids.",
   "primary_subject": "REQUIRED — the ONE concrete searchable noun the thumbnail must visually depict. This is the named entity from the title that, if missing from the image, makes the thumbnail meaningless. Examples: 'Rome' (not 'Roman empire collapse'), 'Yellowstone' (not 'volcano'), 'Lehman Brothers' (not 'stock crash'), 'Black Death' (not 'plague'), 'Pentagon' (not 'building'). Must be 1-3 words. Will be injected into every image search query — if it can't be found in a stock photo or generated, the thumbnail fails. Pick the MOST SEARCHABLE form of the subject.",
+  "subject_is_person": "REQUIRED true/false. Set to true ONLY when primary_subject is a NAMED INDIVIDUAL HUMAN (Bernie Madoff, Elon Musk, Hitler, Putin). Stock photo libraries do NOT have specific celebrities — searching 'Bernie Madoff' returns a random stock photo guy. When subject_is_person is true, you MUST design the image around the PLACE, ERA, or ARTIFACT associated with the person (Madoff → Wall Street trading floor, Hitler → 1940s Berlin, Putin → Kremlin), NOT their face. The image_prompt and photo_search_query for person-subjects must describe the SCENE, not the person.",
+  "hook_context": "REQUIRED when hook_text contains a number, dollar sign, or percentage. The 1-2 word context that explains WHAT the number measures. Examples: '$65 BILLION' → hook_context: 'STOLEN' or 'VANISHED'. '60 GALLONS' → hook_context: 'PER AVOCADO'. '11KM DOWN' → hook_context: 'NO LIGHT' or 'CRUSHING'. '18 MONTHS' → hook_context: 'TO ERUPTION'. '$1.5 BILLION' → hook_context: 'NO BANK'. Without this context the viewer sees a number with no story and scrolls past. The system will REJECT the plan and force a retry if a numeric hook is missing this field. The hook_context will be rendered as a banner directly adjacent to the number — they must read as one phrase together.",
   "niche": "closest from: ${nicheList}",
   "category": "A" or "B",
   "render_mode": null for category A, or "crash_chart" | "iceberg" | "pyramid" for category B,
@@ -847,6 +873,82 @@ NON-NEGOTIABLE RULES:
         plan._archetype_violations = violations;
       } else {
         console.log("  [Archetype] " + plan.archetype + " — contract OK (" + plan.elements.length + " elements)");
+      }
+    }
+
+    // NAMED-PERSON SUBJECT HANDLING — Pexels/Brave do not have specific
+    // celebrity photos. Searching "Bernie Madoff" returns a random stock guy.
+    // When subject is a named individual, force the image to depict the
+    // place/era/artifact associated with them, not their face. We rewrite
+    // the photo_search_query to remove the person and add the scene anchor
+    // if the planner didn't already do it.
+    const detectPersonName = (s) => {
+      if (!s) return false;
+      // Heuristic: 2-3 capitalized words, not all-uppercase, none of which are common nouns
+      const words = s.trim().split(/\s+/);
+      if (words.length < 1 || words.length > 4) return false;
+      const COMMON = new Set(["Yellowstone", "Pentagon", "Rome", "Berlin", "Wall", "Street", "Earth", "Mars", "Trench", "Marianas", "Mariana", "Avocado", "North", "South", "East", "West", "Korea", "China", "Russia", "America"]);
+      let nameLikeWords = 0;
+      for (const w of words) {
+        if (/^[A-Z][a-z]+$/.test(w) && !COMMON.has(w)) nameLikeWords++;
+      }
+      return nameLikeWords >= words.length - 1 && nameLikeWords >= 1;
+    };
+    if (plan.subject_is_person === undefined) {
+      plan.subject_is_person = detectPersonName(plan.primary_subject);
+      if (plan.subject_is_person) {
+        console.log("  [Person] Auto-detected named person: \"" + plan.primary_subject + "\" — image will depict context, not face");
+      }
+    } else if (plan.subject_is_person === true) {
+      console.log("  [Person] Planner flagged subject as named person — image will depict context, not face");
+    }
+
+    // HOOK CONTEXT VALIDATION — Niels feedback: numeric hooks without context
+    // are scroll-past garbage. "$65 BILLION" works because MADOFF is right next
+    // to it. "$1.5B" fails because the viewer has no idea what it measures.
+    const textElements = (plan.elements || []).filter(e => e.type === 'text');
+    const hookText = textElements[0]?.content || plan.hook_text || '';
+    const hasNumberHook = /[\d$%]/.test(hookText);
+    const hookViolations = [];
+    if (hasNumberHook) {
+      const hasContext = !!plan.hook_context && plan.hook_context.trim().length > 0;
+      // Also accept it if there's already a banner with banner_text providing context
+      const banners = (plan.elements || []).filter(e => e.type === 'banner' && e.banner_text);
+      const hasContextBanner = banners.some(b => b.banner_text.trim().length > 0);
+      if (!hasContext && !hasContextBanner) {
+        hookViolations.push(`Numeric hook "${hookText}" has no hook_context label and no context banner. Viewer will see a number with no story.`);
+      }
+    }
+    if (hookViolations.length) {
+      console.log("  [HookContext] VIOLATIONS:");
+      for (const v of hookViolations) console.log("    ✗ " + v);
+      plan._hook_violations = hookViolations;
+    } else if (hasNumberHook) {
+      console.log("  [HookContext] OK — numeric hook \"" + hookText + "\" has context: \"" + (plan.hook_context || banners.map(b => b.banner_text).join(', ')) + "\"");
+    }
+
+    // Auto-promote hook_context into a banner element if planner provided
+    // the field but didn't add a corresponding banner element. This makes
+    // hook_context a guarantee, not a hope.
+    if (hasNumberHook && plan.hook_context && plan.hook_context.trim() && plan.elements) {
+      const banners2 = plan.elements.filter(e => e.type === 'banner');
+      const alreadyShown = banners2.some(b => (b.banner_text || '').toUpperCase().includes(plan.hook_context.toUpperCase()));
+      if (!alreadyShown) {
+        // Find the primary text element to position the banner adjacent to it
+        const primaryText = plan.elements.find(e => e.type === 'text');
+        const bannerY = primaryText ? Math.min(95, (primaryText.y || 15) + 20) : 75;
+        plan.elements.push({
+          type: 'banner',
+          color: 'rgba(204,32,32,0.92)',
+          x: primaryText ? primaryText.x || 5 : 5,
+          y: bannerY,
+          w: 40,
+          h: 10,
+          radius: 4,
+          banner_text: plan.hook_context.toUpperCase().substring(0, 24),
+          _auto_promoted: true,
+        });
+        console.log("  [HookContext] Auto-promoted hook_context \"" + plan.hook_context + "\" into a banner element adjacent to the hook");
       }
     }
 
@@ -2091,6 +2193,107 @@ function renderPyramid(ctx, plan) {
   }
 }
 
+// ─── IMAGE PALETTE EXTRACTION ──────────────────────────────────────────────────
+// Sample the rendered image and extract a small dominant palette so the text
+// and banner colors can be derived from the image itself, not from random
+// hardcoded niche defaults. Returns { dominant, accent, text, contrast_text }.
+//
+// Niels feedback: "Color palette feels random — red banner has no thematic
+// connection to the story." This is because the renderer uses NICHES[].palettes
+// which are generic preset palettes that don't relate to the actual image.
+function extractImagePalette(canvas) {
+  const W = canvas.width;
+  const H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  const stepX = Math.max(1, Math.floor(W / 80));
+  const stepY = Math.max(1, Math.floor(H / 45));
+  const buckets = new Map();
+  let totalLum = 0;
+  let n = 0;
+  try {
+    const data = ctx.getImageData(0, 0, W, H).data;
+    for (let y = 0; y < H; y += stepY) {
+      for (let x = 0; x < W; x += stepX) {
+        const i = (y * W + x) * 4;
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        // 4-bit-per-channel quantize for dominance counting
+        const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+        const entry = buckets.get(key) || { count: 0, r: 0, g: 0, b: 0 };
+        entry.count++;
+        entry.r += r;
+        entry.g += g;
+        entry.b += b;
+        buckets.set(key, entry);
+        totalLum += 0.299 * r + 0.587 * g + 0.114 * b;
+        n++;
+      }
+    }
+  } catch (e) {
+    return null;
+  }
+  if (n === 0) return null;
+  const avgLum = totalLum / n;
+  // Sort buckets by count, take top dominants
+  const sorted = [...buckets.values()]
+    .map(e => ({ r: Math.round(e.r / e.count), g: Math.round(e.g / e.count), b: Math.round(e.b / e.count), count: e.count }))
+    .sort((a, b) => b.count - a.count);
+  const dominant = sorted[0];
+  // Find a high-saturation accent (HSV saturation > 0.4) that contrasts with dominant
+  const saturation = (c) => {
+    const max = Math.max(c.r, c.g, c.b), min = Math.min(c.r, c.g, c.b);
+    return max === 0 ? 0 : (max - min) / max;
+  };
+  let accent = sorted.find(c => saturation(c) > 0.5 && Math.abs(c.r + c.g + c.b - (dominant.r + dominant.g + dominant.b)) > 100);
+  if (!accent) accent = sorted.slice(1, 8).sort((a, b) => saturation(b) - saturation(a))[0];
+  if (!accent) accent = dominant;
+  const toHex = (c) => '#' + [c.r, c.g, c.b].map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+  // Text color: pure white if image is dark, near-black if image is bright
+  const textColor = avgLum < 128 ? '#FFFFFF' : '#0A0A0A';
+  return {
+    dominant: toHex(dominant),
+    accent: toHex(accent),
+    text: textColor,
+    avg_luminance: avgLum,
+    is_dark: avgLum < 60,
+  };
+}
+
+// Apply a brightness floor to a too-dark image so the rendered thumbnail
+// is readable at 168x94. Operates on the canvas in-place. Niels: "two
+// thumbnails are too dark to see at mobile size."
+function applyBrightnessFloor(canvas, targetMinLum = 50) {
+  const W = canvas.width;
+  const H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  try {
+    const img = ctx.getImageData(0, 0, W, H);
+    const data = img.data;
+    let totalLum = 0;
+    let n = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      totalLum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      n++;
+    }
+    const avgLum = totalLum / n;
+    if (avgLum >= targetMinLum) return false;
+    // Lift midtones using a gamma curve. gamma < 1 brightens.
+    const gamma = Math.max(0.4, avgLum / targetMinLum);
+    const lut = new Uint8ClampedArray(256);
+    for (let v = 0; v < 256; v++) {
+      lut[v] = Math.min(255, Math.round(255 * Math.pow(v / 255, gamma)));
+    }
+    for (let i = 0; i < data.length; i += 4) {
+      data[i] = lut[data[i]];
+      data[i + 1] = lut[data[i + 1]];
+      data[i + 2] = lut[data[i + 2]];
+    }
+    ctx.putImageData(img, 0, 0);
+    return { applied: true, original_lum: Math.round(avgLum), gamma: Math.round(gamma * 100) / 100 };
+  } catch (e) {
+    return false;
+  }
+}
+
 // ─── SALIENCY: find calm zones to place text where it won't cover focal points ──
 // Coarse busyness estimator: computes mean |Δlum| across a region. High values
 // mean lots of detail/edges (faces, complex objects). Low values mean sky,
@@ -2175,7 +2378,36 @@ function renderFreeformComposition(ctx, elements, mainImage, suppImage, thirdIma
   const images = { background: mainImage, supplementary: suppImage, third: thirdImage };
   const occupiedRegions = []; // Track placed text/banner regions for collision avoidance
 
-  for (const el of elements) {
+  // TWO-PASS RENDERING: image layer first, then extract palette + lift
+  // brightness, then text/banners/annotations using the extracted palette.
+  // Niels feedback: "color palette feels random" + "too dark to see at mobile."
+  // Both addressed by deriving colors from the image AFTER it's painted.
+  const IMAGE_LAYER_TYPES = new Set(["image", "overlay_image", "fill", "gradient", "color_zone", "vignette", "divider", "desaturate", "warm_glow"]);
+  const TEXT_LAYER_TYPES = new Set(["text", "banner", "arrow", "circle"]);
+  const passes = [
+    elements.filter(el => IMAGE_LAYER_TYPES.has(el.type)),
+    elements.filter(el => TEXT_LAYER_TYPES.has(el.type)),
+  ];
+
+  for (let passIdx = 0; passIdx < 2; passIdx++) {
+    if (passIdx === 1) {
+      // Between image pass and text pass: lift brightness if needed and extract palette
+      try {
+        const lift = applyBrightnessFloor(ctx.canvas, 50);
+        if (lift && lift.applied) {
+          console.log("    [Brightness] Image too dark (avg lum " + lift.original_lum + ") — lifted with gamma " + lift.gamma);
+        }
+        const extracted = extractImagePalette(ctx.canvas);
+        if (extracted) {
+          console.log("    [Palette] dominant=" + extracted.dominant + " accent=" + extracted.accent + " text=" + extracted.text + " (lum " + Math.round(extracted.avg_luminance) + ")");
+          plan._extracted_palette = extracted;
+        }
+      } catch (e) {
+        console.log("    [Palette] failed: " + e.message);
+      }
+    }
+
+  for (const el of passes[passIdx]) {
     const ex = pct(el.x || 0, W);
     const ey = pct(el.y || 0, H);
     const ew = pct(el.w || 100, W);
@@ -2258,11 +2490,26 @@ function renderFreeformComposition(ctx, elements, mainImage, suppImage, thirdIma
 
       case "text": {
         const content = el.content || "";
-        const color = el.color || "#FFFFFF";
+        // PALETTE-AWARE COLOR RESOLUTION: if the planner left text color as
+        // the default white but the image is bright, switch to dark text for
+        // contrast. If the emphasis color is the default red but doesn't
+        // contrast with the image dominant, swap to the extracted accent.
+        const ep = plan._extracted_palette;
+        let color = el.color || (ep ? ep.text : "#FFFFFF");
+        // If planner specified pure white over a bright image, override to dark
+        if ((!el.color || el.color.toUpperCase() === "#FFFFFF") && ep && !ep.is_dark && ep.avg_luminance > 160) {
+          color = "#0A0A0A";
+          console.log("    [Palette] Text color flipped to dark for bright image (lum " + Math.round(ep.avg_luminance) + ")");
+        }
         const useStroke = el.stroke !== false;
         const align = el.align || "left";
         const emphasisWord = el.emphasis_word || null;
-        const emphasisColor = el.emphasis_color || "#cc2020";
+        // Use extracted accent if planner used the default red and the accent
+        // would actually pop against the image
+        let emphasisColor = el.emphasis_color || "#cc2020";
+        if ((!el.emphasis_color || el.emphasis_color.toLowerCase() === "#cc2020") && ep && ep.accent && ep.accent !== ep.dominant) {
+          emphasisColor = ep.accent;
+        }
 
         // BOUNDS CHECKING: clamp max width/height so text never extends past canvas edges
         const margin = 20; // minimum pixel margin from edge
@@ -2383,7 +2630,23 @@ function renderFreeformComposition(ctx, elements, mainImage, suppImage, thirdIma
 
       case "banner": {
         const radius = el.radius || 0;
-        ctx.fillStyle = el.color || "rgba(0,0,0,0.7)";
+        // Palette-aware banner color: if planner used a generic default,
+        // use the extracted accent so the banner relates to the image.
+        let bannerColor = el.color || "rgba(0,0,0,0.7)";
+        const ep2 = plan._extracted_palette;
+        const isGenericDefault = !el.color
+          || el.color === "rgba(0,0,0,0.7)"
+          || /^rgba?\(204,32,32/.test(el.color)
+          || el.color.toLowerCase() === "#cc2020";
+        if (isGenericDefault && ep2 && ep2.accent) {
+          // Convert accent hex to rgba with high opacity
+          const m = ep2.accent.match(/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+          if (m) {
+            const r = parseInt(m[1], 16), g = parseInt(m[2], 16), b = parseInt(m[3], 16);
+            bannerColor = `rgba(${r},${g},${b},0.92)`;
+          }
+        }
+        ctx.fillStyle = bannerColor;
         if (radius > 0) {
           roundRect(ctx, ex, ey, ew, eh, radius);
           ctx.fill();
@@ -2614,6 +2877,7 @@ function renderFreeformComposition(ctx, elements, mainImage, suppImage, thirdIma
         console.log(`  [Render] Unknown element type: ${el.type}`);
     }
   }
+  } // end pass loop
 }
 
 // ─── MAIN ENTRY POINT ──────────────────────────────────────────────────────────
@@ -2736,12 +3000,20 @@ export async function generateThumbnailV2(outputDir, title, topic, scriptText = 
     // title's primary subject so the resulting image cannot drift to a
     // tangential topic. This is the fix for "Roman Empire test produced
     // barbarian warrior images with no Rome anywhere."
+    //
+    // CAVEAT: when the subject is a named PERSON, do NOT inject the name —
+    // stock photo libraries don't have celebrities. Pexels for "Bernie Madoff"
+    // returns a random guy. Instead inject a scene/era anchor.
     const subj = (plan.primary_subject || "").trim();
     const subjectLower = subj.toLowerCase();
     const promptHasSubject = subjectLower && prompt.toLowerCase().includes(subjectLower);
-    const subjectInjection = (subj && !promptHasSubject)
-      ? ` MUST clearly depict ${subj} as the visual subject — ${subj} must be unmistakably present and recognizable.`
-      : "";
+    let subjectInjection = "";
+    if (plan.subject_is_person) {
+      // Don't inject the name; the planner should have anchored on a scene already
+      subjectInjection = ` IMPORTANT: this is a faceless thumbnail — do NOT show any person's face. Show the place, era, artifact, or environment associated with the subject instead.`;
+    } else if (subj && !promptHasSubject) {
+      subjectInjection = ` MUST clearly depict ${subj} as the visual subject — ${subj} must be unmistakably present and recognizable.`;
+    }
     const styledPrompt = `${prompt}.${subjectInjection}${safezone} ${brightnessHint}. Style: ${nicheConfig.imageStyle}. Mood: ${plan.mood}.${thumbnailOpt}${projectCoherence}${genreFilter}${semanticFilter}${authenticityFilter} ${noTextSuffix}`;
     let aiUrl = null;
     try { aiUrl = await generateRecraftImage(styledPrompt, imageStyle); } catch (_) {}
@@ -2753,9 +3025,15 @@ export async function generateThumbnailV2(outputDir, title, topic, scriptText = 
     // or the fallback drifts off-topic (Roman Empire → barbarian warriors).
     console.log(`  [${label}] All AI providers failed — falling back to Pexels stock`);
     const baseQuery = plan.photo_search_query || prompt.split(/[,.]/)[0].substring(0, 80);
-    const stockQuery = (subj && !baseQuery.toLowerCase().includes(subjectLower))
-      ? `${subj} ${baseQuery}`.substring(0, 100)
-      : baseQuery;
+    let stockQuery;
+    if (plan.subject_is_person) {
+      // Strip the person's name — Pexels has no celebrities
+      stockQuery = subj ? baseQuery.replace(new RegExp(subj, 'gi'), '').replace(/\s+/g, ' ').trim() : baseQuery;
+    } else {
+      stockQuery = (subj && !baseQuery.toLowerCase().includes(subjectLower))
+        ? `${subj} ${baseQuery}`.substring(0, 100)
+        : baseQuery;
+    }
     console.log(`  [${label}/stock-fallback] Query: "${stockQuery}"`);
     try {
       const stock = await searchRealPhoto(stockQuery, label + "/stock-fallback");
@@ -2789,10 +3067,23 @@ export async function generateThumbnailV2(outputDir, title, topic, scriptText = 
     console.log("  Mode: REAL PHOTO (searching Pexels + Brave)");
     const subj = (plan.primary_subject || "").trim();
     const rawQuery = plan.photo_search_query || plan.image_prompt || topic;
-    // Inject primary subject if not already present
-    const searchQuery = (subj && !rawQuery.toLowerCase().includes(subj.toLowerCase()))
-      ? `${subj} ${rawQuery}`.substring(0, 100)
-      : rawQuery;
+    // Strip the named person from the search query — Pexels has no celebrities,
+    // searching "Bernie Madoff" returns a random stock guy. Use the planner's
+    // photo_search_query as-is (it should describe the scene), and never
+    // prepend the person's name.
+    let searchQuery;
+    if (plan.subject_is_person) {
+      // Strip the person name from the raw query if present
+      const stripped = subj
+        ? rawQuery.replace(new RegExp(subj, 'gi'), '').replace(/\s+/g, ' ').trim()
+        : rawQuery;
+      searchQuery = stripped || rawQuery;
+      console.log("  [Person] Stripped name from search query — using scene-only");
+    } else {
+      searchQuery = (subj && !rawQuery.toLowerCase().includes(subj.toLowerCase()))
+        ? `${subj} ${rawQuery}`.substring(0, 100)
+        : rawQuery;
+    }
     console.log("  Query: " + searchQuery);
 
     [mainImageUrl, suppImageUrl, thirdImageUrl] = await Promise.all([
@@ -2924,14 +3215,64 @@ export async function generateThumbnailV2(outputDir, title, topic, scriptText = 
     structuralScore = { score: 5, deltas: {}, notes: ["scorer error: " + e.message] };
   }
 
-  // Step 6b: Self-review — Claude evaluates the rendered thumbnail (tiebreaker)
-  console.log("\n--- Step 6b: Self-review (Claude critic) ---");
+  // Step 6b: MOBILE DOWNSCALE REVIEW — render the thumbnail at YouTube's
+  // actual mobile feed size (168x94) and check whether it survives. Niels
+  // feedback: "two thumbnails are too dark to see at mobile size — the 168x94
+  // downscale review you should be doing would catch this."
+  console.log("\n--- Step 6b: Mobile downscale review (168x94) ---");
+  const mobileCanvas = createCanvas(168, 94);
+  const mobileCtx = mobileCanvas.getContext("2d");
+  mobileCtx.imageSmoothingEnabled = true;
+  mobileCtx.imageSmoothingQuality = "high";
+  mobileCtx.drawImage(canvas, 0, 0, 168, 94);
+  const mobileBuffer = mobileCanvas.toBuffer("image/png");
+  const mobilePath = path.join(outputDir, "thumbnail-v2-mobile.png");
+  fs.writeFileSync(mobilePath, mobileBuffer);
+
+  // Compute average luminance and dynamic range at mobile size — a hard
+  // numeric check that catches "black rectangle" before we even ask Claude.
+  let mobileLuminance = 0;
+  let mobileMin = 255;
+  let mobileMax = 0;
+  try {
+    const mdata = mobileCtx.getImageData(0, 0, 168, 94).data;
+    let sum = 0;
+    let n = 0;
+    for (let i = 0; i < mdata.length; i += 4) {
+      const lum = 0.299 * mdata[i] + 0.587 * mdata[i + 1] + 0.114 * mdata[i + 2];
+      sum += lum;
+      if (lum < mobileMin) mobileMin = lum;
+      if (lum > mobileMax) mobileMax = lum;
+      n++;
+    }
+    mobileLuminance = sum / n;
+  } catch (e) { /* noop */ }
+  const mobileDynamicRange = mobileMax - mobileMin;
+  console.log("  Mobile size: " + mobilePath);
+  console.log("  Mobile luminance: avg=" + mobileLuminance.toFixed(0) + "/255, range=" + mobileDynamicRange.toFixed(0) + "/255");
+  // Black-rectangle hard fail: very low average AND low dynamic range
+  // means the thumbnail is essentially invisible at feed size.
+  const isMobileBlackRect = mobileLuminance < 30 && mobileDynamicRange < 80;
+  if (isMobileBlackRect) {
+    console.log("  ✗ MOBILE BLACK RECTANGLE — too dark to see at 168x94, hard fail");
+  }
+
+  // Step 6c: Self-review — Claude critiques the FULL thumbnail
+  console.log("\n--- Step 6c: Self-review (Claude critic) ---");
   const reviewResult = await selfReviewThumbnail(buffer, title, plan);
   console.log("  Critic rating: " + reviewResult.rating + "/10");
   if (reviewResult.problems && reviewResult.problems.length > 0) {
     console.log("  Problems found:");
     for (const p of reviewResult.problems) console.log("    - " + p);
   }
+  // Apply mobile black-rectangle penalty
+  if (isMobileBlackRect) {
+    reviewResult.problems = [...(reviewResult.problems || []), "MOBILE BLACK RECTANGLE — at 168x94 the thumbnail is too dark to see (avg lum " + mobileLuminance.toFixed(0) + "/255, range " + mobileDynamicRange.toFixed(0) + "/255). Image needs more brightness or text needs a brighter contrasting backdrop."];
+    reviewResult.rating = Math.min(reviewResult.rating, 3);
+    reviewResult._mobile_black_rect = true;
+  }
+  reviewResult._mobile_luminance = Math.round(mobileLuminance);
+  reviewResult._mobile_dynamic_range = Math.round(mobileDynamicRange);
 
   // The harsh critic is now the SOLE pass gate. Structural is a hint that
   // gets logged and fed into the retry context, but it doesn't block shipping.
@@ -2952,16 +3293,22 @@ export async function generateThumbnailV2(outputDir, title, topic, scriptText = 
 
   // Archetype contract violations also force a retry — a missing required
   // element is a hard failure even if the visual reviewer rates it high.
+  // Hook context violations are also hard failures (numeric hooks need a "why").
   const archetypeViolations = plan._archetype_violations || [];
+  const hookViolations = plan._hook_violations || [];
   const archetypeOk = archetypeViolations.length === 0;
+  const hookOk = hookViolations.length === 0;
 
-  if (reviewResult.rating >= PASS_THRESHOLD && archetypeOk) {
+  if (reviewResult.rating >= PASS_THRESHOLD && archetypeOk && hookOk) {
     console.log("\n✅ Thumbnail v2 PASSED designer review! (" + reviewResult.rating + "/10) on attempt " + _attempt);
     return pngPath;
   }
 
   if (!archetypeOk) {
     console.log("\n⚠️  Archetype contract violations: " + archetypeViolations.join("; "));
+  }
+  if (!hookOk) {
+    console.log("\n⚠️  Hook context violations: " + hookViolations.join("; "));
   }
   console.log("\n⚠️  Thumbnail v2 below pass threshold (" + reviewResult.rating + "/10, need " + PASS_THRESHOLD + ") on attempt " + _attempt);
 
