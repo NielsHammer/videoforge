@@ -237,7 +237,7 @@ async function resolveImageRequest(req, label, outDir) {
 //     PLUS up to 3 losers with their text reasons (so Claude knows what to avoid)
 //   - The learning pool grows over time and becomes the only calibration signal
 
-function buildPlannerPrompt({ title, scriptText, niche, tone, priorAttempt, visionRefs = [], poolWinners = [], poolLosers = [] }) {
+function buildPlannerPrompt({ title, scriptText, niche, tone, priorAttempt, visionRefs = [], poolWinners = [], poolLosers = [], lockedHook = null }) {
   const scriptExcerpt = scriptText
     ? scriptText.substring(0, 6000)
     : 'No script available — design from title alone.';
@@ -293,8 +293,26 @@ approved designs for alternatives.
 `
     : '';
 
+  const lockedHookBlock = lockedHook
+    ? `
+═══ LOCKED HOOK — DO NOT CHANGE THIS ═══
+
+A separate hook-writing pass already chose the strongest hook for this video:
+
+  HOOK: "${lockedHook.winner}"
+  WHY: ${lockedHook.winner_reasoning}
+
+Your job is NOT to write a different hook. Your job is to design a thumbnail composition that makes THIS hook hit as hard as possible. Use this exact text. If you want to add a tiny secondary context label (a banner, a date, a number), it must be a SUPPORTING element — not a competing hook.
+
+The other 4 candidates the hook writer rejected:
+${(lockedHook.candidates || []).filter(c => c.hook !== lockedHook.winner).map(c => `  - "${c.hook}" (reactive=${c.reactive} curiosity=${c.curiosity} specific=${c.specific} verb=${c.verb_strength})`).join('\n')}
+
+Build the visual around the locked hook. The image is whatever makes the locked hook FEEL true.
+`
+    : '';
+
   return `You are a senior YouTube thumbnail designer who charges $500/thumbnail. You design freely. You are not given templates, layouts, or composition rules — you decide every pixel based on what the SPECIFIC video needs.
-${visionBlock}
+${visionBlock}${lockedHookBlock}
 ═══ THE VIDEO ═══
 
 TITLE: "${title}"
@@ -405,7 +423,78 @@ function loadPoolEntriesWithImages(maxWinners = 4, maxLosers = 3) {
   return out;
 }
 
-async function planThumbnail({ title, scriptText, niche, tone, priorAttempt }) {
+// ─── TWO-PASS HOOK PLANNER ─────────────────────────────────────────────────
+// Pass 1: generate 5 candidate hooks for the topic, score them on the
+// reactive/curiosity/specific/verb-strength axes, pick the best.
+// Pass 2: existing planThumbnail runs with the locked hook injected.
+//
+// Niels: "the system has the design craft now. The weak link is hook writing."
+// The single-pass planner was racing through hook selection while doing
+// design work. Forcing hook selection to happen FIRST and CHEAPLY (one
+// text-only Claude call, no image gen) lets the system iterate on hooks
+// without burning AI image credits.
+async function generateHookCandidates({ title, scriptText, niche, tone }) {
+  const scriptExcerpt = scriptText
+    ? scriptText.substring(0, 4000)
+    : 'No script available — design from title alone.';
+
+  const prompt = `You are a YouTube thumbnail hook writer. The video is:
+
+TITLE: "${title}"
+NICHE: ${niche || 'unknown'}
+TONE: ${tone || 'unknown'}
+
+SCRIPT (mine this for specific facts, dates, numbers, scenes):
+"""
+${scriptExcerpt}
+"""
+
+Generate 5 candidate hook texts for the thumbnail. Each hook is 1-3 words designed to make a viewer STOP scrolling. Pull facts from the script — never generic dramatic words.
+
+Score each candidate 1-10 on these four axes:
+  - reactive: does it create a feeling, or just describe a fact? ("HALF THE WORLD" = 9, "12 MILLION SQ MILES" = 3)
+  - curiosity: does it make the viewer want to know more, or does it tell them what happens? ("YOU CAN'T SEE IT" = 9, "INVISIBLE IN 2 SECONDS" = 5)
+  - specific: does it use specific concrete language, or vague descriptors? ("$65 BILLION STOLEN" = 9, "MASSIVE FRAUD" = 3)
+  - verb_strength: is there a verb that creates emotion? STOLEN, BANNED, ERASED, LEAKED, VANISHED are 9. Static descriptors are 3.
+
+CRITICAL — the failure modes you must avoid:
+  - Pure numbers without an emotional verb (12 MILLION, 27000, 11KM) — viewers can't feel them
+  - Vague descriptors (AMAZING, SHOCKING, INCREDIBLE) — meaningless
+  - Topic categories (HISTORY EXPLAINED, SCIENCE FACTS) — never click triggers
+  - Questions without a reveal (WHAT IF?, IS IT TRUE?) — feel like a trap
+  - Hooks that just restate the title in different words — viewer learns nothing new
+  - Hooks that read as ads or giveaways ($1,000,000 UNCLAIMED reads as a sweepstakes, not a math mystery)
+  - Two hooks that say the same thing (ERASED + FROM EVERY MAP ON EARTH = redundant)
+
+For abstract topics (math, sound, neuroscience, geopolitics) the hook must work HARDER. The visceral angle isn't obvious — find it. What's the most uncomfortable, most surprising, or most personal frame for THIS specific story?
+
+Then pick the SINGLE BEST hook and explain why in one sentence.
+
+Return ONLY this JSON:
+{
+  "candidates": [
+    { "hook": "TEXT", "reactive": N, "curiosity": N, "specific": N, "verb_strength": N, "total": N },
+    ...exactly 5
+  ],
+  "winner": "the chosen hook text",
+  "winner_reasoning": "one sentence explaining why this beats the others"
+}`;
+
+  const response = await anthropic.messages.create({
+    model: 'claude-opus-4-5',
+    max_tokens: 2000,
+    messages: [{ role: 'user', content: prompt }],
+  });
+  const text = response.content[0].text;
+  const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/, '');
+  const m = cleaned.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('Hook planner returned no JSON');
+  const result = JSON.parse(m[0]);
+  if (!result.winner) throw new Error('Hook planner returned no winner');
+  return result;
+}
+
+async function planThumbnail({ title, scriptText, niche, tone, priorAttempt, lockedHook = null }) {
   // VISION ATTACHMENTS — three sources fed into Claude as multimodal images:
   //   1. Niche reference thumbnails (top-performing real YouTube thumbnails)
   //   2. Pool winners — Niels-approved designs (the real calibration signal)
@@ -433,6 +522,7 @@ async function planThumbnail({ title, scriptText, niche, tone, priorAttempt }) {
     visionRefs,
     poolWinners: pool.winners,
     poolLosers: pool.losers,
+    lockedHook,
   });
 
   // Build multimodal content: niche refs + winners + losers, then text
@@ -772,7 +862,7 @@ async function mobileLuminanceCheck(pngPath, outDir) {
 
 // ─── MAIN ENTRY POINT ──────────────────────────────────────────────────────
 
-export async function generateThumbnailV3({ outputDir, title, scriptText = '', niche = '', tone = '', _attempt = 1, _priorAttempt = null }) {
+export async function generateThumbnailV3({ outputDir, title, scriptText = '', niche = '', tone = '', _attempt = 1, _priorAttempt = null, _lockedHook = null }) {
   console.log('============================================================');
   console.log('VideoForge Thumbnail v3 (HTML/CSS)' + (_attempt > 1 ? ` — RETRY ${_attempt}/${MAX_ATTEMPTS}` : ''));
   console.log('============================================================');
@@ -782,9 +872,32 @@ export async function generateThumbnailV3({ outputDir, title, scriptText = '', n
 
   if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
+  // Step 0: Two-pass hook generation — happens once per topic, reused on retries.
+  // The hook writer picks the strongest of 5 candidates BEFORE any design or
+  // image work. This stops the design pass from racing through hook selection
+  // and defaulting to safe descriptive framings.
+  let lockedHook = _lockedHook;
+  if (!lockedHook) {
+    console.log('\n--- Step 0: Hook writer (5 candidates → pick strongest) ---');
+    try {
+      lockedHook = await generateHookCandidates({ title, scriptText, niche, tone });
+      console.log('  Candidates considered:');
+      for (const c of (lockedHook.candidates || [])) {
+        const total = (c.reactive || 0) + (c.curiosity || 0) + (c.specific || 0) + (c.verb_strength || 0);
+        console.log(`    "${c.hook}" — r:${c.reactive} c:${c.curiosity} s:${c.specific} v:${c.verb_strength} = ${total}`);
+      }
+      console.log('  WINNER: "' + lockedHook.winner + '"');
+      console.log('  Why: ' + lockedHook.winner_reasoning);
+      fs.writeFileSync(path.join(outputDir, 'thumbnail-v3-hook.json'), JSON.stringify(lockedHook, null, 2));
+    } catch (e) {
+      console.log('  [Hook writer] Failed: ' + e.message + ' — falling back to single-pass planner');
+      lockedHook = null;
+    }
+  }
+
   // Step 1: Plan
   console.log('\n--- Step 1: Claude designs the thumbnail (full HTML/CSS) ---');
-  const plan = await planThumbnail({ title, scriptText, niche, tone, priorAttempt: _priorAttempt });
+  const plan = await planThumbnail({ title, scriptText, niche, tone, priorAttempt: _priorAttempt, lockedHook });
   plan.title = title;
   plan.niche = niche;
   plan._attempt = _attempt;
@@ -888,7 +1001,7 @@ export async function generateThumbnailV3({ outputDir, title, scriptText = '', n
     fs.copyFileSync(pngPath, path.join(archDir, 'thumbnail-v3.png'));
     fs.copyFileSync(path.join(outputDir, 'thumbnail-v3-plan.json'), path.join(archDir, 'thumbnail-v3-plan.json'));
     fs.copyFileSync(path.join(outputDir, 'thumbnail-v3-review.json'), path.join(archDir, 'thumbnail-v3-review.json'));
-    return generateThumbnailV3({ outputDir, title, scriptText, niche, tone, _attempt: _attempt + 1, _priorAttempt: review });
+    return generateThumbnailV3({ outputDir, title, scriptText, niche, tone, _attempt: _attempt + 1, _priorAttempt: review, _lockedHook: lockedHook });
   }
 
   console.log('\n⚠️  Out of retries. Promoting best of attempts.');
