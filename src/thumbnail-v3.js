@@ -554,6 +554,29 @@ CRITICAL — the failure mode you must avoid is the LITERAL IMAGE:
 
 The literal image is what an amateur picks. The metaphorical image is what a senior designer picks because it makes the viewer FEEL the story before reading the title.
 
+CRITICAL — TONE MATCHING (avoid the gore-on-intellectual-topics trap):
+For INTELLECTUAL or ABSTRACT topics (mathematics, physics, philosophy, neuroscience, language, geometry, logic, theory), the metaphor must NEVER use violence, death, gore, blood, dead bodies, war scenes, crime scenes, or murder imagery. These topics need INTELLECTUAL-MYSTERY metaphors, not VIOLENT-DRAMA metaphors. A "field of collapsed mathematicians" reads as a war crime, not an unsolved problem. "82% destroyed" with bodies looks like a battlefield. NO. Use:
+  - Locked doors with no keys
+  - Infinite hallways
+  - A single missing piece in a complex pattern
+  - A maze with no exit
+  - A chessboard frozen in an unsolvable position
+  - A clock face with the wrong number of hands
+  - A book with one page that won't be read no matter how you turn it
+  - A staircase that loops back on itself
+  - A library where one shelf is empty
+  - A puzzle with one piece missing forever
+
+Violence and death imagery are reserved for topics ABOUT violence and death (war, crime, disasters, plague, etc). For intellectual topics, the mystery is the discomfort — not the body count.
+
+VISUAL OBVIOUSNESS at 168x94 — the metaphor must read INSTANTLY at thumbnail size:
+For "missing thing" metaphors (a country that doesn't exist, a number that doesn't fit, etc), the missing-ness must be VISUALLY OBVIOUS at the smallest mobile size. Subtle darkening or muted highlighting will fail. Use:
+  - A clear blank void where a thing should be
+  - Bold borders drawn around empty space
+  - A high-contrast hole, cutout, or absence
+  - A zoomed-in view where the missing piece is the focal point
+NOT: a slightly darker region on a wide map, a barely-visible ghost outline, an off-color patch in a complex scene.
+
 Score each candidate 1-10 on these axes:
   - surprise: would a senior designer say "oh, that's clever" — or "that's the obvious choice"? (passport = 2, missing-piece-on-map = 8)
   - emotional_impact: does the image make the viewer FEEL the hook before reading any text? (a chalkboard = 2 for "unsolvable problem", a maze with no exit = 9)
