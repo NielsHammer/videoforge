@@ -408,10 +408,15 @@ async function analyzeScript(title, scriptText, niche, tone, priorFeedback = nul
 ═══════════════════════════════════════════════════════════
 RETRY CONTEXT — A PREVIOUS ATTEMPT FAILED SELF-REVIEW
 ═══════════════════════════════════════════════════════════
-The previous plan scored ${priorFeedback.rating}/10 and was rejected.
+The previous plan scored ${priorFeedback.combined_rating || priorFeedback.rating}/10 (combined) and was rejected.
+Critic rating: ${priorFeedback.rating}/10
+Structural score: ${priorFeedback.structural_score || 'n/a'}/10 (vs reference library)
 
-Problems the reviewer found (DO NOT REPEAT THESE):
+Problems the visual reviewer found (DO NOT REPEAT THESE):
 ${(priorFeedback.problems || []).map(p => `  - ${p}`).join('\n') || '  (none recorded)'}
+
+Structural deviations from top-performing references in this niche:
+${(priorFeedback.structural_notes || []).map(n => `  - ${n}`).join('\n') || '  (none)'}
 
 Specific fix instructions from the reviewer:
 ${priorFeedback.fix_instructions || '(none)'}
@@ -421,6 +426,8 @@ Make a STRUCTURALLY DIFFERENT design choice that addresses the root issue.
 If the previous plan used annotation circles for no reason — drop them.
 If text overlapped the focal point — pick a layout where text and image have separate zones.
 If the hook was vague — pick a more specific hook.
+If structural notes mention text_area_ratio is too high — use less text or smaller text.
+If structural notes mention color_count is too high — simplify the palette.
 ═══════════════════════════════════════════════════════════
 `
     : '';
@@ -649,6 +656,7 @@ Use multiple images for split, triptych, comparison, and collage layouts.
 Return ONLY valid JSON:
 {
   "archetype": "REQUIRED — exactly one of: ${Object.keys(ARCHETYPES).join(' | ')}. Pick the one whose contract best matches the video. The renderer will silently drop any element your archetype forbids.",
+  "primary_subject": "REQUIRED — the ONE concrete searchable noun the thumbnail must visually depict. This is the named entity from the title that, if missing from the image, makes the thumbnail meaningless. Examples: 'Rome' (not 'Roman empire collapse'), 'Yellowstone' (not 'volcano'), 'Lehman Brothers' (not 'stock crash'), 'Black Death' (not 'plague'), 'Pentagon' (not 'building'). Must be 1-3 words. Will be injected into every image search query — if it can't be found in a stock photo or generated, the thumbnail fails. Pick the MOST SEARCHABLE form of the subject.",
   "niche": "closest from: ${nicheList}",
   "category": "A" or "B",
   "render_mode": null for category A, or "crash_chart" | "iceberg" | "pyramid" for category B,
@@ -660,7 +668,9 @@ Return ONLY valid JSON:
   "image_prompt": "cinematic AI image prompt for main image. Include: 'cinematic, dramatic lighting, 16:9, no text, no watermarks, no people, no faces'. Describe a SPECIFIC scene. IMPORTANT: specify where in the frame the main subject should be positioned to leave clear negative space for text overlay (e.g. 'subject on the right side, dark empty space on the left for text').",
   "text_safe_zone": "where text will go — e.g. 'left 40%' or 'top-right' or 'bottom bar'. The AI image should leave this area simpler/darker for text readability.",
   "supplementary_query": "second image search query, or null",
-  "duplicate_main_for_split": true/false (set to true for before/after transformations so the SAME face appears on both sides),
+  "before_query": "ONLY for archetype=before_after. Pexels search query for the BEFORE state (problem visible). Example: 'acne face close up', 'ruined temple ancient', 'polluted river plastic waste'",
+  "after_query": "ONLY for archetype=before_after. Pexels search query for the AFTER state (result visible). Example: 'clear glowing skin face', 'restored temple', 'clean river crystal water'",
+  "duplicate_main_for_split": "DEPRECATED — do not use. Use before_query + after_query instead.",
   "image_prompt_2": "AI prompt for third image if needed (triptych, comparison), or null",
   "mood": "one word",
   "elements": [
@@ -703,17 +713,17 @@ Return ONLY valid JSON:
     { "type": "warm_glow", "x": 50, "y": 0, "w": 50, "h": 100, "intensity": 0.5 }
     Adds: golden warmth, brightness boost, saturation increase. Smooth glowing skin.
 
-    BEFORE/AFTER RULE: For transformation thumbnails (skin, body, weight loss, etc.):
-    - Search for a FRONT-FACING close-up portrait photo (photo_search_query: "close up portrait face front view clear skin")
-    - Set duplicate_main_for_split: true — the system will use the SAME photo for both sides
-    - Place background image on LEFT (x:0, w:50) and supplementary on RIGHT (x:50, w:50)
-    - Set face_crop: true on BOTH image elements so the face fills each panel
-    - Apply "desaturate" to left half — this adds blemishes/redness IN FULL COLOR (NOT greyscale)
-    - Apply "warm_glow" to right half — this adds golden radiance and smoothness
+    BEFORE/AFTER RULE: For transformation thumbnails (skin, body, weight loss, ruined-vs-restored buildings, polluted-vs-clean rivers, etc.):
+    - Set archetype: "before_after"
+    - Set use_real_photo: true (AI image generation CANNOT produce matched transformations — always use stock photos)
+    - Set before_query: a Pexels search query for the "problem" state. Examples: "acne face close up", "overweight stomach", "ruined ancient temple", "polluted river plastic"
+    - Set after_query: a Pexels search query for the "result" state. Examples: "clear glowing skin face", "fit muscular abs", "restored ancient temple", "clean river crystal water"
+    - The renderer will run TWO separate Pexels searches and composite them side by side. Two distinct real photos, no filter hacks.
+    - Place background image on LEFT (x:0, w:50, role: background) and supplementary on RIGHT (x:50, w:50, role: supplementary)
     - Add a white divider at position 50
-    - CRITICAL: BOTH sides must be in FULL COLOR. NEVER black-and-white. NEVER greyscale. The difference is SKIN QUALITY (blemishes vs clear), not a color filter.
-    - The face must be CENTERED and CLEARLY VISIBLE on both sides — not a side profile, not obscured by hair
-    - The viewer sees: same face with bad skin (left) vs same face with glowing skin (right)
+    - DO NOT use "desaturate" or "warm_glow" elements — these are deprecated filter hacks. The two distinct photos do the work.
+    - DO NOT set duplicate_main_for_split — that is also deprecated.
+    - Both photos must clearly depict the same SUBJECT TYPE (both faces, both buildings, both stomachs) so the comparison is legible at mobile scale.
 
     === VIGNETTE === { "type": "vignette", "strength": 0.3-0.7, "x": 50, "y": 50 }
     === DIVIDER === { "type": "divider", "orientation": "vertical" | "horizontal", "position": 50, "color": "#FFFFFF", "width": 4 }
@@ -754,6 +764,32 @@ NON-NEGOTIABLE RULES:
     // Validate niche
     if (!NICHES[plan.niche]) {
       plan.niche = niche && NICHES[niche] ? niche : "education";
+    }
+
+    // Validate primary_subject — fallback extractor if Claude omits or fails it.
+    // Pick the longest run of capitalized words from the title that isn't a
+    // stopword. This is a coarse heuristic but recovers Rome/Yellowstone/Pentagon
+    // class subjects reliably.
+    if (!plan.primary_subject || typeof plan.primary_subject !== "string" || plan.primary_subject.trim().length === 0) {
+      const STOP = new Set(["The", "A", "An", "Of", "In", "On", "And", "Or", "But", "For", "To", "Why", "How", "What", "When", "Where", "This", "That", "It", "Its", "It's", "Is", "Are", "Was", "Were", "Be", "Been", "Has", "Have", "Had", "Will", "Would", "Could", "Should", "I", "You", "We", "They", "He", "She"]);
+      const words = title.split(/\s+/);
+      const runs = [];
+      let cur = [];
+      for (const w of words) {
+        const clean = w.replace(/[^A-Za-z']/g, "");
+        if (clean && /^[A-Z]/.test(clean) && !STOP.has(clean)) {
+          cur.push(clean);
+        } else {
+          if (cur.length) runs.push(cur);
+          cur = [];
+        }
+      }
+      if (cur.length) runs.push(cur);
+      runs.sort((a, b) => b.length - a.length);
+      plan.primary_subject = runs[0] ? runs[0].slice(0, 3).join(" ") : title.split(/\s+/).slice(0, 2).join(" ");
+      console.log("  [Subject] Planner omitted primary_subject — extracted from title: \"" + plan.primary_subject + "\"");
+    } else {
+      console.log("  [Subject] " + plan.primary_subject);
     }
 
     // If Claude returned elements array, validate it
@@ -2022,6 +2058,78 @@ function renderPyramid(ctx, plan) {
   }
 }
 
+// ─── SALIENCY: find calm zones to place text where it won't cover focal points ──
+// Coarse busyness estimator: computes mean |Δlum| across a region. High values
+// mean lots of detail/edges (faces, complex objects). Low values mean sky,
+// dark background, blur — safe to overlay text. Uses subsampled imageData
+// to keep cost bounded regardless of region size.
+function regionBusyness(ctx, x, y, w, h) {
+  if (w < 8 || h < 8) return 0;
+  try {
+    const sampleW = Math.min(64, Math.max(8, Math.floor(w / 8)));
+    const sampleH = Math.min(64, Math.max(8, Math.floor(h / 8)));
+    const sx = Math.max(0, Math.round(x));
+    const sy = Math.max(0, Math.round(y));
+    const sw = Math.min(ctx.canvas.width - sx, Math.round(w));
+    const sh = Math.min(ctx.canvas.height - sy, Math.round(h));
+    if (sw <= 0 || sh <= 0) return 0;
+    const data = ctx.getImageData(sx, sy, sw, sh).data;
+    // Compute mean luminance and mean absolute deviation
+    let mean = 0;
+    let n = 0;
+    const stride = Math.max(1, Math.floor(sw / sampleW)) * 4;
+    for (let i = 0; i < data.length; i += stride) {
+      mean += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      n++;
+    }
+    mean /= n;
+    let dev = 0;
+    for (let i = 0; i < data.length; i += stride) {
+      const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      dev += Math.abs(lum - mean);
+    }
+    return dev / n; // 0 = perfectly flat, ~30+ = busy
+  } catch (e) {
+    return 0;
+  }
+}
+
+// Search for a "calm zone" large enough to host the given text bbox.
+// Tries the requested position first; if it's too busy AND there's something
+// calmer nearby, returns the calmer position. Always preserves alignment intent.
+// Returns { x, y, busyness, moved }.
+function findCalmZone(ctx, requestedX, requestedY, w, h, align = "left") {
+  const W = ctx.canvas.width;
+  const H = ctx.canvas.height;
+  const margin = 24;
+  const requestedBusy = regionBusyness(ctx, requestedX, requestedY, w, h);
+  // If the requested zone is already calm, keep it.
+  if (requestedBusy < 18) return { x: requestedX, y: requestedY, busyness: requestedBusy, moved: false };
+
+  // Generate candidate positions on a 3x3 grid, biased toward edges and corners.
+  const candidates = [];
+  const xs = align === "center"
+    ? [Math.round(W / 2 - w / 2)]
+    : align === "right"
+      ? [W - w - margin]
+      : [margin, Math.round(W / 2 - w / 2), W - w - margin];
+  const ys = [margin, Math.round(H * 0.35), Math.round(H * 0.6), H - h - margin];
+
+  for (const cx of xs) {
+    for (const cy of ys) {
+      if (cx < 0 || cy < 0 || cx + w > W || cy + h > H) continue;
+      candidates.push({ x: cx, y: cy, busyness: regionBusyness(ctx, cx, cy, w, h) });
+    }
+  }
+  // Always include the requested position as a candidate
+  candidates.push({ x: requestedX, y: requestedY, busyness: requestedBusy });
+
+  candidates.sort((a, b) => a.busyness - b.busyness);
+  const best = candidates[0];
+  const moved = best.x !== requestedX || best.y !== requestedY;
+  return { x: best.x, y: best.y, busyness: best.busyness, moved };
+}
+
 // ─── FREEFORM RENDERER ──────────────────────────────────────────────────────────
 // Executes Claude's creative brief as a layered composition.
 // Each element in the array is rendered in order (painter's algorithm).
@@ -2167,6 +2275,19 @@ function renderFreeformComposition(ctx, elements, mainImage, suppImage, thirdIma
             }
             console.log(`    [Collision] Nudged text "${content}" ${isRelatedText(content, region.content) ? 'adjacent to' : 'below'} existing ${region.type}`);
           }
+        }
+
+        // SALIENCY-AWARE PLACEMENT: if the requested position is sitting on the
+        // image's busy/focal region (face, helmet, complex object), relocate to
+        // a calmer zone. This is the fix for "text covers warrior's helmet" —
+        // the existing collision logic only checks against other text/banners,
+        // not against the image content itself.
+        const originalBusy = regionBusyness(ctx, textX, adjustedY, maxW, maxH);
+        const calm = findCalmZone(ctx, textX, adjustedY, maxW, maxH, align);
+        if (calm.moved) {
+          console.log(`    [Saliency] Moved text "${content}" from busy=${originalBusy.toFixed(1)} to calmer zone at (${calm.x}, ${calm.y}, busy=${calm.busyness.toFixed(1)})`);
+          textX = calm.x;
+          adjustedY = calm.y;
         }
 
         // Helper function to detect related text elements that should be grouped
@@ -2464,8 +2585,11 @@ function renderFreeformComposition(ctx, elements, mainImage, suppImage, thirdIma
 
 // ─── MAIN ENTRY POINT ──────────────────────────────────────────────────────────
 
+import { scoreThumbnailStructure } from './thumbnail-structural-scorer.js';
+
 const MAX_THUMBNAIL_ATTEMPTS = 3;
 const PASS_THRESHOLD = 7;
+const STRUCTURAL_PASS_THRESHOLD = 6;
 
 export async function generateThumbnailV2(outputDir, title, topic, scriptText = "", niche = "", tone = "", _attempt = 1, _priorFeedback = null) {
   console.log("============================================================");
@@ -2566,30 +2690,67 @@ export async function generateThumbnailV2(outputDir, title, topic, scriptText = 
       : plan.niche === 'finance' || plan.niche === 'tech'
       ? ' CANDID PROFESSIONAL STYLE: real workplace scenarios, actual environments, natural professional settings. AVOID: staged corporate stock photos, posed business scenarios.'
       : ' NATURAL AUTHENTIC STYLE: real-world scenarios, candid moments, documentary approach. AVOID: staged stock photography, overly polished studio shots.';
-    const styledPrompt = `${prompt}.${safezone} ${brightnessHint}. Style: ${nicheConfig.imageStyle}. Mood: ${plan.mood}.${thumbnailOpt}${projectCoherence}${genreFilter}${semanticFilter}${authenticityFilter} ${noTextSuffix}`;
+    // SUBJECT IDENTITY ENFORCEMENT — every image query must contain the
+    // title's primary subject so the resulting image cannot drift to a
+    // tangential topic. This is the fix for "Roman Empire test produced
+    // barbarian warrior images with no Rome anywhere."
+    const subj = (plan.primary_subject || "").trim();
+    const subjectLower = subj.toLowerCase();
+    const promptHasSubject = subjectLower && prompt.toLowerCase().includes(subjectLower);
+    const subjectInjection = (subj && !promptHasSubject)
+      ? ` MUST clearly depict ${subj} as the visual subject — ${subj} must be unmistakably present and recognizable.`
+      : "";
+    const styledPrompt = `${prompt}.${subjectInjection}${safezone} ${brightnessHint}. Style: ${nicheConfig.imageStyle}. Mood: ${plan.mood}.${thumbnailOpt}${projectCoherence}${genreFilter}${semanticFilter}${authenticityFilter} ${noTextSuffix}`;
     let aiUrl = null;
     try { aiUrl = await generateRecraftImage(styledPrompt, imageStyle); } catch (_) {}
     if (aiUrl) return aiUrl;
     try { aiUrl = await generateFluxImage(styledPrompt); } catch (_) {}
     if (aiUrl) return aiUrl;
     // BOTH AI providers failed — fall through to Pexels rather than rendering
-    // an empty gradient. This is the fix for "system silently ships 3/10 when
-    // fal.ai is flaky." Pexels query is the planner's photo_search_query if
-    // present, else a keyword distillation of the prompt.
+    // an empty gradient. The Pexels query MUST include the primary subject
+    // or the fallback drifts off-topic (Roman Empire → barbarian warriors).
     console.log(`  [${label}] All AI providers failed — falling back to Pexels stock`);
-    const stockQuery = plan.photo_search_query || prompt.split(/[,.]/)[0].substring(0, 80);
+    const baseQuery = plan.photo_search_query || prompt.split(/[,.]/)[0].substring(0, 80);
+    const stockQuery = (subj && !baseQuery.toLowerCase().includes(subjectLower))
+      ? `${subj} ${baseQuery}`.substring(0, 100)
+      : baseQuery;
+    console.log(`  [${label}/stock-fallback] Query: "${stockQuery}"`);
     try {
       const stock = await searchRealPhoto(stockQuery, label + "/stock-fallback");
       if (stock) return stock;
+      // If subject-prefixed query found nothing, try the bare subject as a last resort
+      if (subj && stockQuery !== subj) {
+        console.log(`  [${label}/stock-fallback] Retrying with bare subject: "${subj}"`);
+        const stock2 = await searchRealPhoto(subj, label + "/stock-fallback-subject");
+        if (stock2) return stock2;
+      }
     } catch (e) {
       console.log(`  [${label}] Pexels fallback also failed: ${e.message}`);
     }
     return null;
   }
 
-  if (useRealPhoto) {
+  // BEFORE/AFTER PRIMITIVE: when archetype is before_after, run TWO separate
+  // Pexels searches (one for problem state, one for result state). This kills
+  // the desaturate/warm_glow filter hack and produces a real comparison.
+  const isBeforeAfter = plan.archetype === "before_after" && plan.before_query && plan.after_query;
+  if (isBeforeAfter) {
+    console.log("  Mode: BEFORE/AFTER (two distinct Pexels searches)");
+    console.log("  Before: " + plan.before_query);
+    console.log("  After:  " + plan.after_query);
+    [mainImageUrl, suppImageUrl] = await Promise.all([
+      searchRealPhoto(plan.before_query, "Before"),
+      searchRealPhoto(plan.after_query, "After"),
+    ]);
+    thirdImageUrl = null;
+  } else if (useRealPhoto) {
     console.log("  Mode: REAL PHOTO (searching Pexels + Brave)");
-    const searchQuery = plan.photo_search_query || plan.image_prompt || topic;
+    const subj = (plan.primary_subject || "").trim();
+    const rawQuery = plan.photo_search_query || plan.image_prompt || topic;
+    // Inject primary subject if not already present
+    const searchQuery = (subj && !rawQuery.toLowerCase().includes(subj.toLowerCase()))
+      ? `${subj} ${rawQuery}`.substring(0, 100)
+      : rawQuery;
     console.log("  Query: " + searchQuery);
 
     [mainImageUrl, suppImageUrl, thirdImageUrl] = await Promise.all([
@@ -2701,14 +2862,40 @@ export async function generateThumbnailV2(outputDir, title, topic, scriptText = 
   fs.writeFileSync(planPath, JSON.stringify(plan, null, 2));
   console.log("  Plan: " + planPath);
 
-  // Step 6: Self-review — Claude evaluates the rendered thumbnail
-  console.log("\n--- Step 6: Self-review ---");
+  // Step 6a: Structural score — compares against the 140-reference distribution
+  // for the thumbnail's niche. This is the primary quality gate that doesn't
+  // share Claude's blind spots.
+  console.log("\n--- Step 6a: Structural score (vs reference library) ---");
+  let structuralScore = null;
+  try {
+    structuralScore = scoreThumbnailStructure(plan, canvas, plan.niche);
+    console.log("  Structural: " + structuralScore.score + "/10 (n=" + structuralScore.niche_n + " refs in " + plan.niche + ")");
+    if (structuralScore.notes && structuralScore.notes.length > 0) {
+      console.log("  Structural notes:");
+      for (const n of structuralScore.notes) console.log("    - " + n);
+    }
+  } catch (e) {
+    console.log("  [Structural] failed: " + e.message);
+    structuralScore = { score: 5, deltas: {}, notes: ["scorer error: " + e.message] };
+  }
+
+  // Step 6b: Self-review — Claude evaluates the rendered thumbnail (tiebreaker)
+  console.log("\n--- Step 6b: Self-review (Claude critic) ---");
   const reviewResult = await selfReviewThumbnail(buffer, title, plan);
-  console.log("  Rating: " + reviewResult.rating + "/10");
+  console.log("  Critic rating: " + reviewResult.rating + "/10");
   if (reviewResult.problems && reviewResult.problems.length > 0) {
     console.log("  Problems found:");
     for (const p of reviewResult.problems) console.log("    - " + p);
   }
+
+  // Combined rating: weighted blend of structural (60%) and Claude critic (40%).
+  // Structural gets the higher weight because it doesn't gaslight itself.
+  const combinedRating = Math.round(structuralScore.score * 0.6 + reviewResult.rating * 0.4);
+  reviewResult.structural_score = structuralScore.score;
+  reviewResult.structural_notes = structuralScore.notes;
+  reviewResult.structural_deltas = structuralScore.deltas;
+  reviewResult.combined_rating = combinedRating;
+  console.log("  Combined: " + combinedRating + "/10 (60% structural + 40% critic)");
 
   // Save review
   const reviewPath = path.join(outputDir, "thumbnail-v2-review.json");
@@ -2718,16 +2905,20 @@ export async function generateThumbnailV2(outputDir, title, topic, scriptText = 
   // element is a hard failure even if the visual reviewer rates it high.
   const archetypeViolations = plan._archetype_violations || [];
   const archetypeOk = archetypeViolations.length === 0;
+  const structuralOk = structuralScore.score >= STRUCTURAL_PASS_THRESHOLD;
 
-  if (reviewResult.rating >= PASS_THRESHOLD && archetypeOk) {
-    console.log("\n✅ Thumbnail v2 PASSED self-review! (" + reviewResult.rating + "/10) on attempt " + _attempt);
+  if (combinedRating >= PASS_THRESHOLD && archetypeOk && structuralOk) {
+    console.log("\n✅ Thumbnail v2 PASSED! (combined " + combinedRating + "/10, structural " + structuralScore.score + "/10) on attempt " + _attempt);
     return pngPath;
   }
 
   if (!archetypeOk) {
     console.log("\n⚠️  Archetype contract violations: " + archetypeViolations.join("; "));
   }
-  console.log("\n⚠️  Thumbnail v2 below threshold (" + reviewResult.rating + "/10) on attempt " + _attempt);
+  if (!structuralOk) {
+    console.log("\n⚠️  Structural score below threshold (" + structuralScore.score + " < " + STRUCTURAL_PASS_THRESHOLD + ")");
+  }
+  console.log("\n⚠️  Thumbnail v2 below threshold (combined " + combinedRating + "/10) on attempt " + _attempt);
 
   if (_attempt < MAX_THUMBNAIL_ATTEMPTS) {
     console.log(`   Retrying with reviewer feedback (attempt ${_attempt + 1}/${MAX_THUMBNAIL_ATTEMPTS})...`);

@@ -5,6 +5,81 @@ import path from "path";
 import ora from "ora";
 import chalk from "chalk";
 
+// ─── REFERENCE LIBRARY LEARNING ─────────────────────────────────────────────
+// Load top-performing real videos from /opt/videoforge/video-library so the
+// scriptwriter can learn from titles + descriptions of videos that actually
+// got millions of views. Per Niels: scripts from top performers should
+// inform new scripts. (Transcripts aren't yet downloaded — falls back to
+// title + description, which is still strong signal for hook patterns.)
+const VIDEO_LIBRARY_DIR = '/opt/videoforge/video-library';
+let _topRefsCache = null;
+
+function loadTopReferences() {
+  if (_topRefsCache) return _topRefsCache;
+  _topRefsCache = [];
+  if (!fs.existsSync(VIDEO_LIBRARY_DIR)) return _topRefsCache;
+  try {
+    for (const id of fs.readdirSync(VIDEO_LIBRARY_DIR)) {
+      const metaPath = path.join(VIDEO_LIBRARY_DIR, id, 'metadata.json');
+      if (!fs.existsSync(metaPath)) continue;
+      try {
+        const m = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+        if (!m.title || !m.viewCount) continue;
+        _topRefsCache.push({
+          id,
+          title: m.title,
+          channel: m.channel,
+          views: m.viewCount,
+          description: (m.description || '').substring(0, 800),
+          transcript: m.transcript || null,
+        });
+      } catch (e) {}
+    }
+    _topRefsCache.sort((a, b) => b.views - a.views);
+  } catch (e) {
+    /* directory missing or unreadable */
+  }
+  return _topRefsCache;
+}
+
+// Build a few-shot block of top-performing references for the scriptwriter prompt.
+// Picks the top N by view count, optionally filtered by topic keyword overlap.
+function buildReferenceBlock(topic, niche, n = 5) {
+  const refs = loadTopReferences();
+  if (refs.length === 0) return '';
+
+  // Score references by topic keyword overlap so the scriptwriter sees
+  // semantically relevant examples, not just the highest-view ones.
+  const topicWords = new Set(topic.toLowerCase().split(/\W+/).filter(w => w.length > 3));
+  const nicheWords = new Set((niche || '').toLowerCase().split(/\W+/).filter(w => w.length > 3));
+  const scored = refs.map(r => {
+    const titleWords = new Set(r.title.toLowerCase().split(/\W+/));
+    let overlap = 0;
+    for (const w of topicWords) if (titleWords.has(w)) overlap += 3;
+    for (const w of nicheWords) if (titleWords.has(w)) overlap += 1;
+    return { ...r, relevance: overlap, viewBonus: Math.log10(Math.max(1, r.views)) };
+  });
+  // Sort by relevance first, then by views as tiebreaker
+  scored.sort((a, b) => (b.relevance - a.relevance) || (b.viewBonus - a.viewBonus));
+  const picks = scored.slice(0, n);
+
+  const lines = [
+    '═══ TOP-PERFORMING REFERENCE VIDEOS (learn from these) ═══',
+    `Below are ${picks.length} real YouTube videos with millions of views, selected for relevance to your topic. Study their TITLE PATTERNS (how they hook), their DESCRIPTION OPENERS (how they set the stakes), and the language they use. Your script should match this energy — not copy the topic, but copy the craft.`,
+    '',
+  ];
+  for (const p of picks) {
+    lines.push(`• "${p.title}" — ${p.channel} (${p.views.toLocaleString()} views)`);
+    if (p.description) {
+      const firstParagraph = p.description.split(/\n/)[0].substring(0, 400);
+      lines.push(`  Opener: "${firstParagraph}"`);
+    }
+    lines.push('');
+  }
+  lines.push('═══════════════════════════════════════════════════════');
+  return lines.join('\n');
+}
+
 /**
  * Script Generator v40 — Complete Rewrite
  *
@@ -279,6 +354,7 @@ Weave it in — don't just drop it. Example: "And if this is the kind of content
   const blockNote = blockRole ? `\nSCRIPT ROLE: ${blockRole}\n` : '';
 
   const animHints = getAnimationHints('infographic', niche);
+  const referenceBlock = buildReferenceBlock(topic, niche, 5);
 
   return `You are the best YouTube scriptwriter alive. You write for faceless channels that get millions of views because your scripts are genuinely gripping — not because they follow a template, but because they sound like a real person who actually cares about this topic.
 
@@ -292,6 +368,8 @@ ${keyPointsSection}
 ${ctaSection}
 ${animHints}
 THIS IS A DATA-DRIVEN VIDEO. It will be paired with animated charts, number reveals, stat cards, and infographics. Write to CREATE moments where a number or comparison lands hard — the visuals will amplify it.
+
+${referenceBlock}
 
 ${HOOK_PATTERNS}
 
@@ -385,6 +463,7 @@ SCRIPT ROLE: ${blockRole}
 ` : '';
 
   const animHints = getAnimationHints('documentary', niche);
+  const referenceBlock = buildReferenceBlock(topic, niche, 5);
 
   return `You are a world-class documentary narrator — think Ken Burns, David Attenborough, or the voice behind The Last Kingdom. You write history that feels alive. Not a textbook. A story.
 
@@ -398,6 +477,8 @@ ${keyPointsSection}
 ${ctaSection}
 ${animHints}
 THIS IS A CINEMATIC DOCUMENTARY. Every sentence should feel like it belongs in a Netflix historical documentary. Specific people, specific dates, specific places. No vague summaries.
+
+${referenceBlock}
 
 ${HOOK_PATTERNS}
 
@@ -474,6 +555,7 @@ Place it TWICE: once naturally after the hook (~30 seconds in), once as the very
   const blockNote = blockRole ? `\nSCRIPT ROLE: ${blockRole}\n` : '';
 
   const animHints = getAnimationHints('visual', niche);
+  const referenceBlock = buildReferenceBlock(topic, niche, 5);
 
   return `You are the best YouTube scriptwriter alive. You write for faceless channels that get millions of views because your scripts feel alive — they're cinematic, paced perfectly, and they make people forget they're watching a faceless video.
 
@@ -487,6 +569,8 @@ ${keyPointsSection}
 ${ctaSection}
 ${animHints}
 THIS IS A VISUAL-NARRATIVE VIDEO. It will be paired with real photographs, AI-generated imagery, and cinematic b-roll. Every sentence you write should make the video team know exactly what image to find. Write so visually that a blind person could see it.
+
+${referenceBlock}
 
 ${HOOK_PATTERNS}
 
