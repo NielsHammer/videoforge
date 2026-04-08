@@ -26,25 +26,29 @@ import fs from 'fs';
 import path from 'path';
 
 const REFERENCES_DIR = '/opt/videoforge/thumbnail-references';
+const VIDEO_LIBRARY_DIR = '/opt/videoforge/video-library';
 
 let _allRefs = null;
 
-// Map niches that exist as reference dirs but not as direct planner niches
+// Map niches that exist as reference dirs but not as direct planner niches.
+// These also map to the inferTitleNiche tags so the video-library can be
+// filtered by visual-style proximity. Tight matches only — broader bleeds
+// produce wrong-vibe references (dropshipping for a Yellowstone thumbnail).
 const NICHE_NEIGHBORS = {
-  science: ['science', 'tech', 'space', 'nature'],
+  science: ['science', 'space', 'disaster_science'],
   finance: ['finance'],
-  tech: ['tech', 'science', 'military'],
+  tech: ['tech', 'mystery'],
   health: ['health', 'self_improvement'],
-  history: ['history', 'military', 'horror'],
-  horror: ['horror', 'history'],
+  history: ['history', 'mystery'],
+  horror: ['mystery', 'history'],
   space: ['space', 'science'],
-  nature: ['nature', 'travel', 'science'],
-  travel: ['travel', 'nature'],
+  nature: ['nature', 'disaster_science', 'science'],
+  travel: ['nature', 'history'],
   entertainment: ['entertainment'],
-  education: ['education', 'self_improvement', 'health'],
-  self_improvement: ['self_improvement', 'health', 'education'],
-  military: ['military', 'history', 'tech'],
-  retirement: ['retirement', 'finance'],
+  education: ['science', 'self_improvement'],
+  self_improvement: ['self_improvement', 'health'],
+  military: ['history', 'tech'],
+  retirement: ['finance'],
 };
 
 function loadAll() {
@@ -105,6 +109,89 @@ function scoreRelevance(ref, title, niche, targetEmotion) {
   }
 
   return score;
+}
+
+// Pick the top N actual thumbnail.jpg files from video-library most relevant
+// to the current title+niche. Returns [{path, title, channel, views, niche}].
+// These are loaded as vision attachments in the planner so Claude can SEE
+// what good thumbnails look like, not just read JSON descriptions.
+let _videoLib = null;
+function loadVideoLibrary() {
+  if (_videoLib) return _videoLib;
+  _videoLib = [];
+  if (!fs.existsSync(VIDEO_LIBRARY_DIR)) return _videoLib;
+  for (const id of fs.readdirSync(VIDEO_LIBRARY_DIR)) {
+    const dir = path.join(VIDEO_LIBRARY_DIR, id);
+    let stat;
+    try { stat = fs.statSync(dir); } catch (e) { continue; }
+    if (!stat.isDirectory()) continue;
+    const metaFile = path.join(dir, 'metadata.json');
+    const thumbFile = path.join(dir, 'thumbnail.jpg');
+    if (!fs.existsSync(metaFile) || !fs.existsSync(thumbFile)) continue;
+    try {
+      const m = JSON.parse(fs.readFileSync(metaFile, 'utf-8'));
+      if (!m.title || !m.viewCount) continue;
+      _videoLib.push({
+        id,
+        title: m.title,
+        channel: m.channel,
+        views: m.viewCount,
+        path: thumbFile,
+        thumbBytes: stat.isFile() ? fs.statSync(thumbFile).size : 0,
+      });
+    } catch (e) {}
+  }
+  return _videoLib;
+}
+
+// Heuristic niche tags from title keywords — used to score relevance when
+// the video-library doesn't store niche directly. A title can match multiple
+// tags so we get broader matches and better fallback options.
+function inferTitleNiche(title) {
+  const t = (title || '').toLowerCase();
+  const tags = new Set();
+  if (/\b(rocket|space|nasa|planet|galaxy|cosmos|star|stars|black hole|moon|mars|jupiter|saturn|venus|mercury|pluto|alien|universe|dimension|astronomy|astronomical|orbit|cosmic|astrophysics)\b/.test(t)) tags.add('space');
+  if (/\b(ai|artificial intelligence|robot|hack|hacker|hacking|cyber|crypto|computer|machine learning|neural|tech|software|hardware|program|coding|algorithm|silicon|chip)\b/.test(t)) tags.add('tech');
+  if (/\b(invest|investing|stock|stocks|crypto|bitcoin|money|millionaire|million|billion|trillion|wealth|finance|broke|rich|profit|loss|crash|market|economy|recession|inflation|debt|tax|salary|pension|fund|hedge|portfolio|trading|trader|trade|ponzi|fraud|madoff)\b/.test(t)) tags.add('finance');
+  if (/\b(volcano|earthquake|trench|ocean|deep sea|mariana|marianas|yellowstone|caldera|tsunami|hurricane|tornado|asteroid|meteor|extinction|disaster|geology|geological|magma|tectonic|fault|seismic)\b/.test(t)) tags.add('disaster_science');
+  if (/\b(animal|wildlife|jungle|forest|species|amazon|reef|coral|whale|shark|wolf|bear|tiger|lion|elephant|extinct|biology|ecosystem)\b/.test(t)) tags.add('nature');
+  if (/\b(history|ancient|empire|war|world war|king|queen|battle|rome|roman|medieval|civilization|dynasty|century|bc|ad|pharaoh|emperor|knight|viking|nazi|soviet|cold war)\b/.test(t)) tags.add('history');
+  if (/\b(diet|health|food|nutrition|brain|sleep|exercise|fitness|mental|workout|body|muscle|fat|weight|sugar|hormone|insulin|cancer|heart|disease|cholesterol|protein|avocado|carb|keto|vegan|vitamin)\b/.test(t)) tags.add('health');
+  if (/\b(physics|chemistry|biology|science|scientific|experiment|theory|quantum|atom|particle|relativity|entropy|antimatter|laser|fusion|fission|gravity|magnetism|electron|proton|neutron|dna|gene|cell)\b/.test(t)) tags.add('science');
+  if (/\b(country|countries|china|chinese|russia|russian|north korea|south korea|america|american|usa|europe|european|africa|asian|geopolitics|politics|political|election|leader|president|prime minister|government|nation|nations)\b/.test(t)) tags.add('geopolitics');
+  if (/\b(motivation|motivational|discipline|habit|habits|routine|success|mindset|productivity|stoic|stoicism|wisdom|self help|self improvement|focus|goals|achievement)\b/.test(t)) tags.add('self_improvement');
+  if (/\b(mystery|mysterious|secret|secrets|conspiracy|hidden|forbidden|dark|cult|paranormal|unsolved|cold case|crime|murder|killer|haunted|disappear|vanish|vanished|missing)\b/.test(t)) tags.add('mystery');
+  return tags;
+}
+
+export function selectReferenceThumbnailImages(title, niche, n = 4) {
+  const lib = loadVideoLibrary();
+  if (lib.length === 0) return [];
+  const titleWords = new Set((title || '').toLowerCase().split(/\W+/).filter(w => w.length > 3));
+  const nicheTagSet = new Set([niche, ...(NICHE_NEIGHBORS[niche] || [])]);
+  const titleTags = inferTitleNiche(title);
+
+  const scored = lib.map(v => {
+    let score = 0;
+    const vTags = inferTitleNiche(v.title);
+    // Hard niche match — must share at least one tag with the title or niche
+    let hasNicheMatch = false;
+    for (const tag of titleTags) if (vTags.has(tag)) { score += 10; hasNicheMatch = true; }
+    for (const tag of nicheTagSet) if (vTags.has(tag)) { score += 5; hasNicheMatch = true; }
+    // Title keyword overlap (exact word match)
+    const vWords = (v.title || '').toLowerCase().split(/\W+/);
+    for (const w of vWords) if (titleWords.has(w)) score += 6;
+    // Tiny view tiebreaker — log10 / 4 so a 10M-view video only gets +1.75
+    score += Math.log10(Math.max(1, v.views)) / 4;
+    return { ...v, _score: score, _hasNicheMatch: hasNicheMatch };
+  });
+  // Prefer niche-matched candidates; fall back to others only if needed
+  const matched = scored.filter(s => s._hasNicheMatch).sort((a, b) => b._score - a._score);
+  const unmatched = scored.filter(s => !s._hasNicheMatch).sort((a, b) => b._score - a._score);
+  const out = matched.slice(0, n);
+  // Pad from unmatched only if we don't have enough niche-matched references
+  while (out.length < n && unmatched.length > 0) out.push(unmatched.shift());
+  return out;
 }
 
 export function selectRelevantReferences(title, niche, n = 4, targetEmotion = null) {
