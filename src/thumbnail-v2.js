@@ -771,11 +771,30 @@ NON-NEGOTIABLE RULES:
     // Validate niche — RESPECT the caller's hint when valid. Claude's
     // auto-detection routinely picks "education" for everything; the caller
     // (autonomous loop, batch test, live order) usually has better signal.
-    if (niche && NICHES[niche]) {
-      if (plan.niche !== niche) {
-        console.log(`  [Niche] Caller specified "${niche}" — overriding planner's "${plan.niche || 'unknown'}"`);
+    // Aliases map reference-library niches to NICHES const entries when the
+    // const doesn't have a direct match (science/military/retirement exist
+    // as reference dirs but not as NICHES keys).
+    const NICHE_ALIASES = {
+      science: "tech",
+      self_improvement: "health",
+      military: "history",
+      retirement: "finance",
+    };
+    const resolveNiche = (n) => {
+      if (!n) return null;
+      if (NICHES[n]) return n;
+      if (NICHE_ALIASES[n] && NICHES[NICHE_ALIASES[n]]) return NICHE_ALIASES[n];
+      return null;
+    };
+    const callerNiche = resolveNiche(niche);
+    if (callerNiche) {
+      if (plan.niche !== callerNiche) {
+        console.log(`  [Niche] Caller specified "${niche}" → resolved to "${callerNiche}", overriding planner's "${plan.niche || 'unknown'}"`);
       }
-      plan.niche = niche;
+      plan.niche = callerNiche;
+      // Stash the original niche so the structural scorer can use the matching
+      // reference distribution (science → science refs, not tech refs)
+      plan._reference_niche = niche;
     } else if (!NICHES[plan.niche]) {
       plan.niche = "education";
     }
@@ -2641,7 +2660,12 @@ export async function generateThumbnailV2(outputDir, title, topic, scriptText = 
   // Step 2: Get images — route between REAL PHOTOS and AI GENERATION
   console.log("\n--- Step 2: Getting images ---");
   const nicheConfig = NICHES[plan.niche] || NICHES.education;
-  const useRealPhoto = plan.use_real_photo === true;
+  // Env override for testing when fal.ai is down — bypasses AI generation entirely
+  const forceRealPhoto = process.env.THUMBNAIL_FORCE_REAL_PHOTO === "1";
+  const useRealPhoto = plan.use_real_photo === true || forceRealPhoto;
+  if (forceRealPhoto && plan.use_real_photo !== true) {
+    console.log("  [Override] THUMBNAIL_FORCE_REAL_PHOTO=1 — bypassing AI image generation");
+  }
 
   let mainImageUrl = null;
   let suppImageUrl = null;
@@ -2878,12 +2902,15 @@ export async function generateThumbnailV2(outputDir, title, topic, scriptText = 
 
   // Step 6a: Structural score — compares against the 140-reference distribution
   // for the thumbnail's niche. This is the primary quality gate that doesn't
-  // share Claude's blind spots.
+  // share Claude's blind spots. Prefer the original reference-library niche
+  // (e.g. "science") over the aliased rendering niche (e.g. "tech") so we
+  // compare against the right distribution.
   console.log("\n--- Step 6a: Structural score (vs reference library) ---");
   let structuralScore = null;
+  const scoringNiche = plan._reference_niche || plan.niche;
   try {
-    structuralScore = scoreThumbnailStructure(plan, canvas, plan.niche);
-    console.log("  Structural: " + structuralScore.score + "/10 (n=" + structuralScore.niche_n + " refs in " + plan.niche + ")");
+    structuralScore = scoreThumbnailStructure(plan, canvas, scoringNiche);
+    console.log("  Structural: " + structuralScore.score + "/10 (n=" + structuralScore.niche_n + " refs in " + scoringNiche + ")");
     if (structuralScore.notes && structuralScore.notes.length > 0) {
       console.log("  Structural notes:");
       for (const n of structuralScore.notes) console.log("    - " + n);

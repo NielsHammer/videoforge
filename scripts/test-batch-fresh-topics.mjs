@@ -14,6 +14,12 @@ import path from 'path';
 import dotenv from 'dotenv';
 dotenv.config();
 
+// fal.ai has been returning 504s/500s on every Recraft + Flux call this session.
+// Each AI attempt burns ~2 minutes per provider per call before timing out.
+// Force Pexels for the test so we get end-to-end results in minutes not hours.
+// The autonomous loop and live worker still try AI first when fal.ai recovers.
+const FORCE_PEXELS = process.env.FORCE_PEXELS !== "0";
+
 const TOPICS = [
   { title: "Why Yellowstone Could Erupt Sooner Than Anyone Admits", niche: "science", tone: "dramatic" },
   { title: "The Day Bernie Madoff's Ponzi Scheme Finally Collapsed", niche: "finance", tone: "documentary" },

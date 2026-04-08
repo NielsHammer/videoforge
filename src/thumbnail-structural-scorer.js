@@ -112,37 +112,50 @@ export function extractGeneratedFeatures(plan, canvas) {
         if (el.type === 'text' && el.content) {
           const wc = String(el.content).split(/\s+/).filter(Boolean).length;
           textWordCount += wc;
-          // Approximate text size ratio based on font_size category
-          const sizeMap = { massive: 0.45, large: 0.36, medium: 0.28, small: 0.20 };
-          const r = sizeMap[el.font_size] || 0.36;
+          // Approximate text size ratio: ratio of text BLOCK HEIGHT to canvas height.
+          // References measure this as size_ratio (e.g. 0.18 for "DO NOT JOIN" at 18% of canvas height).
+          // The renderer's font categories don't map 1:1 — a "massive" hook on one line is ~0.18-0.22
+          // of canvas height, not 0.45 (which was the bbox MAX, not the actual rendered size).
+          const sizeMap = { massive: 0.18, large: 0.14, medium: 0.10, small: 0.07 };
+          const r = sizeMap[el.font_size] || 0.14;
           primaryTextSizeRatio = Math.max(primaryTextSizeRatio, r);
         }
       }
     }
   }
 
-  // Color count: quantize the rendered canvas at low resolution and count
-  // distinct hex bins. Top-performing references typically have 3–6 dominant
-  // colors; thumbnails with 12+ usually look noisy.
+  // Dominant color count: quantize aggressively and count only colors that
+  // occupy ≥2% of the canvas. This matches how reference blueprints count
+  // dominant colors (typically 5-7 entries in color_palette.hex_list), NOT
+  // the raw distinct color count which is always in the dozens for any
+  // photographic image. The previous version was comparing apples to oranges
+  // and producing 50-100σ deviations on every thumbnail.
   let colorCount = null;
   try {
-    const sw = 64, sh = 36;
     const tmp = ctx.getImageData(0, 0, W, H);
-    // downsample manually
-    const seen = new Set();
-    const stepX = Math.max(1, Math.floor(W / sw));
-    const stepY = Math.max(1, Math.floor(H / sh));
+    const buckets = new Map();
+    const stepX = Math.max(1, Math.floor(W / 80));
+    const stepY = Math.max(1, Math.floor(H / 45));
+    let total = 0;
     for (let y = 0; y < H; y += stepY) {
       for (let x = 0; x < W; x += stepX) {
         const i = (y * W + x) * 4;
-        // Quantize to 4-bit per channel (16 values per channel = 4096 buckets)
-        const r = tmp.data[i] >> 4;
-        const g = tmp.data[i + 1] >> 4;
-        const b = tmp.data[i + 2] >> 4;
-        seen.add((r << 8) | (g << 4) | b);
+        // Quantize to 3-bit per channel (8 values per channel = 512 buckets)
+        const r = tmp.data[i] >> 5;
+        const g = tmp.data[i + 1] >> 5;
+        const b = tmp.data[i + 2] >> 5;
+        const key = (r << 6) | (g << 3) | b;
+        buckets.set(key, (buckets.get(key) || 0) + 1);
+        total++;
       }
     }
-    colorCount = seen.size;
+    // Count only buckets that occupy ≥2% of sampled pixels
+    const threshold = Math.max(1, total * 0.02);
+    let dominant = 0;
+    for (const count of buckets.values()) {
+      if (count >= threshold) dominant++;
+    }
+    colorCount = dominant;
   } catch (e) {
     colorCount = null;
   }
