@@ -251,15 +251,30 @@ ${visionRefs.length} reference thumbnails attached (top-performing real YouTube 
 ${poolWinners.length} APPROVED designs attached (the human reviewer Niels personally said these work).
 ${poolLosers.length} REJECTED designs attached (Niels personally rejected these — see reasons below).
 
-LOOK AT EACH IMAGE before designing. Read the captions. The approved ones are
-your bar. The rejected ones are the patterns you must avoid. Niels's approved
-thumbnails are the ground truth for what good looks like — match their level
-of intentionality, not your default instincts.
+CRITICAL — HOW TO USE THE APPROVED EXAMPLES:
+Niels approved these designs for ONE reason: the LEVEL OF CRAFT. Every pixel
+in an approved design was intentional, and the composition served THAT
+specific video's content. The approved examples are NOT templates to copy.
+The approved before/after is not a signal that more before/afters are wanted.
+The approved hero-image-with-text is not a signal that all thumbnails should
+be hero-image-with-text. The signal is: "match this commitment to designing
+for the specific content." A Tunguska explosion thumbnail with this level
+of craft looks completely different from a sugar transformation thumbnail
+with this level of craft. The same craft, applied to different content,
+produces structurally different designs every time.
+
+If your design feels like it could be slid onto a different video by
+swapping the words and image, you have copied a template. Throw it away
+and design for THIS specific video's specific story.
+
+LOOK AT EACH ATTACHED IMAGE before designing. Notice the LEVEL of intentionality —
+not the layout pattern. Then design something with the same level of intentionality
+for THIS video.
 
 WHY EACH REJECTED DESIGN WAS REJECTED (do not repeat these mistakes):
 ${poolLosers.map((l, i) => `  ${i + 1}. "${l.title || 'untitled'}": ${l.reason}`).join('\n') || '  (none)'}
 
-WHY EACH APPROVED DESIGN WORKS:
+WHY EACH APPROVED DESIGN WORKS — read these as evidence of CRAFT, not as layout templates:
 ${poolWinners.map((w, i) => `  ${i + 1}. "${w.title || 'untitled'}": ${w.approved_reason || '(approved)'}`).join('\n') || '  (none)'}
 `
     : '';
