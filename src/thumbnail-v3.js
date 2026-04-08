@@ -295,6 +295,24 @@ The HTML you write will be loaded directly into a headless Chrome browser at exa
 - Named individuals (Bernie Madoff, Hitler, Putin) cannot be searched in stock libraries — design around the place/era/artifact, not their face.
 - The image and the text must depict the same SPECIFIC story. A Yellowstone thumbnail must show Yellowstone, not "a volcano."
 
+═══ HARD TEXT LEGIBILITY RULES (these are non-negotiable, learned from real human feedback) ═══
+
+These come from a human reviewer who looked at previous outputs and called them out:
+
+1. **NO TEXT BELOW 36px FONT SIZE.** Anything smaller vanishes at 168x94 mobile. Minimum is 36px (5% of canvas height). If you cannot fit your text at 36px+, cut the text — do not shrink it.
+
+2. **NO GREY TEXT EVER.** Grey text (#888, #aaa, #ccc, anything between #444 and #ddd) disappears against any background at mobile scale. Text is either pure white (#FFF) on dark backgrounds, near-black (#000-#222) on bright backgrounds, or a saturated accent color (#FF1744 red, #FFD740 yellow, #00E676 green, #00BFFF cyan). NEVER grey.
+
+3. **NO LOW-CONTRAST TEXT.** Every text element must have at least 7:1 contrast ratio against the pixels behind it. If the background is busy, add a solid color block, gradient, or text shadow to guarantee contrast. White text with no shadow over a bright sky is invalid. Grey text with no stroke over a grey image is invalid.
+
+4. **MAXIMUM 2 TEXT BLOCKS PLUS A BANNER.** That's it. One primary hook (massive). One secondary line (large or medium). One short banner with a context word. NOTHING ELSE. If you find yourself adding a 4th text element, it is noise.
+
+5. **NO ROTATED OR EDGE-CLIPPED TEXT.** Text rotated 90 degrees on the side of the canvas, text running along an edge, text in tiny corners — all invisible at mobile size. Text is horizontal, anchored, and large.
+
+6. **BANNERS MUST BE SELF-EXPLANATORY TO COLD VIEWERS.** A banner that says "GRAND PRISMATIC TURNED BROWN" assumes the viewer knows what Grand Prismatic is. They don't. A banner that says "LAKE TURNED BROWN" or "WATER POISONED" works because anyone can parse it. NEVER use jargon or insider terminology in banners — they must make instant sense to someone who has never heard of the topic before.
+
+These rules were generated from actual rejected thumbnails. Every output that violates them will be rejected.
+
 ═══ RETURN FORMAT — REQUIRED JSON ═══
 
 Return ONLY a valid JSON object with this exact shape (no markdown fences, no commentary):
@@ -495,6 +513,58 @@ Return ONLY valid JSON:
   };
 }
 
+// Heuristic check for the "small grey text" failure mode Niels flagged on
+// the v3 Marianas thumbnail. Scans the rendered HTML for any inline color
+// or font-size that violates the legibility rules. Operates on the HTML
+// itself (not the PNG) because text properties are explicit there. Returns
+// {ok: bool, violations: [strings]}.
+function checkHtmlLegibility(html) {
+  const violations = [];
+  // Pull all font-size declarations
+  const fontSizeMatches = [...html.matchAll(/font-size\s*:\s*(\d+(?:\.\d+)?)\s*(px|rem|em)/gi)];
+  for (const m of fontSizeMatches) {
+    let pxValue = parseFloat(m[1]);
+    if (m[2] === 'rem' || m[2] === 'em') pxValue *= 16; // assume default root
+    if (pxValue < 36) {
+      violations.push(`text font-size ${pxValue}px is below 36px minimum (cannot survive 168x94 downscale)`);
+    }
+  }
+  // Pull all color values that look like grey
+  // Grey hex: #444-#ddd, or rgb where r==g==b in 70-220 range
+  const colorMatches = [...html.matchAll(/color\s*:\s*(#[0-9a-f]{3,6}|rgba?\([^)]+\))/gi)];
+  for (const m of colorMatches) {
+    const c = m[1].toLowerCase();
+    if (c.startsWith('#')) {
+      // Expand 3-char to 6-char
+      let hex = c.slice(1);
+      if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+      if (hex.length !== 6) continue;
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      // Grey if r==g==b within tolerance and value is in mid range
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      if (max - min < 25 && max >= 70 && max <= 220) {
+        violations.push(`text color ${c} is grey — never grey, use white/dark/saturated accent only`);
+      }
+    } else if (c.startsWith('rgb')) {
+      const nums = c.match(/\d+(?:\.\d+)?/g);
+      if (nums && nums.length >= 3) {
+        const r = +nums[0], g = +nums[1], b = +nums[2];
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        if (max - min < 25 && max >= 70 && max <= 220) {
+          violations.push(`text color ${c} is grey — never grey`);
+        }
+      }
+    }
+  }
+  // Detect rotated text (transform: rotate)
+  if (/transform\s*:[^;]*rotate/i.test(html)) {
+    violations.push(`text uses transform: rotate — rotated text vanishes at mobile scale`);
+  }
+  return { ok: violations.length === 0, violations };
+}
+
 // Mobile downscale review — render at 168x94 and check for "black rectangle"
 async function mobileLuminanceCheck(pngPath, outDir) {
   // Use node-canvas to scale to 168x94 and compute luminance stats
@@ -562,6 +632,17 @@ export async function generateThumbnailV3({ outputDir, title, scriptText = '', n
   const rewritten = rewriteHtmlImages(plan.html, imagePaths);
   const htmlPath = path.join(outputDir, 'thumbnail-v3.html');
   const pngPath = path.join(outputDir, 'thumbnail-v3.png');
+
+  // HARD legibility check — Niels rule: no text under 36px, no grey text,
+  // no rotated text. Catches the "small grey text vanishes at 168x94" failure
+  // mode before rendering. Violations are surfaced into the review so the
+  // retry logic can react.
+  const legibility = checkHtmlLegibility(rewritten);
+  if (!legibility.ok) {
+    console.log('  ⚠️  Legibility violations:');
+    for (const v of legibility.violations) console.log('    ✗ ' + v);
+  }
+
   try {
     await renderHtmlToPng(rewritten, pngPath, htmlPath);
     const sizeKB = Math.round(fs.statSync(pngPath).size / 1024);
@@ -591,6 +672,12 @@ export async function generateThumbnailV3({ outputDir, title, scriptText = '', n
   if (mobile && mobile.is_black_rect) {
     review.rating = Math.min(review.rating, 3);
     review.problems = [...review.problems, 'MOBILE BLACK RECTANGLE — too dark to see at 168x94'];
+  }
+  // Hard legibility violations cap the rating at 4 — Niels rules are non-advisory
+  if (!legibility.ok) {
+    review.rating = Math.min(review.rating, 4);
+    review.problems = [...review.problems, ...legibility.violations.map(v => 'LEGIBILITY: ' + v)];
+    review._legibility_violations = legibility.violations;
   }
   review._mobile_avg = mobile?.avg || null;
   review._mobile_range = mobile?.range || null;
