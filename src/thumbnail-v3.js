@@ -237,7 +237,7 @@ async function resolveImageRequest(req, label, outDir) {
 //     PLUS up to 3 losers with their text reasons (so Claude knows what to avoid)
 //   - The learning pool grows over time and becomes the only calibration signal
 
-function buildPlannerPrompt({ title, scriptText, niche, tone, priorAttempt, visionRefs = [], poolWinners = [], poolLosers = [], lockedHook = null }) {
+function buildPlannerPrompt({ title, scriptText, niche, tone, priorAttempt, visionRefs = [], poolWinners = [], poolLosers = [], lockedHook = null, lockedMetaphor = null }) {
   const scriptExcerpt = scriptText
     ? scriptText.substring(0, 6000)
     : 'No script available — design from title alone.';
@@ -306,13 +306,32 @@ Your job is NOT to write a different hook. Your job is to design a thumbnail com
 
 The other 4 candidates the hook writer rejected:
 ${(lockedHook.candidates || []).filter(c => c.hook !== lockedHook.winner).map(c => `  - "${c.hook}" (reactive=${c.reactive} curiosity=${c.curiosity} specific=${c.specific} verb=${c.verb_strength})`).join('\n')}
+`
+    : '';
 
-Build the visual around the locked hook. The image is whatever makes the locked hook FEEL true.
+  const lockedMetaphorBlock = lockedMetaphor
+    ? `
+═══ LOCKED VISUAL METAPHOR — USE THIS IMAGE IDEA ═══
+
+A separate visual metaphor brainstorm already chose the strongest image idea for this video. The metaphor was scored to make the locked hook FEEL true at a glance — DO NOT default to a literal stock image of the topic.
+
+  METAPHOR: ${lockedMetaphor.winner.metaphor}
+  WHY: ${lockedMetaphor.winner_reasoning}
+
+Use this image_request prompt as the basis for image_requests[0]. You can refine the wording but the metaphor concept must stay intact. Do NOT replace it with a more obvious literal image:
+
+  "${lockedMetaphor.winner.image_prompt}"
+  source_hint: "${lockedMetaphor.winner.source_hint || 'ai'}"
+
+The other 4 metaphors that were considered (showing the bar — these were rejected for the chosen one):
+${(lockedMetaphor.candidates || []).filter((_, i) => i !== (lockedMetaphor.winner_index || 0)).slice(0, 4).map(c => `  - ${c.metaphor} (surprise=${c.surprise} emotion=${c.emotional_impact} specific=${c.specificity} coherence=${c.hook_coherence})`).join('\n')}
+
+Your composition should make the locked hook + locked metaphor work together as ONE idea.
 `
     : '';
 
   return `You are a senior YouTube thumbnail designer who charges $500/thumbnail. You design freely. You are not given templates, layouts, or composition rules — you decide every pixel based on what the SPECIFIC video needs.
-${visionBlock}${lockedHookBlock}
+${visionBlock}${lockedHookBlock}${lockedMetaphorBlock}
 ═══ THE VIDEO ═══
 
 TITLE: "${title}"
@@ -494,7 +513,92 @@ Return ONLY this JSON:
   return result;
 }
 
-async function planThumbnail({ title, scriptText, niche, tone, priorAttempt, lockedHook = null }) {
+// ─── VISUAL METAPHOR BRAINSTORM ────────────────────────────────────────────
+// Pass 1.5 — runs AFTER the hook is locked but BEFORE design begins.
+// Niels: "on abstract topics the system defaults to literal boring images
+// (chalkboard for math, passport for country, spreadsheet for finance).
+// The hooks are now creative but the images aren't keeping up."
+//
+// This step asks Claude: "given the locked hook, what's the most surprising
+// image that makes this hook FEEL true?" Generates 5 candidates, scores
+// them on surprise/emotional_impact/specificity/hook_coherence, picks the
+// strongest. The chosen metaphor is then locked into the design pass the
+// same way the hook is.
+async function generateImageMetaphors({ title, scriptText, niche, tone, lockedHook }) {
+  const scriptExcerpt = scriptText
+    ? scriptText.substring(0, 4000)
+    : 'No script available — design from title alone.';
+
+  const prompt = `You are a senior YouTube thumbnail designer brainstorming the visual for this video.
+
+TITLE: "${title}"
+NICHE: ${niche || 'unknown'}
+TONE: ${tone || 'unknown'}
+
+LOCKED HOOK: "${lockedHook?.winner || '(no hook)'}"
+WHY THIS HOOK: ${lockedHook?.winner_reasoning || ''}
+
+SCRIPT EXCERPT (mine for specific scenes, objects, characters, moments):
+"""
+${scriptExcerpt}
+"""
+
+Your job: generate 5 candidate visual metaphors for this video. The image you pick must make the locked hook FEEL true at a single glance. The image is what stops the scroll — the hook punches the meaning home.
+
+CRITICAL — the failure mode you must avoid is the LITERAL IMAGE:
+  - For a math problem, the literal image is a chalkboard. The metaphorical image is a single number that won't fit, a fortress with one missing brick, a mountain with one impassable cliff.
+  - For a country that doesn't exist, the literal image is a passport. The metaphorical image is a missing piece on a world map, a flag dissolving into nothing, a border guard with no flag to salute.
+  - For a $6B spreadsheet error, the literal image is a spreadsheet. The metaphorical image is a single cracked cell expanding into a tower of money on fire, one wrong key on a keyboard glowing red.
+  - For an unsolved hardest problem, the literal image is equations. The metaphorical image is a maze with no exit, a lock with no key, a single open door with darkness behind it.
+  - For an infrasound that drives people insane, the literal image is a sound wave. The metaphorical image is an eye twitching, a person's hands over their ears with nothing visible making the sound, a calm room where everyone is screaming silently.
+
+The literal image is what an amateur picks. The metaphorical image is what a senior designer picks because it makes the viewer FEEL the story before reading the title.
+
+Score each candidate 1-10 on these axes:
+  - surprise: would a senior designer say "oh, that's clever" — or "that's the obvious choice"? (passport = 2, missing-piece-on-map = 8)
+  - emotional_impact: does the image make the viewer FEEL the hook before reading any text? (a chalkboard = 2 for "unsolvable problem", a maze with no exit = 9)
+  - specificity: is the image specific and concrete, or generic stock? (a person's hands over their ears = 6, "an eye twitching slightly with one tiny tear" = 9)
+  - hook_coherence: does the image visually answer the question the hook raises? (hook "ONE ZERO BREAKS IT" + image of a chalkboard = 3, hook "ONE ZERO BREAKS IT" + image of a tower of dominoes mid-collapse with one zero falling = 9)
+
+Then pick the SINGLE BEST metaphor and explain why in one sentence.
+
+Return ONLY this JSON:
+{
+  "candidates": [
+    {
+      "metaphor": "one-sentence description of the image",
+      "image_prompt": "complete cinematic AI generation prompt for this metaphor — be specific about composition, lighting, color, mood",
+      "source_hint": "ai" | "real",
+      "surprise": N,
+      "emotional_impact": N,
+      "specificity": N,
+      "hook_coherence": N,
+      "total": N
+    },
+    ...exactly 5
+  ],
+  "winner_index": 0-4,
+  "winner_reasoning": "one sentence explaining why this metaphor beats the others for THIS specific topic + hook combination"
+}`;
+
+  const response = await anthropic.messages.create({
+    model: 'claude-opus-4-5',
+    max_tokens: 3000,
+    messages: [{ role: 'user', content: prompt }],
+  });
+  const text = response.content[0].text;
+  const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/, '');
+  const m = cleaned.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('Metaphor planner returned no JSON');
+  const result = JSON.parse(m[0]);
+  if (!Array.isArray(result.candidates) || result.candidates.length === 0) {
+    throw new Error('Metaphor planner returned no candidates');
+  }
+  result.winner = result.candidates[result.winner_index || 0];
+  return result;
+}
+
+async function planThumbnail({ title, scriptText, niche, tone, priorAttempt, lockedHook = null, lockedMetaphor = null }) {
   // VISION ATTACHMENTS — three sources fed into Claude as multimodal images:
   //   1. Niche reference thumbnails (top-performing real YouTube thumbnails)
   //   2. Pool winners — Niels-approved designs (the real calibration signal)
@@ -523,6 +627,7 @@ async function planThumbnail({ title, scriptText, niche, tone, priorAttempt, loc
     poolWinners: pool.winners,
     poolLosers: pool.losers,
     lockedHook,
+    lockedMetaphor,
   });
 
   // Build multimodal content: niche refs + winners + losers, then text
@@ -862,7 +967,7 @@ async function mobileLuminanceCheck(pngPath, outDir) {
 
 // ─── MAIN ENTRY POINT ──────────────────────────────────────────────────────
 
-export async function generateThumbnailV3({ outputDir, title, scriptText = '', niche = '', tone = '', _attempt = 1, _priorAttempt = null, _lockedHook = null }) {
+export async function generateThumbnailV3({ outputDir, title, scriptText = '', niche = '', tone = '', _attempt = 1, _priorAttempt = null, _lockedHook = null, _lockedMetaphor = null }) {
   console.log('============================================================');
   console.log('VideoForge Thumbnail v3 (HTML/CSS)' + (_attempt > 1 ? ` — RETRY ${_attempt}/${MAX_ATTEMPTS}` : ''));
   console.log('============================================================');
@@ -895,9 +1000,34 @@ export async function generateThumbnailV3({ outputDir, title, scriptText = '', n
     }
   }
 
+  // Step 0.5: Visual metaphor brainstorm — happens once per topic, reused on retries.
+  // After the hook is locked, brainstorm 5 candidate visual metaphors and pick the
+  // strongest. Stops the design pass from defaulting to literal stock images
+  // (chalkboard for math, passport for country, spreadsheet for finance) on
+  // abstract topics. The metaphor must make the locked hook FEEL true.
+  let lockedMetaphor = _lockedMetaphor;
+  if (!lockedMetaphor && lockedHook) {
+    console.log('\n--- Step 0.5: Visual metaphor brainstorm (5 candidates → pick strongest) ---');
+    try {
+      lockedMetaphor = await generateImageMetaphors({ title, scriptText, niche, tone, lockedHook });
+      console.log('  Metaphor candidates:');
+      for (const c of (lockedMetaphor.candidates || [])) {
+        const total = (c.surprise || 0) + (c.emotional_impact || 0) + (c.specificity || 0) + (c.hook_coherence || 0);
+        console.log(`    s:${c.surprise} e:${c.emotional_impact} sp:${c.specificity} hc:${c.hook_coherence} = ${total} → "${(c.metaphor || '').substring(0, 80)}"`);
+      }
+      const winner = lockedMetaphor.winner;
+      console.log('  WINNER: ' + (winner?.metaphor || 'unknown'));
+      console.log('  Why: ' + lockedMetaphor.winner_reasoning);
+      fs.writeFileSync(path.join(outputDir, 'thumbnail-v3-metaphor.json'), JSON.stringify(lockedMetaphor, null, 2));
+    } catch (e) {
+      console.log('  [Metaphor brainstorm] Failed: ' + e.message + ' — design pass will pick image freely');
+      lockedMetaphor = null;
+    }
+  }
+
   // Step 1: Plan
   console.log('\n--- Step 1: Claude designs the thumbnail (full HTML/CSS) ---');
-  const plan = await planThumbnail({ title, scriptText, niche, tone, priorAttempt: _priorAttempt, lockedHook });
+  const plan = await planThumbnail({ title, scriptText, niche, tone, priorAttempt: _priorAttempt, lockedHook, lockedMetaphor });
   plan.title = title;
   plan.niche = niche;
   plan._attempt = _attempt;
@@ -1001,7 +1131,7 @@ export async function generateThumbnailV3({ outputDir, title, scriptText = '', n
     fs.copyFileSync(pngPath, path.join(archDir, 'thumbnail-v3.png'));
     fs.copyFileSync(path.join(outputDir, 'thumbnail-v3-plan.json'), path.join(archDir, 'thumbnail-v3-plan.json'));
     fs.copyFileSync(path.join(outputDir, 'thumbnail-v3-review.json'), path.join(archDir, 'thumbnail-v3-review.json'));
-    return generateThumbnailV3({ outputDir, title, scriptText, niche, tone, _attempt: _attempt + 1, _priorAttempt: review, _lockedHook: lockedHook });
+    return generateThumbnailV3({ outputDir, title, scriptText, niche, tone, _attempt: _attempt + 1, _priorAttempt: review, _lockedHook: lockedHook, _lockedMetaphor: lockedMetaphor });
   }
 
   console.log('\n⚠️  Out of retries. Promoting best of attempts.');
