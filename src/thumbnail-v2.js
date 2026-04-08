@@ -422,12 +422,19 @@ Specific fix instructions from the reviewer:
 ${priorFeedback.fix_instructions || '(none)'}
 
 Your job on this retry is NOT to make a small variation of the previous plan.
-Make a STRUCTURALLY DIFFERENT design choice that addresses the root issue.
-If the previous plan used annotation circles for no reason — drop them.
-If text overlapped the focal point — pick a layout where text and image have separate zones.
-If the hook was vague — pick a more specific hook.
-If structural notes mention text_area_ratio is too high — use less text or smaller text.
-If structural notes mention color_count is too high — simplify the palette.
+You MUST change AT LEAST TWO of the following from the previous attempt:
+  (a) the hook text itself — pick a different angle, not the same word capitalized differently
+  (b) the archetype — try a different one from the contract list
+  (c) the image prompt subject framing — different scene, different perspective, different mood
+If you return the same hook word as the previous attempt, the system will reject the plan
+and force another retry. The previous attempt's hook MUST NOT appear in this attempt's plan.
+
+Other rules that always apply:
+- If the previous plan used annotation circles for no reason — drop them.
+- If text overlapped the focal point — pick a layout where text and image have separate zones.
+- If structural notes mention text_area_ratio is too high — use less text or smaller text.
+- If structural notes mention color_count is too high — simplify the palette to 2-4 colors max.
+- If structural notes mention text_size_ratio is too high — drop from "massive" to "large" or "medium".
 ═══════════════════════════════════════════════════════════
 `
     : '';
@@ -761,9 +768,16 @@ NON-NEGOTIABLE RULES:
     if (!jsonMatch) throw new Error("No JSON found");
     const plan = JSON.parse(jsonMatch[0]);
 
-    // Validate niche
-    if (!NICHES[plan.niche]) {
-      plan.niche = niche && NICHES[niche] ? niche : "education";
+    // Validate niche — RESPECT the caller's hint when valid. Claude's
+    // auto-detection routinely picks "education" for everything; the caller
+    // (autonomous loop, batch test, live order) usually has better signal.
+    if (niche && NICHES[niche]) {
+      if (plan.niche !== niche) {
+        console.log(`  [Niche] Caller specified "${niche}" — overriding planner's "${plan.niche || 'unknown'}"`);
+      }
+      plan.niche = niche;
+    } else if (!NICHES[plan.niche]) {
+      plan.niche = "education";
     }
 
     // Validate primary_subject — fallback extractor if Claude omits or fails it.
