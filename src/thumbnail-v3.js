@@ -330,6 +330,35 @@ There is no template. There is no layout pattern you must follow. The compositio
 
 These six rules are enforced programmatically. Anything else is your creative decision.
 
+═══ HOOK WRITING — THE HARDEST PART ═══
+
+The single biggest weakness of past attempts has been hooks that DESCRIBE a fact instead of TRIGGERING a feeling. A great hook makes the viewer stop scrolling. A weak hook makes them keep scrolling because the brain has to do work to understand the magnitude.
+
+EXAMPLES OF DESCRIPTIVE (weak) vs REACTIVE (strong):
+  - "12 MILLION SQ MILES" (weak — requires math) → "HALF THE WORLD" (strong — instant feel)
+  - "STILL ERUPTING" (weak — just states fact) → "WON'T STOP" or "NO END IN SIGHT" (strong — creates unease)
+  - "INVISIBLE IN 2 SECONDS" (weak — describes what happens) → "YOU CAN'T SEE IT" (strong — challenges the viewer)
+  - "60% MORTALITY RATE" (weak — clinical) → "MOST PEOPLE DIED" (strong — visceral)
+  - "PROCESSED 30 TRILLION DAILY" (weak — abstract) → "ALL OF YOUR MONEY" (strong — personal)
+  - "1.5 BILLION DOLLARS" (neutral) → "1.5 BILLION DOLLARS STOLEN" (better — adds the verb that creates emotion)
+
+When picking your hook, ask: "Would a viewer FEEL this in 0.05 seconds, or do they have to do math to understand it?" If they have to do math, find a more visceral framing.
+
+GOOD hook patterns that work across topics:
+  - Specific impossible-sounding fact ($65 BILLION VANISHED, MACH 3.3 STILL UNBEATEN)
+  - Personal challenge ("YOU CAN'T SEE IT", "THIS IS YOUR BRAIN")
+  - Forbidden frame ("LEAKED", "BANNED", "CLASSIFIED")
+  - Reaction trigger ("WON'T STOP", "NEVER FOUND", "STILL MISSING")
+  - Stark contrast ("ONE MAN", "NO BANK", "ZERO SURVIVORS")
+
+Bad hook patterns to avoid:
+  - Pure numbers without context (12 MILLION, 27000, 11KM)
+  - Vague descriptors (AMAZING, INCREDIBLE, SHOCKING)
+  - Topic categories (HISTORY EXPLAINED, SCIENCE FACTS)
+  - Question hooks that don't promise a reveal (WHAT IF?, IS IT TRUE?)
+
+The Sugar 30 DAYS thumbnail works because "30 DAYS" is a specific concrete time you can imagine. The Madoff $65 BILLION STOLEN thumbnail works because STOLEN is the verb that creates emotion. The Area 51 LEAKED thumbnail works because LEAKED is the forbidden-frame trigger.
+
 ═══ RETURN FORMAT — JSON ONLY ═══
 
 {
