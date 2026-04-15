@@ -182,34 +182,22 @@ export async function getVoiceId(voiceNameOrId) {
  * Generate voiceover for ENTIRE script at once, with word-level timestamps.
  * Uses ElevenLabs /with-timestamps endpoint for precise word sync.
  */
-// Split text into chunks at paragraph boundaries, max ~4500 chars each
+// Split text into chunks at sentence boundaries, max ~4500 chars each.
+// Text is already whitespace-collapsed (no \n\n), so we split on sentences.
 function chunkText(text, maxChars = 4500) {
-  const paragraphs = text.split(/\n\n+/);
+  if (text.length <= maxChars) return [text];
+  const sentences = text.split(/(?<=[.!?])\s+/);
   const chunks = [];
   let current = "";
-  for (const para of paragraphs) {
-    if (current.length + para.length + 2 > maxChars && current.length > 0) {
+  for (const s of sentences) {
+    if (current.length + s.length + 1 > maxChars && current.length > 0) {
       chunks.push(current.trim());
       current = "";
     }
-    current += (current ? "\n\n" : "") + para;
+    current += (current ? " " : "") + s;
   }
   if (current.trim()) chunks.push(current.trim());
-  const final = [];
-  for (const chunk of chunks) {
-    if (chunk.length <= maxChars) { final.push(chunk); continue; }
-    const sentences = chunk.split(/(?<=[.!?])\s+/);
-    let sub = "";
-    for (const s of sentences) {
-      if (sub.length + s.length + 1 > maxChars && sub.length > 0) {
-        final.push(sub.trim());
-        sub = "";
-      }
-      sub += (sub ? " " : "") + s;
-    }
-    if (sub.trim()) final.push(sub.trim());
-  }
-  return final;
+  return chunks;
 }
 
 function parseWordsFromAlignment(data, timeOffset = 0) {
@@ -247,6 +235,21 @@ function parseWordsFromAlignment(data, timeOffset = 0) {
 // Style: 0.1 (flat) → 0.6 (very expressive)
 
 let _currentPacing = null;
+
+/**
+ * v2 override hook — pipeline-v2 calls this to force specific pacing settings
+ * instead of letting analyzePacing decide per-video. Used for consistency across
+ * v2 runs where we already know the target tone from the script arc.
+ */
+export function setPacingOverride(pacing) {
+  _currentPacing = {
+    speed: Math.max(0.85, Math.min(1.15, parseFloat(pacing.speed) || 1.0)),
+    stability: Math.max(0.35, Math.min(0.65, parseFloat(pacing.stability) || 0.55)),
+    style: Math.max(0.15, Math.min(0.55, parseFloat(pacing.style) || 0.35)),
+    label: pacing.label || 'v2-forced pacing',
+  };
+  return _currentPacing;
+}
 
 export async function analyzePacing(niche, topic, tone, scriptPreview) {
   try {
@@ -311,27 +314,35 @@ style: 0.15-0.55 (emotional intensity — low for educational, high for entertai
   return fallback;
 }
 
-async function ttsChunk(rawText, voiceId) {
+async function ttsChunk(rawText, voiceId, { previousText, nextText } = {}) {
   // Strip SSML tags before sending - ElevenLabs multilingual v2 can glitch on them
   const text = rawText.replace(/<break\s[^>]*\/>/g, ' ').replace(/<break\/>/g, ' ').replace(/<[^>]+>/g, '').replace(/  +/g, ' ').trim();
   // Use analyzed pacing or defaults
   const pacing = _currentPacing || NICHE_PACING.default;
+
+  const body = {
+    text,
+    model_id: "eleven_multilingual_v2",
+    voice_settings: {
+      stability: pacing.stability,
+      similarity_boost: 0.78,     // strong voice character without artifacts
+      style: pacing.style,
+      use_speaker_boost: true,    // 3D audio enhancement for clarity
+    },
+    speed: pacing.speed,           // ElevenLabs v2 speed control (0.7-1.3)
+  };
+
+  // Chunk continuity: send surrounding text so ElevenLabs maintains natural
+  // prosody across chunk boundaries instead of start/stop cadence per chunk
+  if (previousText) body.previous_text = previousText;
+  if (nextText) body.next_text = nextText;
+
   // Retry up to 3 times on rate limit or server error
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const r = await axios.post(
         `${API_BASE}/text-to-speech/${voiceId}/with-timestamps`,
-        {
-          text,
-          model_id: "eleven_multilingual_v2",
-          voice_settings: {
-            stability: pacing.stability,
-            similarity_boost: 0.78,     // strong voice character without artifacts
-            style: pacing.style,
-            use_speaker_boost: true,    // 3D audio enhancement for clarity
-          },
-          speed: pacing.speed,           // ElevenLabs v2 speed control (0.7-1.3)
-        },
+        body,
         { headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY, "Content-Type": "application/json" }, timeout: 60000 } // 60s per chunk
       );
       return r.data;
@@ -350,6 +361,10 @@ async function ttsChunk(rawText, voiceId) {
 
 export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath) {
   text = text.replace(/\*\*([^*]+)\*\*/g,"$1").replace(/\*([^*]+)\*/g,"$1").replace(/^#{1,6}\s+/gm,"").replace(/^---+$/gm,"").replace(/^\s*[-*+]\s+/gm,"").replace(/\n{3,}/g,"\n\n").trim();
+  // Collapse paragraph breaks to single spaces — ElevenLabs interprets \n\n as long
+  // dead-air silence gaps. Punctuation (. , — ? !) gives the model enough cues for
+  // natural breathing pauses without inserting seconds of nothing.
+  text = text.replace(/\n\n+/g, ' ').replace(/\n/g, ' ').replace(/  +/g, ' ').trim();
   const chunks = chunkText(text);
 
   if (chunks.length === 1) {
@@ -369,7 +384,10 @@ export async function generateVoiceoverWithTimestamps(text, voiceId, outputPath)
 
   for (let i = 0; i < chunks.length; i++) {
     console.log(chalk.gray(`  Chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)...`));
-    const data = await ttsChunk(chunks[i], voiceId);
+    // Send surrounding chunk text for prosody continuity across boundaries
+    const previousText = i > 0 ? chunks[i - 1].slice(-1000) : undefined;
+    const nextText = i < chunks.length - 1 ? chunks[i + 1].slice(0, 1000) : undefined;
+    const data = await ttsChunk(chunks[i], voiceId, { previousText, nextText });
     const buf = Buffer.from(data.audio_base64, "base64");
     audioBuffers.push(buf);
     const words = parseWordsFromAlignment(data, timeOffset);

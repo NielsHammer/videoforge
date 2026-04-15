@@ -13,7 +13,7 @@ import { searchWebImage, isWebSearchAvailable } from "./web-images.js";
 import { detectMood, selectMusicTrack } from "./music.js";
 import { renderWithRemotion } from "./remotion-renderer.js";
 import axios from "axios";
-import { generateThumbnail } from "./thumbnail.js";
+import { generateThumbnailV3 } from "./thumbnail-v3.js";
 import { pickThemeForTopic } from "./theme-picker.js";
 
 const CUTOUT_STYLES = [];
@@ -226,7 +226,22 @@ export async function generateVideo(scriptPath, options) {
     const existingVideo = path.join(outputDir, 'final.mp4');
     if (fs.existsSync(existingVideo)) {
       const thumbTitle = projectName.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-      await generateThumbnail(outputDir, thumbTitle, 'default');
+      // Read order brief for niche/tone if available
+      let briefNiche = '', briefTone = '';
+      if (options.briefFile && fs.existsSync(options.briefFile)) {
+        try {
+          const brief = JSON.parse(fs.readFileSync(options.briefFile, 'utf-8'));
+          briefNiche = brief.niche || '';
+          briefTone = brief.tone || '';
+        } catch (e) { /* use defaults */ }
+      }
+      await generateThumbnailV3({
+        outputDir,
+        title: thumbTitle,
+        scriptText: scriptText,
+        niche: briefNiche || options.topic || '',
+        tone: briefTone || ''
+      });
       console.log(chalk.green.bold('\n✅ Thumbnail regenerated!'));
     } else {
       throw new Error('No existing final.mp4 found — cannot regenerate thumbnail without a video');
@@ -267,8 +282,20 @@ export async function generateVideo(scriptPath, options) {
         pacingTone = pacingTone || earlyBrief.tone || "";
       } catch {}
     }
-    await analyzePacing(pacingNiche, options.topic || "", pacingTone, scriptText.slice(0, 500));
-    const enhancedScript = enhanceScript(scriptText, mood || "default");
+    // v2 override: allow pipeline-v2 to force a specific pacing and skip the
+    // SSML break enhancer (which otherwise causes perceived speed changes).
+    if (options.forcePacing) {
+      // analyzePacing caches its result in module state; set directly
+      const { setPacingOverride } = await import('./elevenlabs.js');
+      if (setPacingOverride) setPacingOverride(options.forcePacing);
+      console.log(chalk.cyan(`  🧠 v2 forcePacing active: speed=${options.forcePacing.speed} stability=${options.forcePacing.stability}`));
+    } else {
+      await analyzePacing(pacingNiche, options.topic || "", pacingTone, scriptText.slice(0, 500));
+    }
+    // SSML enhancer disabled — it added <break> tags that were stripped by ttsChunk
+    // anyway, and paragraph newlines caused dead-air gaps. Whitespace is now collapsed
+    // in generateVoiceoverWithTimestamps; punctuation drives natural pacing.
+    const enhancedScript = scriptText;
     const s = ora("Generating voiceover with timestamps...").start();
     const result = await generateVoiceoverWithTimestamps(enhancedScript, voiceId, audioPath);
     wordTimestamps = result.words;
@@ -320,8 +347,41 @@ export async function generateVideo(scriptPath, options) {
     }
   }
 
-  const storyboardResult = await createStoryboard(storyboardScript, wordTimestamps, totalDuration, contentMode, options.topic || "", options.theme || "blue_grid", orderBrief);
+  // v2 injection point — if a storyboardAdapter callback is provided, use it
+  // instead of the rule-based createStoryboard. The adapter receives the voiced
+  // script + word timestamps and returns { clips, videoBible } in the same shape.
+  let storyboardResult;
+  if (typeof options.storyboardAdapter === 'function') {
+    console.log(chalk.cyan('  🧠 v2 storyboardAdapter active — skipping createStoryboard'));
+    storyboardResult = await options.storyboardAdapter({
+      scriptText: storyboardScript,
+      wordTimestamps,
+      totalDuration,
+      topic: options.topic || '',
+      orderBrief,
+    });
+  } else {
+    storyboardResult = await createStoryboard(storyboardScript, wordTimestamps, totalDuration, contentMode, options.topic || "", options.theme || "blue_grid", orderBrief);
+  }
   const clips = storyboardResult.clips || storyboardResult; // backward compat if bible failed
+
+  // v2 iter 11: mix transition SFX into the voiceover track based on scene
+  // boundaries. Writes a new audio file; the merge step picks it up.
+  if (options.storyboardAdapter) {
+    try {
+      const { insertTransitionSfx } = await import('./v2/transition-sfx.js');
+      const sfxAudioPath = path.join(assetsDir, 'voiceover-with-sfx.m4a');
+      const result = await insertTransitionSfx(audioPath, sfxAudioPath, clips);
+      if (result.inserted > 0 && fs.existsSync(sfxAudioPath)) {
+        // Replace the audioPath variable by writing the SFX-enriched track
+        // over the original. The existing merge uses audioPath unchanged.
+        fs.copyFileSync(sfxAudioPath, audioPath);
+        console.log(chalk.cyan(`  🎵 ${result.inserted} transition SFX mixed into voiceover`));
+      }
+    } catch (err) {
+      console.log(chalk.yellow(`  ⚠️  transition SFX mix skipped: ${err.message}`));
+    }
+  }
 
   const numReveals = clips.filter(c => c.visual_type === "number_reveal").length;
   const comparisons = clips.filter(c => c.visual_type === "comparison").length;
@@ -377,6 +437,18 @@ export async function generateVideo(scriptPath, options) {
     // Batch 3 animations (no image needed)
     "highlight_build","count_up","neon_sign","reaction_face",
     "thumbs_up","side_by_side","youtube_progress","warning_siren",
+    // Batch 6 — v2 branded mockups (no image needed)
+    "youtube_dashboard","youtube_channel_page","youtube_video_page","youtube_comments",
+    "elevenlabs_voices","chatgpt_chat","fiverr_gig","notion_page","canva_editor",
+    "google_docs","gmail_inbox","slack_channel","script_typing",
+    // Batch 7 — v2 stock trading mockups (no image needed)
+    "forex_pair","tradingview_chart","pnl_ledger",
+    // Batch 8 — v2 elegant statement layouts (no image needed)
+    "handwritten_note","spotlight_statement","stacked_quote","minimal_centered","cinematic_text","elegant_accent",
+    // Batch 9 — v2 variety expansion (no image needed)
+    "gauge_meter","ranking_list","comparison_table","definition_card","price_tag",
+    "funnel_chart_v2","pyramid_stack","calendar_date","warning_alert","scale_balance",
+    "countdown_timer_v2","roadmap_journey","review_stars","notification_stack","boarding_pass","passport_stamp_v2",
     // NOTE: quote_overlay, overlay_caption, polaroid_stack are NOT here
     // — they render over fetched images and need the pipeline to fetch them
   ];
@@ -421,6 +493,13 @@ export async function generateVideo(scriptPath, options) {
     if (graphicTypes.includes(clip.visual_type)) {
       clip.imagePath = null;
       clip.isCutout = false;
+      continue;
+    }
+
+    // v2: if the clip already has an imagePath set (e.g. web_screenshot
+    // captured by the adapter), skip the fetch pipeline entirely.
+    if (clip.imagePath && fs.existsSync(clip.imagePath)) {
+      console.log(chalk.gray(`  📸 clip ${i + 1}: using pre-captured image ${path.basename(clip.imagePath)}`));
       continue;
     }
 
@@ -565,7 +644,11 @@ Return ONLY the search query, nothing else.`
 
       // Route 1: ai_image → Claude refines prompt → Fal.ai (always fresh)
       if (clip.visual_type === "ai_image" && clip.ai_prompt) {
-        const detailedPrompt = await craftAIPrompt(clip.ai_prompt, clip, scriptText, "", totalDuration, wordTimestamps, options.topic || "", videoBible, i, clips.length, orderBrief.niche);
+        // v2 clips ship with a fully-crafted bible-aware prompt. Skip the
+        // generic craftAIPrompt rewrite which tends to add "cinematic" filler.
+        const detailedPrompt = clip._v2_use_prompt_verbatim
+          ? clip.ai_prompt
+          : await craftAIPrompt(clip.ai_prompt, clip, scriptText, "", totalDuration, wordTimestamps, options.topic || "", videoBible, i, clips.length, orderBrief.niche);
         await generateAIImage(detailedPrompt, aiPath);
         fixImageRotation(aiPath);
         clip.imagePath = aiPath;
@@ -821,12 +904,17 @@ Return ONLY the search query, nothing else.`
 
   const elapsed = ((Date.now() - startTime) / 1000 / 60).toFixed(1);
 
-  // --- STEP 6: Generate Thumbnail ---
-  console.log(chalk.blue("\nGenerating thumbnail...\n"));
+  // --- STEP 6: Generate Thumbnail (v3 — freeform HTML/CSS + hook brainstormer) ---
+  console.log(chalk.blue("\nGenerating thumbnail (v3)...\n"));
   try {
     const thumbTitle = projectName.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-    const thumbTopic = options.topic || projectName.replace(/-/g, " ");
-    await generateThumbnail(outputDir, thumbTitle, thumbTopic);
+    await generateThumbnailV3({
+      outputDir,
+      title: thumbTitle,
+      scriptText: scriptText,
+      niche: orderBrief.niche || options.topic || '',
+      tone: orderBrief.tone || ''
+    });
     console.log(chalk.green("  ✅ Thumbnail saved!"));
   } catch (thumbErr) {
     console.log(chalk.yellow("  ⚠️ Thumbnail skipped: " + thumbErr.message));
@@ -886,8 +974,19 @@ async function mergeAudioVideoSimple(videoPath, audioPath, outputPath, musicPath
 function generateSRT(wordTimestamps, outputPath) {
   if (!wordTimestamps || wordTimestamps.length === 0) return null;
 
+  // v2 cleanup: strip em-dashes and other chars that look ugly in subs.
+  // Em-dashes get converted to a space so the karaoke timing still works.
+  const cleanWord = (w) => {
+    return String(w)
+      .replace(/[\u2014\u2013]/g, '') // em dash, en dash
+      .replace(/[\u2018\u2019]/g, "'") // curly single
+      .replace(/[\u201C\u201D]/g, '"') // curly double
+      .replace(/\u2026/g, '...') // ellipsis
+      .trim();
+  };
+
   // Use ASS karaoke format — one phrase line stays on screen,
-  // current word highlights yellow as spoken. No flickering.
+  // current word highlights as spoken. No flickering.
   const toASSTime = (s) => {
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
@@ -901,11 +1000,14 @@ function generateSRT(wordTimestamps, outputPath) {
   const PHRASE_SIZE = 4; // 4 words max — prevents line wrapping on narrow screens
   const phrases = [];
   let phraseBuffer = [];
-  
+
   for (let i = 0; i < wordTimestamps.length; i++) {
-    const w = wordTimestamps[i];
+    const raw = wordTimestamps[i];
+    const cleaned = cleanWord(raw.word);
+    if (!cleaned) continue; // skip words that became empty after stripping em-dashes
+    const w = { ...raw, word: cleaned };
     phraseBuffer.push(w);
-    
+
     // Check if this word ends a sentence or phrase is full
     const endsPhrase = phraseBuffer.length >= PHRASE_SIZE;
     const endsSentence = /[.!?]$/.test(w.word.trim());
@@ -936,7 +1038,7 @@ WrapStyle: 2
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Montserrat SemiBold,58,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0.5,0,1,3.5,2,2,80,80,50,1
+Style: Default,Montserrat Bold,62,&H00FFFFFF,&H00FFE866,&H00000000,&HA0000000,-1,0,0,0,100,100,0.8,0,1,5,3,2,80,80,50,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
