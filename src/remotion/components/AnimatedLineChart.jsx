@@ -19,8 +19,9 @@ export const AnimatedLineChart = ({ data, clipFrame = 0, theme = "grid" }) => {
   const prefix = data.prefix || "";
   const color = data.color || "#4a9eff";
 
-  const maxVal = Math.max(points.map(p => p.value), 1);
-  const minVal = Math.min(...points.map(p => p.value));
+  const values = points.map(p => Number(p.value ?? p.y ?? 0));
+  const maxVal = Math.max(...values, 1);
+  const minVal = Math.min(...values);
   const range = maxVal - minVal || 1;
 
   // Chart dimensions
@@ -36,13 +37,16 @@ export const AnimatedLineChart = ({ data, clipFrame = 0, theme = "grid" }) => {
   const titleOp = interpolate(clipFrame, [fps * 0.1, fps * 0.3], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const gridOp = interpolate(clipFrame, [fps * 0.05, fps * 0.25], [0, 0.15], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
 
-  // Calculate point positions
-  const coords = points.map((p, i) => ({
-    x: chartX + (i / (points.length - 1)) * chartW,
-    y: chartY + chartH - ((p.value - minVal) / range) * chartH,
-    label: p.label,
-    value: p.value,
-  }));
+  // Calculate point positions. Accept both {label, value} and {x, y} shapes.
+  const coords = points.map((p, i) => {
+    const val = Number(p.value ?? p.y ?? 0);
+    return {
+      x: chartX + (i / (points.length - 1)) * chartW,
+      y: chartY + chartH - ((val - minVal) / range) * chartH,
+      label: p.label || String(p.x ?? i),
+      value: val,
+    };
+  });
 
   // Build SVG path
   const visibleCount = Math.floor(drawProgress * coords.length) + 1;

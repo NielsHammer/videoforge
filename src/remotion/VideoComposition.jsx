@@ -138,6 +138,94 @@ import { NetWorthReveal } from "./components/NetWorthReveal";
 import { CodeTerminal } from "./components/CodeTerminal";
 import { DataStream } from "./components/DataStream";
 
+// v2 branded mockup components — real-looking UI for when AI images would fail
+import {
+  YoutubeDashboard,
+  YoutubeChannelPage,
+  YoutubeVideoPage,
+  YoutubeComments,
+  ElevenlabsVoices,
+  ChatgptChat,
+  FiverrGig,
+  NotionPage,
+  CanvaEditor,
+  GoogleDocs,
+  GmailInbox,
+  SlackChannel,
+  ScriptTyping,
+  ForexPair,
+  TradingViewChart,
+  PnLLedger,
+  HandwrittenNote,
+  SpotlightStatement,
+  StackedQuote,
+  MinimalCentered,
+  CinematicText,
+  ElegantAccent,
+  GaugeMeter,
+  RankingList,
+  ComparisonTable,
+  DefinitionCard,
+  PriceTag,
+  FunnelChart,
+  PyramidStack,
+  CalendarDate,
+  WarningAlert,
+  ScaleBalance,
+  CountdownTimer,
+  RoadmapJourney,
+  ReviewStars,
+  NotificationStack,
+  BoardingPass,
+  PassportStamp,
+} from "./components/mockups/index.js";
+
+
+// Transition types — cycled per clip so adjacent scenes feel different
+const TRANSITIONS = [
+  'fade',         // simple opacity fade
+  'slide_left',   // slide in from right
+  'slide_right',  // slide in from left
+  'slide_up',     // slide in from bottom
+  'scale_up',     // pop up from center
+  'fade',         // repeat fade to keep it common
+];
+
+const TransitionWrapper = ({ children, durationInFrames, transitionType }) => {
+  const f = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const enterDur = fps * 0.25;
+  const exitDur = fps * 0.12;
+
+  let enterOpacity = interpolate(f, [0, enterDur], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  let enterTransform = '';
+
+  if (transitionType === 'slide_left') {
+    const x = interpolate(f, [0, enterDur], [80, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
+    enterTransform = `translateX(${x}px)`;
+  } else if (transitionType === 'slide_right') {
+    const x = interpolate(f, [0, enterDur], [-80, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
+    enterTransform = `translateX(${x}px)`;
+  } else if (transitionType === 'slide_up') {
+    const y = interpolate(f, [0, enterDur], [60, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
+    enterTransform = `translateY(${y}px)`;
+  } else if (transitionType === 'scale_up') {
+    const s = interpolate(f, [0, enterDur], [0.88, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
+    enterTransform = `scale(${s})`;
+  }
+
+  const exitOpacity = interpolate(f, [durationInFrames - exitDur, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+
+  return (
+    <AbsoluteFill style={{
+      opacity: Math.min(enterOpacity, exitOpacity),
+      transform: enterTransform || undefined,
+      transformOrigin: "center center",
+    }}>
+      {children}
+    </AbsoluteFill>
+  );
+};
 
 export const VideoComposition = ({ clips, wordTimestamps, theme }) => {
   const { fps } = useVideoConfig();
@@ -149,9 +237,12 @@ export const VideoComposition = ({ clips, wordTimestamps, theme }) => {
         const endFrame = Math.round(clip.end_time * fps);
         const dur = endFrame - startFrame;
         if (dur <= 0) return null;
+        const transition = TRANSITIONS[index % TRANSITIONS.length];
         return (
           <Sequence key={index} from={startFrame} durationInFrames={dur}>
-            <ClipRenderer clip={clip} clipIndex={index} totalClips={clips.length} theme={theme} />
+            <TransitionWrapper durationInFrames={dur} transitionType={transition}>
+              <ClipRenderer clip={clip} clipIndex={index} totalClips={clips.length} theme={theme} />
+            </TransitionWrapper>
           </Sequence>
         );
       })}
@@ -180,6 +271,18 @@ const GRAPHIC_TYPES = [
   "highlight_build","count_up","neon_sign","reaction_face",
   "thumbs_up","side_by_side","youtube_progress","polaroid_stack",
   "warning_siren",
+  // batch6 — v2 branded mockups
+  "youtube_dashboard","youtube_channel_page","youtube_video_page","youtube_comments",
+  "elevenlabs_voices","chatgpt_chat","fiverr_gig","notion_page","canva_editor",
+  "google_docs","gmail_inbox","slack_channel","script_typing",
+  // batch7 — v2 stock trading mockups
+  "forex_pair","tradingview_chart","pnl_ledger",
+  // batch8 — v2 elegant statement layouts
+  "handwritten_note","spotlight_statement","stacked_quote","minimal_centered","cinematic_text","elegant_accent",
+  // batch9 — v2 variety expansion (gauges, rankings, tables, travel, etc.)
+  "gauge_meter","ranking_list","comparison_table","definition_card","price_tag",
+  "funnel_chart_v2","pyramid_stack","calendar_date","warning_alert","scale_balance",
+  "countdown_timer_v2","roadmap_journey","review_stars","notification_stack","boarding_pass","passport_stamp_v2",
   // batch4
   "pull_quote","stat_comparison","bullet_list","myth_fact","step_reveal",
   "pro_con","score_card","person_profile","reddit_post","google_search",
@@ -219,13 +322,8 @@ const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {
     ? interpolate(frame, [0, durationInFrames], [1.0, 1.08], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })
     : 1;
 
-  // Fade in/out
+  // Fade handled by TransitionWrapper — only keep zoom opacity for fullscreen
   let fadeIn = 1, fadeOut = 1;
-  if (isImage) {
-    const zoomOpacity = interpolate(frame, [0, fps * 0.12], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-    fadeIn = zoomOpacity;
-    fadeOut = interpolate(frame, [durationInFrames - fps * 0.06, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  }
 
   // B-roll crossfade — smooth transition between multiple images
   let imgOpacity = 1;
@@ -365,6 +463,46 @@ const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {
       {type === "net_worth_reveal" && <NetWorthReveal data={ad} clipFrame={frame} theme={theme} />}
       {type === "code_terminal" && <CodeTerminal data={ad} clipFrame={frame} theme={theme} />}
       {type === "data_stream" && <DataStream data={ad} clipFrame={frame} theme={theme} />}
+
+      {/* ═══ BATCH 6 — v2 branded mockups ═══ */}
+      {type === "youtube_dashboard" && <YoutubeDashboard data={ad} clipFrame={frame} theme={theme} />}
+      {type === "youtube_channel_page" && <YoutubeChannelPage data={ad} clipFrame={frame} theme={theme} />}
+      {type === "youtube_video_page" && <YoutubeVideoPage data={ad} clipFrame={frame} theme={theme} />}
+      {type === "youtube_comments" && <YoutubeComments data={ad} clipFrame={frame} theme={theme} />}
+      {type === "elevenlabs_voices" && <ElevenlabsVoices data={ad} clipFrame={frame} theme={theme} />}
+      {type === "chatgpt_chat" && <ChatgptChat data={ad} clipFrame={frame} theme={theme} />}
+      {type === "fiverr_gig" && <FiverrGig data={ad} clipFrame={frame} theme={theme} />}
+      {type === "notion_page" && <NotionPage data={ad} clipFrame={frame} theme={theme} />}
+      {type === "canva_editor" && <CanvaEditor data={ad} clipFrame={frame} theme={theme} />}
+      {type === "google_docs" && <GoogleDocs data={ad} clipFrame={frame} theme={theme} />}
+      {type === "gmail_inbox" && <GmailInbox data={ad} clipFrame={frame} theme={theme} />}
+      {type === "slack_channel" && <SlackChannel data={ad} clipFrame={frame} theme={theme} />}
+      {type === "script_typing" && <ScriptTyping data={ad} clipFrame={frame} theme={theme} />}
+      {type === "forex_pair" && <ForexPair data={ad} clipFrame={frame} theme={theme} />}
+      {type === "tradingview_chart" && <TradingViewChart data={ad} clipFrame={frame} theme={theme} />}
+      {type === "pnl_ledger" && <PnLLedger data={ad} clipFrame={frame} theme={theme} />}
+      {type === "handwritten_note" && <HandwrittenNote data={ad} clipFrame={frame} theme={theme} />}
+      {type === "spotlight_statement" && <SpotlightStatement data={ad} clipFrame={frame} theme={theme} />}
+      {type === "stacked_quote" && <StackedQuote data={ad} clipFrame={frame} theme={theme} />}
+      {type === "minimal_centered" && <MinimalCentered data={ad} clipFrame={frame} theme={theme} />}
+      {type === "cinematic_text" && <CinematicText data={ad} clipFrame={frame} theme={theme} />}
+      {type === "elegant_accent" && <ElegantAccent data={ad} clipFrame={frame} theme={theme} />}
+      {type === "gauge_meter" && <GaugeMeter data={ad} clipFrame={frame} theme={theme} />}
+      {type === "ranking_list" && <RankingList data={ad} clipFrame={frame} theme={theme} />}
+      {type === "comparison_table" && <ComparisonTable data={ad} clipFrame={frame} theme={theme} />}
+      {type === "definition_card" && <DefinitionCard data={ad} clipFrame={frame} theme={theme} />}
+      {type === "price_tag" && <PriceTag data={ad} clipFrame={frame} theme={theme} />}
+      {type === "funnel_chart_v2" && <FunnelChart data={ad} clipFrame={frame} theme={theme} />}
+      {type === "pyramid_stack" && <PyramidStack data={ad} clipFrame={frame} theme={theme} />}
+      {type === "calendar_date" && <CalendarDate data={ad} clipFrame={frame} theme={theme} />}
+      {type === "warning_alert" && <WarningAlert data={ad} clipFrame={frame} theme={theme} />}
+      {type === "scale_balance" && <ScaleBalance data={ad} clipFrame={frame} theme={theme} />}
+      {type === "countdown_timer_v2" && <CountdownTimer data={ad} clipFrame={frame} theme={theme} />}
+      {type === "roadmap_journey" && <RoadmapJourney data={ad} clipFrame={frame} theme={theme} />}
+      {type === "review_stars" && <ReviewStars data={ad} clipFrame={frame} theme={theme} />}
+      {type === "notification_stack" && <NotificationStack data={ad} clipFrame={frame} theme={theme} />}
+      {type === "boarding_pass" && <BoardingPass data={ad} clipFrame={frame} theme={theme} />}
+      {type === "passport_stamp_v2" && <PassportStamp data={ad} clipFrame={frame} theme={theme} />}
       {/* ═══ SPLIT LAYOUT ═══ */}
       {isImage && isSplit && (
         <div style={{ opacity: imgOpacity }}>
@@ -387,7 +525,7 @@ const ClipRenderer = ({ clip, clipIndex, totalClips, theme }) => {
             clipFrame={frame}
             theme={theme}
             clip={clip}
-            variant={["center","wide","offset_left","offset_right"][clipIndex % 4]}
+            variant={clip.frame_variant || ["center","wide","offset_left","offset_right","polaroid_tilted","circular","magazine","vintage_film","hero_centered","split_diagonal"][clipIndex % 10]}
           />
         </div>
       )}

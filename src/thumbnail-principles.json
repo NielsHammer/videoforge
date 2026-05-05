@@ -1,0 +1,354 @@
+{
+  "text_rules": {
+    "primary_hook_size": {
+      "size_ratio_range": [
+        0.1,
+        0.25
+      ],
+      "sweet_spot": 0.14,
+      "note": "Primary text occupies 10-25% of canvas height. Single-word hooks (ENTROPY, STOICISM, ATLANTIS)"
+    },
+    "secondary_text_size": {
+      "size_ratio_range": [
+        0.04,
+        0.08
+      ],
+      "note": "Subtitles, descriptors, labels. Usually 3-5x smaller than primary."
+    },
+    "width_coverage": {
+      "single_word": [
+        0.4,
+        0.7
+      ],
+      "multi_word_line": [
+        0.6,
+        0.95
+      ],
+      "background_number": [
+        0.85,
+        0.95
+      ]
+    },
+    "fonts": {
+      "dominant": "Impact (ultra-bold condensed sans) \u2014 used in ~70% of thumbnails across all niches",
+      "secondary": "Montserrat (bold sans, 700-900 weight) \u2014 used for cleaner/modern looks",
+      "accent": "Playfair Display or Cinzel \u2014 serif fonts for classical/historical/calm aesthetics",
+      "rule": "Never more than 2 font families per thumbnail"
+    },
+    "text_contrast": {
+      "on_dark": "White text, optional 0.003 stroke. Contrast 10+",
+      "on_light": "Black/dark text, no stroke. Contrast 8+",
+      "on_variable": "White + black stroke (0.003-0.006) + shadow (4-8px blur). Contrast 5+",
+      "on_banner": "White on black/colored banner (opacity 0.85-0.95). Contrast 12+"
+    },
+    "color_emphasis_technique": {
+      "one_word_red": "Make the KEY word red (#cc2020-#FF3333) while rest stays white. Used in: FREEZING., LUST, NOT, GODFACE",
+      "one_word_yellow": "Yellow (#e8d020) for warning emphasis. Used in: NOT (in DO NOT JOIN)",
+      "background_number": "Large dollar amounts at 0.25 size_ratio, 0.65 opacity, as watermark behind subject"
+    },
+    "positioning": {
+      "top_anchor": "Primary text at top (y_ratio 0.02-0.15) \u2014 safest from YouTube UI overlap",
+      "center_anchor": "Single-word concepts dead center (y_ratio 0.38-0.50) \u2014 encyclopedic authority",
+      "right_side": "Text right, subject left \u2014 follows face-then-info reading flow",
+      "bottom": "Rarely used for primary text \u2014 YouTube progress bar obscures"
+    },
+    "transform": "uppercase for ~85% of primary hooks. Lowercase only for deliberate casual/rebellious tone (f*ck discipline)",
+    "max_words": "3-4 words for primary hook. Beyond 4, use stacked lines. Single words are most powerful."
+  },
+  "hook_patterns": {
+    "number_hooks": {
+      "pattern": "Specific dollar amount or extreme number as the hook",
+      "examples": [
+        "$306 PER DAY",
+        "$62,500,000,000/mg",
+        "$1,000,000"
+      ],
+      "rule": "Specific beats round ($306 > $300). Daily framing > annual. Show all zeros for"
+    },
+    "prohibition_hooks": {
+      "pattern": "DO NOT / FORBIDDEN / warning command",
+      "examples": [
+        "DO NOT JOIN",
+        "THE FORBIDDEN CONTINENT",
+        "DO NOT RESEARCH"
+      ],
+      "rule": "Prohibition triggers reactance \u2014 people want what they're told to avoid."
+    },
+    "revelation_hooks": {
+      "pattern": "THIS IS / declarative statement revealing identity",
+      "examples": [
+        "THIS IS JUPITER",
+        "THIS IS PLUTO",
+        "THEY LIED"
+      ],
+      "rule": "Recontextualize something familiar. Show a perspective nobody expects."
+    },
+    "question_hooks": {
+      "pattern": "Bold question that seems unanswerable",
+      "examples": [
+        "HOW DO YOU HACK A GOD?",
+        "HOW?"
+      ],
+      "rule": "The more audacious the question, the stronger the click. Single-word HOW? works"
+    },
+    "statement_hooks": {
+      "pattern": "Provocative absolute statement, often with period",
+      "examples": [
+        "OWN NOTHING",
+        "ITS FREEZING.",
+        "NOTHING IN LIFE REALLY MATTERS"
+      ],
+      "rule": "Period at end adds finality and weight. Short = powerful. Contrarian statements"
+    },
+    "single_word_hooks": {
+      "pattern": "One word that IS the topic",
+      "examples": [
+        "ENTROPY",
+        "STOICISM",
+        "ATLANTIS"
+      ],
+      "rule": "Works when the word itself carries mystery or cultural weight. Paired with a"
+    },
+    "exclusivity_hooks": {
+      "pattern": "Claims hidden/insider knowledge",
+      "examples": [
+        "NOBODY TEACHES THIS",
+        "HE KNEW TOO MUCH...",
+        "WELCOME TO THE ZERO-DAY MARKET"
+      ],
+      "rule": "Implies the viewer will join an elite group by watching."
+    },
+    "transformation_hooks": {
+      "pattern": "Before/after with timeframe",
+      "examples": [
+        "DAY 1 / DAY 21",
+        "GET THAT GODFACE",
+        "KILL LUST forever"
+      ],
+      "rule": "Show the gap between current and aspirational state. Add specific timeframe."
+    }
+  },
+  "color_psychology": {
+    "awe_wonder": {
+      "palette": [
+        "#0a0a15",
+        "#c08030",
+        "#40a0b0",
+        "#d09040"
+      ],
+      "note": "Dark base + warm gold/amber + cool teal accents. Space, science,."
+    },
+    "horror_dread": {
+      "palette": [
+        "#1a1008",
+        "#8a2020",
+        "#0a0805",
+        "#2a1510"
+      ],
+      "note": "Near-black base, warm amber undertones, blood-red accent. 80%+ pure."
+    },
+    "aspiration_money": {
+      "palette": [
+        "#7cb342",
+        "#1a1a1a",
+        "#ffffff",
+        "#d4a832"
+      ],
+      "note": "Green (money/growth) on dark. Gold for premium. White text on green."
+    },
+    "danger_forbidden": {
+      "palette": [
+        "#cc2222",
+        "#0a0a0a",
+        "#e8d020",
+        "#ffffff"
+      ],
+      "note": "Blood-red + pure black + yellow warning. Maximum aggression."
+    },
+    "educational_clean": {
+      "palette": [
+        "#F0EEEB",
+        "#1a1a1a",
+        "#D42B2B",
+        "#8A8580"
+      ],
+      "note": "White/off-white background, black text, single red accent. Stands out."
+    },
+    "conspiracy_mystery": {
+      "palette": [
+        "#0a1215",
+        "#2a5a5a",
+        "#00CC55",
+        "#121a1e"
+      ],
+      "note": "Dark teal/cyan, matrix green, noir atmosphere."
+    },
+    "classical_intellectual": {
+      "palette": [
+        "#2a2a2a",
+        "#8a8a7a",
+        "#8a2020",
+        "#d4a840"
+      ],
+      "note": "Charcoal/museum dark, marble grey, one red or gold accent."
+    },
+    "warm_historical": {
+      "palette": [
+        "#c09858",
+        "#4a7a8a",
+        "#d4a840",
+        "#3a4a3a"
+      ],
+      "note": "Golden hour tones, amber, warm browns. Classical painting colors."
+    },
+    "cold_sci_fi": {
+      "palette": [
+        "#0a0a18",
+        "#2060a0",
+        "#40a060",
+        "#c0c0c0"
+      ],
+      "note": "Deep navy/black, cool blue, metallic silver. Clinical and vast."
+    },
+    "accent_color_rules": {
+      "red": "Danger, passion, rebellion, the ONE important word. Most universal accent.",
+      "yellow": "Warning, caution, highlight. Used sparingly for single-word emphasis.",
+      "green": "Money, growth, science, matrix/hacker. Never for horror.",
+      "teal_cyan": "Digital, underground, cold tech. CRT glow, hacker vibes.",
+      "gold": "Premium, historical, mythical. Serif fonts pair with gold."
+    }
+  },
+  "composition_archetypes": [
+    {
+      "name": "single_word_over_dramatic_visual",
+      "description": "One massive word centered over a full-bleed cinematic image that visualizes the",
+      "when_to_use": "Topic name itself carries mystery or cultural weight (ENTROPY, STOICISM,",
+      "text_placement": "Dead center or upper-center, 13-18% size_ratio",
+      "image_treatment": "Full bleed, high contrast, dramatic lighting, the image IS the concept"
+    },
+    {
+      "name": "text_over_dark_atmospheric_scene",
+      "description": "Bold text (2-4 words) anchored at top over a dark, moody full-bleed scene",
+      "when_to_use": "Horror, conspiracy, tech thrillers, ominous content",
+      "text_placement": "Top of frame (y 0.02-0.12), white/red on dark, 14-18% size",
+      "image_treatment": "Extremely dark (brightness 0.3-0.45), heavy vignette, single light source"
+    },
+    {
+      "name": "person_left_data_right",
+      "description": "Face/person occupies left third, text/numbers on right two-thirds",
+      "when_to_use": "Finance, tutorials, authority-based content with specific claims",
+      "text_placement": "Right side, top-right quadrant, green/white banners for money",
+      "image_treatment": "Person well-lit, dark background, may include brand logos"
+    },
+    {
+      "name": "before_after_split",
+      "description": "50/50 split with transformation shown left-to-right, often same person",
+      "when_to_use": "Self-improvement, fitness, transformation content",
+      "text_placement": "Labels (DAY 1 / DAY 21) at top corners, small data annotations",
+      "image_treatment": "Left: desaturated/grey/cold. Right: warm/vibrant/saturated. White divider line."
+    },
+    {
+      "name": "tiered_infographic_pyramid",
+      "description": "Pyramid or inverted pyramid with labeled tiers, each containing an image",
+      "when_to_use": "Comprehensive explainers, rankings, era progressions, civilization scales",
+      "text_placement": "Small labels (4% size) alternating left/right of tiers",
+      "image_treatment": "White/clean background. Images inside tiers. Minimal design signals authority."
+    },
+    {
+      "name": "triptych_three_panel",
+      "description": "Three vertical panels showing related scenes/activities side by side",
+      "when_to_use": "Routines, habits, comparisons, lifestyle visualization",
+      "text_placement": "Bold header spanning all panels at top, 10-13% size",
+      "image_treatment": "Each panel has distinct color tone. Dark gradient overlays at top for text zone."
+    },
+    {
+      "name": "scale_comparison_infographic",
+      "description": "Cutaway or diagram with human figures for scale, price/data at top",
+      "when_to_use": "Science, engineering, anything with shocking numbers or sizes",
+      "text_placement": "Number/price anchored at top in dark zone, labels near scale figures",
+      "image_treatment": "Clean, clinical, textbook-quality. Neutral palette. Red for scale figures."
+    },
+    {
+      "name": "collage_with_center_text_banner",
+      "description": "Multi-image collage with a central text banner/overlay across the middle",
+      "when_to_use": "Documentaries, investigations, multi-angle stories",
+      "text_placement": "Black semi-transparent banner across center/eyes, text on banner",
+      "image_treatment": "Cracked/glitched effects optional. Desaturated. Magazine/expose aesthetic."
+    },
+    {
+      "name": "tweet_card_with_proof",
+      "description": "Social media card (tweet format) on one side, proof/person on the other",
+      "when_to_use": "Finance tips, life advice, viral claim formats",
+      "text_placement": "Short hook text on the card (Age 13+, Do this!). Red for targeting text.",
+      "image_treatment": "White card on dark background. Person holding cash/results on opposite side."
+    },
+    {
+      "name": "three_panel_color_block",
+      "description": "Three solid-color vertical panels with icons/graphics in each, VS between",
+      "when_to_use": "Comparisons, guides, ranked lists for beginner audiences",
+      "text_placement": "Only VS markers between panels. Let title carry all info text.",
+      "image_treatment": "Bright triadic colors (blue/yellow/magenta). Flat graphic icons."
+    },
+    {
+      "name": "immersive_surface_view",
+      "description": "As-if-you-are-there perspective, looking AT a surface or scene from within",
+      "when_to_use": "Space, nature, exploration \u2014 anything where the unexpected perspective IS the",
+      "text_placement": "Declarative label in dark sky/top zone: THIS IS [SUBJECT]",
+      "image_treatment": "Full bleed, no borders, cinematic CGI. Perspective most viewers have never seen."
+    },
+    {
+      "name": "icon_grid_matrix",
+      "description": "Grid of small icons/images with centered text overlay",
+      "when_to_use": "List content (100 facts, conspiracy theories, ranked items)",
+      "text_placement": "Centered text over grid, matrix green or bold white",
+      "image_treatment": "Dark background, icons arranged in rows/columns, text overlay on semi-dark zone"
+    },
+    {
+      "name": "distorted_portrait_conspiracy",
+      "description": "B&W or glitched portrait of a real person with bold narrative text",
+      "when_to_use": "True crime, conspiracy, tech mysteries, disappeared persons",
+      "text_placement": "Right side, multi-line stacked, 11% size. Key word emphasized larger.",
+      "image_treatment": "Glitch effects, chromatic aberration (cyan/red fringing), scan lines, B&W base"
+    }
+  ],
+  "cross_niche_techniques": {
+    "one_red_word": "Make KEY word red (#cc2020-#FF3333), rest white. FREEZING., LUST, NOT, GODFACE.",
+    "one_yellow_word": "Yellow (#e8d020) for warning. Used in: DO [yellow]NOT[/] JOIN.",
+    "period_finality": "Period after short statement = verdict. FREEZING. DELUSIONAL.",
+    "ellipsis_cliffhanger": "Trailing ... = open loop. HE KNEW TOO MUCH...",
+    "red_arrow": "Red arrow from before to after state. Universal transformation symbol.",
+    "red_scale_figures": "Red silhouette humans for scale comparison against objects.",
+    "banner_across_eyes": "Semi-transparent black banner at eye level = classified/censored feel.",
+    "white_bg_pattern_break": "White background stands out in feed of dark thumbnails. Signals clean/educational.",
+    "serif_for_calm": "Playfair Display / Cinzel for classical/calm content with gold palette.",
+    "watermark_number": "$1,000,000 at 0.25 size, 0.65 opacity behind subject = premium aspirational."
+  },
+  "image_generation_rules": {
+    "what_works": [
+      "Single dramatic light source (side-lit, backlit, golden-hour). Never flat.",
+      "Unexpected perspective viewers haven't seen before.",
+      "Real material textures (marble, ice, cloud turbulence, rust).",
+      "Near-monochrome with ONE saturated accent color.",
+      "Mood/atmosphere first, details second.",
+      "Include scale indicators (human figure, known object)."
+    ],
+    "what_fails": [
+      "Flat illustrative/clip-art style with even lighting.",
+      "Corporate stock imagery (offices, handshakes).",
+      "Over-saturated everything, no focal point.",
+      "Text baked into AI image (always overlay separately).",
+      "Generic backgrounds not specific to topic."
+    ],
+    "prompt_always_include": "cinematic, dramatic lighting, 16:9, no text"
+  },
+  "what_makes_people_click": {
+    "curiosity_gap": "Show something that raises an unanswerable question. Jupiter from surface, $62.5B/mg price tag.",
+    "recontextualization": "Make familiar things unfamiliar. Small towns as horror, Jupiter as landscape.",
+    "forbidden_knowledge": "Imply suppressed/dangerous info. DO NOT JOIN, THEY LIED, FORBIDDEN.",
+    "identity_challenge": "Attack viewer's sacred beliefs. f*ck discipline, NOTHING MATTERS.",
+    "aspiration_gap": "Show gap between current and ideal state. DAY 1 vs DAY 21, GODFACE.",
+    "specific_credibility": "$306 not $300. 753 BC-1453 AD not 'ancient Rome'. Specificity = belief.",
+    "visual_beauty_scroll_stop": "Genuinely stunning image stops scroll before text is read.",
+    "emotion_then_reason": "Thumbnail triggers emotion (fear/awe/desire), title provides rational hook."
+  }
+}

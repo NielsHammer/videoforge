@@ -18,10 +18,28 @@ const app = express();
 app.use(express.json());
 
 app.use('/output', express.static(path.join(VIDEOFORGE_DIR, 'output'), {
-  setHeaders: (res) => {
+  setHeaders: (res, filePath) => {
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Methods', 'GET');
     res.set('Cache-Control', 'public, max-age=3600');
+    // Force download for video and image files
+    if (filePath.endsWith('.mp4')) {
+      res.set('Content-Disposition', 'attachment');
+    }
+  }
+}));
+
+// /watch — same files as /output but served inline so they play in the browser
+// instead of triggering a download. Used by pipeline-v2 and human review links.
+app.use('/watch', express.static(path.join(VIDEOFORGE_DIR, 'output'), {
+  setHeaders: (res, filePath) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET');
+    res.set('Cache-Control', 'public, max-age=3600');
+    if (filePath.endsWith('.mp4')) {
+      res.set('Content-Type', 'video/mp4');
+      res.set('Accept-Ranges', 'bytes'); // enable seeking in the browser player
+    }
   }
 }));
 

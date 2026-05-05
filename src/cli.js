@@ -68,9 +68,57 @@ program
   .option('--key-points <text>', 'Key points or angles to cover')
   .option('--cta <text>', 'Call to action text')
   .action(async (scriptPath, options) => {
-    console.log(chalk.blue.bold('\n🎬 VideoForge v23\n'));
+    console.log(chalk.blue.bold('\n🎬 VideoForge v24 (v2 pipeline)\n'));
     try {
-      await generateVideo(scriptPath, options);
+      // v2 pipeline: build bible from script, inject storyboard adapter
+      const scriptText = fs.readFileSync(scriptPath, 'utf8').trim();
+      const topic = options.topic || 'untitled';
+      const niche = options.niche || '';
+
+      // Load brief if available (worker writes this)
+      let brief = {};
+      if (options.briefFile && fs.existsSync(options.briefFile)) {
+        try { brief = JSON.parse(fs.readFileSync(options.briefFile, 'utf8')); } catch {}
+      }
+
+      const { buildVideoBible } = await import('./v2/video-bible-v2.js');
+      const { planStoryboard } = await import('./v2/storyboard-planner-v2.js');
+      const { critiqueStoryboard } = await import('./v2/storyboard-critic-v2.js');
+      const { makeV2StoryboardCallback } = await import('./v2/storyboard-adapter.js');
+      const { createRun } = await import('./v2/run-logger.js');
+
+      const run = createRun({ topic, niche: brief.niche || niche, targetSeconds: 120 });
+      let stepCursor = 0;
+
+      console.log(chalk.cyan('  🧠 v2: building video bible from script...'));
+      const bibleResult = await buildVideoBible({
+        title: topic,
+        topic: topic,
+        script: scriptText,
+        niche: brief.niche || niche,
+        arc: null,
+        run,
+        startStep: stepCursor,
+      });
+      stepCursor = bibleResult.next_step_index;
+      const bibleLabel = bibleResult.bible.narrative_center || bibleResult.bible.subject_anchor || '';
+      console.log(chalk.cyan(`  🧠 v2: bible ready — "${bibleLabel}"`));
+
+      const adapter = makeV2StoryboardCallback({
+        planStoryboard,
+        critiqueStoryboard,
+        v2Bible: bibleResult.bible,
+        title: topic,
+        run,
+        stepCursorStart: stepCursor,
+      });
+
+      await generateVideo(scriptPath, {
+        ...options,
+        storyboardAdapter: adapter,
+        skipScriptEnhance: true,
+        forcePacing: { speed: 1.05, stability: 0.5 },
+      });
     } catch (err) {
       console.error(chalk.red(`\n❌ Error: ${err.message}`));
       if (process.env.DEBUG) console.error(err.stack);

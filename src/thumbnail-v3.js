@@ -301,11 +301,30 @@ A separate hook-writing pass already chose the strongest hook for this video:
 
   HOOK: "${lockedHook.winner}"
   WHY: ${lockedHook.winner_reasoning}
+  WHAT MAKES THIS VIDEO INTERESTING: ${lockedHook.what_is_interesting || 'not specified'}
 
-Your job is NOT to write a different hook. Your job is to design a thumbnail composition that makes THIS hook hit as hard as possible. Use this exact text. If you want to add a tiny secondary context label (a banner, a date, a number), it must be a SUPPORTING element — not a competing hook.
+═══ REQUIRED IMAGE — THIS IS WHAT THE THUMBNAIL MUST SHOW ═══
+
+  ${lockedHook.likely_image || 'not specified'}
+
+This is NOT a suggestion. The hook was designed to work with THIS specific image. The hook + this image together are what makes a viewer think "I have to watch this." If you show a different image — an atmospheric landscape, a static postcard, a generic portrait — the hook loses its meaning and the thumbnail fails.
+
+YOUR IMAGE PROMPT MUST DEPICT THE SCENE DESCRIBED ABOVE. Do not substitute a generic version of the subject. Do not show the place when the description says to show the people. Do not show the subject at rest when the description says to show it in action.
+
+Examples of this going wrong:
+  - Brainstormer said "bridge twisting violently before collapse" → planner showed a static bridge. WRONG. Show it TWISTING.
+  - Brainstormer said "children freeze in terror encountering rain" → planner showed an empty desert. WRONG. Show the CHILDREN.
+  - Brainstormer said "man performing surgery on his own abdomen" → planner showed a man with stitches. WRONG. Show the SURGERY HAPPENING.
+  - Brainstormer said "Mexico City with Aztec ruins visible beneath" → planner showed a normal city at sunset. WRONG. Show the LAYERS.
+
+The thumbnail must show the DRAMATIC MOMENT or SPECIFIC INTERESTING THING, not just the subject sitting there. A video about a bridge collapsing needs to show the collapse, not the bridge. A video about kids fearing rain needs to show the kids, not the desert.
+
+IMAGE SOURCE: When the required image depicts a dramatic moment, action scene, or specific scenario that wouldn't exist in stock photography (a bridge twisting apart, a man operating on himself, children seeing rain for the first time), use source_hint "ai" so AI generates it. Only use "real" for images of real recognizable places or objects where the actual photo matters (aerial view of Palm Jumeirah, the SR-71 in flight).
+
+Your job is NOT to write a different hook. Use this exact text. Design the composition that makes this hook + this image hit as hard as possible.
 
 The other 4 candidates the hook writer rejected:
-${(lockedHook.candidates || []).filter(c => c.hook !== lockedHook.winner).map(c => `  - "${c.hook}" (reactive=${c.reactive} curiosity=${c.curiosity} specific=${c.specific} verb=${c.verb_strength})`).join('\n')}
+${(lockedHook.candidates || []).filter(c => c.hook !== lockedHook.winner).map(c => `  - "${c.hook}" (clarity=${c.clarity} promise=${c.promise} emotion=${c.emotion})`).join('\n')}
 `
     : '';
 
@@ -356,45 +375,53 @@ There is no template. There is no layout pattern you must follow. The compositio
 3. To embed images, use placeholders \`{{IMG:1}}\`, \`{{IMG:2}}\` etc. They get substituted with real images you specify in image_requests. 0–3 images.
 4. Google Fonts via @import or link is allowed.
 
-═══ HARD LEGIBILITY FLOOR (these are the only rules — everything else is your call) ═══
+═══ DESIGN PHILOSOPHY ═══
 
-1. No text below 36px font-size. Smaller text vanishes at 168x94 mobile.
-2. No grey text ever. Text is white, near-black, or a saturated accent color.
-3. No rotated text. No text running along an edge.
-4. No typos. Spell every word correctly. Common words like "ALERTS" should never come out as "ALRTS".
-5. Banners must be self-explanatory to a viewer who has never heard of the topic. No jargon ("Grand Prismatic Turned Brown" assumes prior knowledge — use "Lake Turned Brown" instead).
-6. No floating clip-art icons or emoji decorations. The image carries the meaning, not little graphic flourishes.
+You are designing for a viewer who will see this thumbnail for 0.05 seconds while scrolling YouTube on their phone at 168x94 pixels. Everything you design must survive that context. Here is how the best thumbnails in our pool succeeded, and how the worst ones failed — not as a checklist, but as the design intuition you should internalize.
 
-These six rules are enforced programmatically. Anything else is your creative decision.
+THE THUMBNAIL'S JOB IS TO IDENTIFY THE VIDEO.
 
-═══ HOOK WRITING — THE HARDEST PART ═══
+Before anything else — before beauty, before emotion, before craft — the thumbnail must answer "what is this video about?" A stranger who has never seen the title should guess the topic within 2 seconds. A beautiful thumbnail that could belong to a different video is worse than an ugly one that identifies the right video, because it misleads the viewer and gets skipped.
 
-The single biggest weakness of past attempts has been hooks that DESCRIBE a fact instead of TRIGGERING a feeling. A great hook makes the viewer stop scrolling. A weak hook makes them keep scrolling because the brain has to do work to understand the magnitude.
+The image and hook split this work between them. When the image IS the topic — an SR-71 in flight, an accretion disk, a volcanic eruption column — the viewer already knows what they're watching, so the hook is free to focus purely on emotion ("MISSILES STARVED", "FROZEN FOREVER", "PUNCHED THROUGH"). But when the image is atmospheric or generic — an elderly woman, a desert landscape, a person at a screen — the hook MUST anchor the topic, because without it, "NO ONE ANSWERS" + elderly woman could be grief, loneliness, missing persons, anything.
 
-EXAMPLES OF DESCRIPTIVE (weak) vs REACTIVE (strong):
-  - "12 MILLION SQ MILES" (weak — requires math) → "HALF THE WORLD" (strong — instant feel)
-  - "STILL ERUPTING" (weak — just states fact) → "WON'T STOP" or "NO END IN SIGHT" (strong — creates unease)
-  - "INVISIBLE IN 2 SECONDS" (weak — describes what happens) → "YOU CAN'T SEE IT" (strong — challenges the viewer)
-  - "60% MORTALITY RATE" (weak — clinical) → "MOST PEOPLE DIED" (strong — visceral)
-  - "PROCESSED 30 TRILLION DAILY" (weak — abstract) → "ALL OF YOUR MONEY" (strong — personal)
-  - "1.5 BILLION DOLLARS" (neutral) → "1.5 BILLION DOLLARS STOLEN" (better — adds the verb that creates emotion)
+If the video title names a key visual element — "blindfolded", "typo", "heart bigger than a car" — that element must be visible in the image. The blindfolded-walking thumbnail failed when the image showed legs in a desert with no blindfold. It succeeded when it showed a blindfolded person with a spiral walking path. The visual element from the title IS the hook for these topics.
 
-When picking your hook, ask: "Would a viewer FEEL this in 0.05 seconds, or do they have to do math to understand it?" If they have to do math, find a more visceral framing.
+The hook must also connect to the video's ACTUAL PREMISE, not just create a matching mood. A video about a heart bigger than a car is about SIZE and wonder — "ORGANS GO DARK" sounds like death, which is the wrong video. A video about a $30 billion typo that started a war is about a catastrophic mistake — "19 HOURS AWAKE" is about tiredness, which is a different video entirely. Read the title. Read the script. Ask: what makes THIS video interesting? The hook must be about THAT thing.
 
-GOOD hook patterns that work across topics:
-  - Specific impossible-sounding fact ($65 BILLION VANISHED, MACH 3.3 STILL UNBEATEN)
-  - Personal challenge ("YOU CAN'T SEE IT", "THIS IS YOUR BRAIN")
-  - Forbidden frame ("LEAKED", "BANNED", "CLASSIFIED")
-  - Reaction trigger ("WON'T STOP", "NEVER FOUND", "STILL MISSING")
-  - Stark contrast ("ONE MAN", "NO BANK", "ZERO SURVIVORS")
+ONE IMAGE, ONE HOOK, ONE STORY.
 
-Bad hook patterns to avoid:
-  - Pure numbers without context (12 MILLION, 27000, 11KM)
-  - Vague descriptors (AMAZING, INCREDIBLE, SHOCKING)
-  - Topic categories (HISTORY EXPLAINED, SCIENCE FACTS)
-  - Question hooks that don't promise a reveal (WHAT IF?, IS IT TRUE?)
+The strongest thumbnails in our pool share a structure: a single hero image fills the frame, and 1-3 words of hook text create the emotional punch. That's it. No banners, no badges, no secondary text, no decorative overlays.
 
-The Sugar 30 DAYS thumbnail works because "30 DAYS" is a specific concrete time you can imagine. The Madoff $65 BILLION STOLEN thumbnail works because STOLEN is the verb that creates emotion. The Area 51 LEAKED thumbnail works because LEAKED is the forbidden-frame trigger.
+Banners compete with hooks. Every time this system has added a banner — "45 MINUTES", "57 KM UP", "20 SECONDS", "AND LIVED" — it was rejected, because the viewer can't process two text elements in 0.05 seconds. The banner steals attention from the hook without adding information the viewer can use (they don't know what "57 KM UP" means without context, and they don't know the context yet). Ship the hook alone. If you feel the thumbnail needs a banner to work, the hook is too weak — fix the hook instead.
+
+When there are two images overlapping in the same frame — a hangar photo layered on a sky photo — the viewer can't parse what they're looking at. If you genuinely need multiple images, they must occupy clearly separate regions (diptych, triptych), never overlap. But the default is one image, and our best thumbnails all use one.
+
+Background elements — textures, particles, flying money, smoke — must be subordinate to the hero subject. If the background is busy enough that the eye wanders away from the hero, the background is wrong. Reduce, blur, or darken until the hero is unambiguous.
+
+Decorative overlays — crosshairs, target circles, vignettes, scanlines, HUD elements, clip-art icons — read as rendering glitches at thumbnail size, not design choices. The image carries the meaning.
+
+THE HOOK MUST TRIGGER A FEELING, NOT DESCRIBE A FACT.
+
+The viewer doesn't do math at 0.05 seconds. "12 MILLION SQ MILES" requires calculation. "HALF THE WORLD" is instant. "60% MORTALITY RATE" is clinical. "MOST PEOPLE DIED" is visceral. The hook should make the viewer FEEL something — dread, wonder, disbelief, curiosity — without any cognitive work.
+
+Strong hook patterns: impossible-sounding specifics ("$65 BILLION VANISHED"), personal challenges ("YOU CAN'T SEE IT"), forbidden frames ("LEAKED", "CLASSIFIED"), reaction triggers ("WON'T STOP", "NEVER FOUND"), stark contrasts ("ONE MAN", "ZERO SURVIVORS"). Weak patterns: raw numbers without verbs, vague descriptors ("AMAZING"), topic categories ("HISTORY EXPLAINED"), questions that don't promise a reveal.
+
+TEXT CRAFT — THE INVISIBLE FOUNDATION.
+
+Good text craft is invisible. Bad text craft kills the thumbnail. These are the craft standards that separate professional thumbnails from amateur ones:
+
+Text must be readable at 168x94. Below 36px it vanishes. Grey text washes out — use white, near-black, or saturated color. Rotated text looks amateur. Typos destroy credibility.
+
+The hook is ONE color — never split across two colors ("PUNCHED" in red + "THROUGH" in white breaks the unity of the punch). That color must contrast with the dominant image color, not blend into it. Blue text on a blue sky disappears. White text on a dark image pops. Sample the image's dominant color and go to the opposite end of the spectrum.
+
+The hook is plain English words, never equations or symbols. "∞ + ∞ = ∞" looks like a textbook. "STILL FULL" makes you feel the paradox. The viewer must FEEL the hook, not parse it.
+
+Words must never mush together. Set explicit \`letter-spacing\` (0.02–0.08em) and \`word-spacing\` (minimum 0.15em on multi-word hooks). Never negative letter-spacing. At 168x94, "BLOCKSIT" is unreadable — "BLOCKS IT" with clear word boundaries works.
+
+Give the hook breathing room — at least 40px from any edge. Text flush against the bottom gets lost in dark image content. Text flush against the top gets cropped on some players.
+
+Some of these are enforced programmatically (small text, negative letter-spacing, math equations, typos). But the craft standards exist because great typography is invisible and bad typography is all you see.
 
 ═══ RETURN FORMAT — JSON ONLY ═══
 
@@ -457,46 +484,89 @@ async function generateHookCandidates({ title, scriptText, niche, tone }) {
     ? scriptText.substring(0, 4000)
     : 'No script available — design from title alone.';
 
-  const prompt = `You are a YouTube thumbnail hook writer. The video is:
+  const prompt = `You are writing hook text for a YouTube thumbnail. 1-3 words that appear over an image at 168x94 pixels on a phone screen.
 
 TITLE: "${title}"
 NICHE: ${niche || 'unknown'}
 TONE: ${tone || 'unknown'}
 
-SCRIPT (mine this for specific facts, dates, numbers, scenes):
+SCRIPT (mine this for the specific thing that makes THIS video interesting):
 """
 ${scriptExcerpt}
 """
 
-Generate 5 candidate hook texts for the thumbnail. Each hook is 1-3 words designed to make a viewer STOP scrolling. Pull facts from the script — never generic dramatic words.
+A thumbnail hook is a PROMISE. It tells the viewer what they'll learn and makes them feel like they NEED to know. It is not poetry. It is not a clever phrase. It is a promise that, combined with the image, makes someone think "I have to watch this."
 
-Score each candidate 1-10 on these four axes:
-  - reactive: does it create a feeling, or just describe a fact? ("HALF THE WORLD" = 9, "12 MILLION SQ MILES" = 3)
-  - curiosity: does it make the viewer want to know more, or does it tell them what happens? ("YOU CAN'T SEE IT" = 9, "INVISIBLE IN 2 SECONDS" = 5)
-  - specific: does it use specific concrete language, or vague descriptors? ("$65 BILLION STOLEN" = 9, "MASSIVE FRAUD" = 3)
-  - verb_strength: is there a verb that creates emotion? STOLEN, BANNED, ERASED, LEAKED, VANISHED are 9. Static descriptors are 3.
+Before generating candidates, answer these two questions about the video:
+1. WHAT IS THE SINGLE MOST INTERESTING THING IN THIS VIDEO? (Not a mood. Not a theme. The specific surprising fact, event, or revelation that would make someone say "wait, really?")
+2. WHAT IMAGE WILL LIKELY APPEAR IN THE THUMBNAIL? (The obvious visual subject — a plane, a building, a person, a place. The hook must work WITH this image, not duplicate it. IMPORTANT: If the SETTING is what makes the story extraordinary, the setting must be visible in the image. A surgeon operating on himself is interesting. A surgeon operating on himself IN ANTARCTICA with snow visible through a window is extraordinary. Include the setting when it's load-bearing.)
 
-CRITICAL — the failure modes you must avoid:
-  - Pure numbers without an emotional verb (12 MILLION, 27000, 11KM) — viewers can't feel them
-  - Vague descriptors (AMAZING, SHOCKING, INCREDIBLE) — meaningless
-  - Topic categories (HISTORY EXPLAINED, SCIENCE FACTS) — never click triggers
-  - Questions without a reveal (WHAT IF?, IS IT TRUE?) — feel like a trap
-  - Hooks that just restate the title in different words — viewer learns nothing new
-  - Hooks that read as ads or giveaways ($1,000,000 UNCLAIMED reads as a sweepstakes, not a math mystery)
-  - Two hooks that say the same thing (ERASED + FROM EVERY MAP ON EARTH = redundant)
+The hook and image SPLIT the work:
+- The IMAGE shows you WHAT (the plane, the volcano, the building, the person)
+- The HOOK tells you WHY you should care (what happened, what went wrong, what's surprising)
+- Together they answer: "what is this video about and why should I watch it?"
 
-For abstract topics (math, sound, neuroscience, geopolitics) the hook must work HARDER. The visceral angle isn't obvious — find it. What's the most uncomfortable, most surprising, or most personal frame for THIS specific story?
+If the image already shows a plane on the Hudson River, the hook doesn't need to say "PLANE" — it needs to say why this plane matters ("155 LIVES", "NO ENGINES"). If the image shows Dubai's Palm Islands, the hook doesn't need to say "DUBAI" — it needs to say what's happening to them ("SINKING", "UNDERWATER BY 2040").
 
-Then pick the SINGLE BEST hook and explain why in one sentence.
+CRITICAL DISTINCTION — STATEMENTS vs EMOTIONS:
+The biggest remaining failure mode is hooks that DESCRIBE what happened instead of making you FEEL what it was like. A statement tells you a fact. An emotion puts you in the moment.
+  - "NO OTHER DOCTOR" is a STATEMENT — it tells you a fact about staffing. Score it lower.
+  - "HAD TO BE HIS OWN" is an EMOTION — you feel the desperation of a man forced to cut into himself. Score it higher.
+  - "ENCASED IN SYRUP" is CONFUSING — "syrup" triggers breakfast, not disaster. The word choice must evoke the right feeling.
+  - "STILL KILLING" is an EMOTION — present-tense dread, this thing is STILL dangerous. Score it higher.
+  - "MISSILES STARVED" is the gold standard — curious, clickable, emotional, AND you understand the video. All four.
+
+Before locking any hook, apply this test — ALL FOUR must be true:
+  1. Would the average person be CURIOUS? (not just niche-interested)
+  2. Would they WANT TO CLICK? (the hook promises something worth watching)
+  3. Would they FEEL something? (not just understand a fact)
+  4. Would they UNDERSTAND what the video is about? (combined with the image)
+If any of the four is missing, the hook fails. Most hooks land 2-3 out of 4. The bar is all 4.
+
+Generate 5 candidate hooks. Score each 1-10 on THREE axes:
+
+  - clarity: does a viewer INSTANTLY understand what this video is about when they see this hook + the likely image? A viewer who has never seen the title must guess the topic within 2 seconds. "MISSILES STARVED" + SR-71 photo = 9 (you instantly know the plane outran missiles). "IT STOPS" + heart image = 2 (stops what? whose heart? medical video? horror?). "BOTH ENGINES DEAD" + river skyline = 3 (where's the plane? who was in danger?).
+
+  - promise: does this hook make the viewer feel "I NEED to watch this"? The hook must tell you what you'll LEARN, not just set a mood. "$14 TRILLION GONE" = 8 (you need to know how). "ELEVATORS FOR NO ONE" = 2 (who cares about elevators?). "PUNCHED THROUGH" over a volcanic eruption = 9 (the eruption was so powerful it punched through to space — you need to see this). "SHE FORGETS" over an elderly woman = 2 (forgets what? no promise of what you'll learn).
+
+  - emotion: does this hook make the viewer FEEL something — dread, wonder, disbelief, anger, awe — in 0.05 seconds? Not describe a fact — MAKE THEM FEEL IT. Statements score low. Emotions score high. "STILL FULL" for infinite hotel = 8 (eerie impossibility). "FROZEN FOREVER" for black hole = 9 (existential dread). "$20B VANISHING" = 4 (financial jargon, no human feeling). "NO OTHER DOCTOR" = 5 (states a fact about staffing, doesn't make you feel desperation). "STILL KILLING" = 9 (present-tense dread, this thing won't stop).
+
+WINNERS from our pool (study these — they were approved by a human reviewer):
+  - "MISSILES STARVED" — SR-71 video. You instantly understand: the plane was so fast missiles couldn't catch it. The verb "starved" makes you FEEL the missiles' futility.
+  - "PUNCHED THROUGH" — Tonga eruption. The eruption was so violent it punched through the atmosphere. Two words, instant understanding, visceral power.
+  - "IT KEPT BUYING" — Knight Capital bug. The trading algorithm wouldn't stop buying. You feel the helplessness of watching a machine burn money.
+  - "STILL FULL" — Hilbert's Hotel paradox. Infinite rooms, all full. Two words that make an abstract math concept feel eerie and wrong.
+  - "FROZEN FOREVER" — Black hole video. Time dilation means you're frozen at the event horizon forever. Existential dread in two words.
+  - "YOUR LEGS LIE" — Blindfolded walking. Your own body betrays you. Personal, unsettling, makes you want to know why.
+  - "NEVER SEEN RAIN" — Atacama Desert. A desert town with cracked earth + these three words = you instantly understand this place has never experienced rain. Simple, curious, makes you want to know what happens when it finally rains.
+  - "OUTLASTS EARTH" — Voyager's Golden Record. This object will exist longer than our planet. Existential scale, instant understanding, makes you need to know what's on it.
+  - "STILL KILLING" — Chernobyl's Elephant's Foot. Present-tense dread — this thing from 1986 is STILL dangerous. You feel the ongoing threat.
+
+LOSERS from our pool (study these — they were rejected by the same human reviewer):
+  - "BOTH ENGINES DEAD" — Hudson River landing. STATEMENT about a mechanical failure. Doesn't make you feel the 155 human lives at stake.
+  - "IT STOPS" — Blue whale heart. Stops what? Could be medical, horror, anything. Doesn't tell you this is about a whale with a car-sized heart.
+  - "ELEVATORS FOR NO ONE" — Ghost city. Who cares about elevators? Misses the $500 billion absurdity.
+  - "19 HOURS AWAKE" — Typo that started a war. Has nothing to do with a typo or a war. Complete topic disconnect.
+  - "ORGANS GO DARK" — Blue whale heart bigger than a car. Sounds like death. The video is about SIZE, not death.
+  - "NO ONE ANSWERS" — Last speaker of a language. Could be about grief, missing persons, anything. No language signal.
+  - "$20B VANISHING" — Dubai sinking islands. Vague financial jargon. The hook should be about SINKING, not money vanishing.
+  - "NO OTHER DOCTOR" — Self-surgery in Antarctica. STATEMENT — tells you a staffing fact, doesn't make you feel desperation. "HAD TO BE HIS OWN" would have made you FEEL it.
+  - "ENCASED IN SYRUP" — Molasses flood. "Syrup" triggers breakfast association, not disaster. The word choice must evoke horror, not the pantry.
+
+The pattern: WINNERS make you FEEL something specific about THIS video. LOSERS are statements, facts, or clever phrases that describe what happened without putting you in the moment.
+
+Pick the SINGLE BEST hook. The best hook is the one where a viewer seeing it + the likely image thinks "I have to watch this" — not the cleverest one, not the most poetic one, the one that creates the strongest NEED TO KNOW.
 
 Return ONLY this JSON:
 {
+  "what_is_interesting": "one sentence: the single most interesting thing in this video",
+  "likely_image": "one sentence: what the thumbnail image will probably show",
   "candidates": [
-    { "hook": "TEXT", "reactive": N, "curiosity": N, "specific": N, "verb_strength": N, "total": N },
+    { "hook": "TEXT", "clarity": N, "promise": N, "emotion": N, "total": N },
     ...exactly 5
   ],
   "winner": "the chosen hook text",
-  "winner_reasoning": "one sentence explaining why this beats the others"
+  "winner_reasoning": "one sentence: why this hook + the likely image makes a viewer think 'I have to watch this'"
 }`;
 
   const response = await anthropic.messages.create({
@@ -511,6 +581,56 @@ Return ONLY this JSON:
   const result = JSON.parse(m[0]);
   if (!result.winner) throw new Error('Hook planner returned no winner');
   return result;
+}
+
+// ─── TOPIC CONCRETENESS CLASSIFIER ────────────────────────────────────────
+// Niels: "don't force the metaphor brainstorm on every topic. Concrete
+// topics (volcano, plane, animal) need the actual subject, not a metaphor.
+// Only use the metaphor brainstorm when the topic is abstract with no
+// obvious visual."
+//
+// This classifier runs after the hook is locked and before the metaphor
+// brainstorm. If the topic has an obvious physical subject — a volcano,
+// a plane, an animal, a building, a real person — we SKIP the metaphor
+// brainstorm and let the design pass freely use the literal subject.
+// The metaphor brainstorm is reserved for abstract topics (math, finance,
+// philosophy, neuroscience) where the literal image is boring.
+async function classifyTopicConcreteness({ title, scriptText, niche }) {
+  const prompt = `Classify this YouTube video topic as CONCRETE or ABSTRACT for thumbnail design purposes.
+
+TITLE: "${title}"
+NICHE: ${niche || 'unknown'}
+SCRIPT EXCERPT: "${(scriptText || '').substring(0, 1500)}"
+
+CONCRETE = the topic has an obvious physical subject that a thumbnail should literally show. Examples:
+  - "The Tonga Volcano" → CONCRETE (subject = the volcano)
+  - "How the SR-71 Outran Missiles" → CONCRETE (subject = the SR-71)
+  - "The Largest Animal Ever" → CONCRETE (subject = the animal)
+  - "Inside Chernobyl Today" → CONCRETE (subject = Chernobyl)
+  - "Why the Titanic Broke in Half" → CONCRETE (subject = the Titanic)
+
+ABSTRACT = the topic has no obvious physical subject and the literal image (chalkboard, spreadsheet, passport) would be boring. Needs a creative metaphor. Examples:
+  - "The Math Problem Nobody Can Solve" → ABSTRACT (no obvious visual)
+  - "Why Your Brain Blocks Colors You Can't See" → ABSTRACT (color/perception is abstract)
+  - "The Country That Doesn't Exist" → ABSTRACT (the absence is the point)
+  - "The $6 Billion Spreadsheet Error" → ABSTRACT (a spreadsheet is boring)
+
+Return ONLY this JSON:
+{ "is_abstract": true | false, "subject": "the literal subject if CONCRETE, or null if ABSTRACT", "reason": "one sentence why" }`;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-opus-4-5',
+      max_tokens: 300,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const text = response.content[0].text;
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) return { is_abstract: true, reason: 'classifier returned no JSON, defaulting to abstract' };
+    return JSON.parse(m[0]);
+  } catch (e) {
+    return { is_abstract: true, reason: 'classifier failed: ' + e.message };
+  }
 }
 
 // ─── VISUAL METAPHOR BRAINSTORM ────────────────────────────────────────────
@@ -949,6 +1069,33 @@ function checkHtmlLegibility(html) {
   if (/transform\s*:[^;]*rotate/i.test(html)) {
     violations.push(`text uses transform: rotate — rotated text vanishes at mobile scale`);
   }
+  // Detect negative letter-spacing — causes letters to touch and become unreadable
+  // (this is the bug that killed the Color "BLOCKS IT" thumbnail).
+  const letterSpacingMatches = [...html.matchAll(/letter-spacing\s*:\s*(-?\d+(?:\.\d+)?)\s*(px|em|rem)/gi)];
+  for (const m of letterSpacingMatches) {
+    const v = parseFloat(m[1]);
+    if (v < 0) {
+      violations.push(`negative letter-spacing (${m[0]}) — letters mush together at mobile scale`);
+    }
+  }
+  // Detect math-equation hooks. If a body text node contains math symbols
+  // like ∞, =, ∑, ∫, ℵ, π adjacent to operators, flag as a forbidden equation
+  // hook. We strip HTML tags first and look at visible text content only.
+  const textOnly = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+                        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+                        .replace(/<[^>]+>/g, ' ');
+  if (/[∞∑∫ℵπ∂∇√≠≤≥±]/.test(textOnly) && /[=+\-×÷]/.test(textOnly)) {
+    violations.push(`text contains a math equation/symbol notation — hooks must be plain English words, never equations or notation. Use the plain-language meaning instead.`);
+  }
+  // Detect any large hook-style text that's missing word-spacing entirely.
+  // We look for text elements with font-size >= 80px and check whether the
+  // surrounding style block declares word-spacing. If a giant hook has no
+  // word-spacing AND has multiple words, words can mush together.
+  const bigFontMatches = [...html.matchAll(/font-size\s*:\s*(\d+(?:\.\d+)?)\s*px/gi)];
+  const hasBigHookText = bigFontMatches.some(m => parseFloat(m[1]) >= 80);
+  if (hasBigHookText && !/word-spacing\s*:/i.test(html)) {
+    violations.push(`large hook text (>=80px) found but no word-spacing declared anywhere — set word-spacing >= 0.15em on hook text to prevent words mushing together`);
+  }
   // Spell check visible text — catches the most obvious failure mode
   // (no-vowel words like ALRTS, MNGRS) without flagging real but uncommon
   // words like STRENGTH or SCHWARTZ. The current heuristic is conservative
@@ -1023,13 +1170,30 @@ export async function generateThumbnailV3({ outputDir, title, scriptText = '', n
     }
   }
 
+  // Step 0.4: Topic concreteness classifier — decides whether to run the
+  // metaphor brainstorm at all. Concrete topics (volcano, plane, animal)
+  // skip the brainstorm and let the design pass use the literal subject.
+  // Only abstract topics need the metaphor brainstorm.
+  let topicClass = null;
+  if (lockedHook) {
+    console.log('\n--- Step 0.4: Topic concreteness classifier ---');
+    topicClass = await classifyTopicConcreteness({ title, scriptText, niche });
+    console.log('  is_abstract: ' + topicClass.is_abstract + ' (subject: ' + (topicClass.subject || 'none') + ')');
+    console.log('  reason: ' + topicClass.reason);
+    fs.writeFileSync(path.join(outputDir, 'thumbnail-v3-topicclass.json'), JSON.stringify(topicClass, null, 2));
+  }
+
   // Step 0.5: Visual metaphor brainstorm — happens once per topic, reused on retries.
   // After the hook is locked, brainstorm 5 candidate visual metaphors and pick the
   // strongest. Stops the design pass from defaulting to literal stock images
   // (chalkboard for math, passport for country, spreadsheet for finance) on
   // abstract topics. The metaphor must make the locked hook FEEL true.
   let lockedMetaphor = _lockedMetaphor;
-  if (!lockedMetaphor && lockedHook) {
+  const shouldBrainstormMetaphor = !lockedMetaphor && lockedHook && (topicClass?.is_abstract !== false);
+  if (!shouldBrainstormMetaphor && !lockedMetaphor) {
+    console.log('\n--- Step 0.5: Skipping metaphor brainstorm — topic is CONCRETE (subject: ' + (topicClass?.subject || 'unknown') + '). Design pass will use the literal subject. ---');
+  }
+  if (shouldBrainstormMetaphor) {
     console.log('\n--- Step 0.5: Visual metaphor brainstorm (5 candidates → pick strongest) ---');
     try {
       lockedMetaphor = await generateImageMetaphors({ title, scriptText, niche, tone, lockedHook });
@@ -1076,7 +1240,7 @@ export async function generateThumbnailV3({ outputDir, title, scriptText = '', n
   console.log('\n--- Step 3: Render via headless Chrome ---');
   const rewritten = rewriteHtmlImages(plan.html, imagePaths);
   const htmlPath = path.join(outputDir, 'thumbnail-v3.html');
-  const pngPath = path.join(outputDir, 'thumbnail-v3.png');
+  const pngPath = path.join(outputDir, 'thumbnail.png');
 
   // HARD legibility check — Niels rule: no text under 36px, no grey text,
   // no rotated text. Catches the "small grey text vanishes at 168x94" failure
@@ -1126,9 +1290,9 @@ export async function generateThumbnailV3({ outputDir, title, scriptText = '', n
   // Previously a single rotation violation was capping 8/10 designs to 4/10.
   if (!legibility.ok) {
     const hasHardViolation = legibility.violations.some(v =>
-      /font-size .* below 36px/.test(v) || /typo/i.test(v));
+      /font-size .* below 36px/.test(v) || /typo/i.test(v) || /negative letter-spacing/.test(v) || /math equation/.test(v));
     const hasSoftViolation = legibility.violations.some(v =>
-      /transform: rotate/.test(v) || /grey/i.test(v));
+      /transform: rotate/.test(v) || /grey/i.test(v) || /no word-spacing declared/.test(v));
     if (hasHardViolation) {
       review.rating = Math.min(review.rating, 4);
     } else if (hasSoftViolation) {

@@ -1,0 +1,41 @@
+/**
+ * Mockups registry — single import point for all v2 branded UI components.
+ */
+export { YoutubeDashboard } from './YoutubeDashboard.jsx';
+export { YoutubeChannelPage } from './YoutubeChannelPage.jsx';
+export { YoutubeVideoPage } from './YoutubeVideoPage.jsx';
+export { YoutubeComments } from './YoutubeComments.jsx';
+export { ElevenlabsVoices } from './ElevenlabsVoices.jsx';
+export { ChatgptChat } from './ChatgptChat.jsx';
+export { FiverrGig } from './FiverrGig.jsx';
+export { NotionPage } from './NotionPage.jsx';
+export { CanvaEditor } from './CanvaEditor.jsx';
+export { GoogleDocs } from './GoogleDocs.jsx';
+export { GmailInbox } from './GmailInbox.jsx';
+export { SlackChannel } from './SlackChannel.jsx';
+export { ScriptTyping } from './ScriptTyping.jsx';
+export { ForexPair } from './ForexPair.jsx';
+export { TradingViewChart } from './TradingViewChart.jsx';
+export { PnLLedger } from './PnLLedger.jsx';
+export { HandwrittenNote } from './HandwrittenNote.jsx';
+export { SpotlightStatement } from './SpotlightStatement.jsx';
+export { StackedQuote } from './StackedQuote.jsx';
+export { MinimalCentered } from './MinimalCentered.jsx';
+export { CinematicText } from './CinematicText.jsx';
+export { ElegantAccent } from './ElegantAccent.jsx';
+export { GaugeMeter } from './GaugeMeter.jsx';
+export { RankingList } from './RankingList.jsx';
+export { ComparisonTable } from './ComparisonTable.jsx';
+export { DefinitionCard } from './DefinitionCard.jsx';
+export { PriceTag } from './PriceTag.jsx';
+export { FunnelChart } from './FunnelChart.jsx';
+export { PyramidStack } from './PyramidStack.jsx';
+export { CalendarDate } from './CalendarDate.jsx';
+export { WarningAlert } from './WarningAlert.jsx';
+export { ScaleBalance } from './ScaleBalance.jsx';
+export { CountdownTimer } from './CountdownTimer.jsx';
+export { RoadmapJourney } from './RoadmapJourney.jsx';
+export { ReviewStars } from './ReviewStars.jsx';
+export { NotificationStack } from './NotificationStack.jsx';
+export { BoardingPass } from './BoardingPass.jsx';
+export { PassportStamp } from './PassportStamp.jsx';

@@ -14,3 +14,15 @@ fix-*.js
 src/**/_chunk_*.mp3
 src/**/_concat_list*.txt
 asset-cache/
+
+# BEGIN-FINAL-BACKUP-IGNORES (added 2026-05-05 before takedown)
+# Large reference data + test/run outputs — kept out of git, archived
+# separately as videoforge-data.tar.gz
+runs/
+thumbnail-references/
+video-library/
+test-thumbnails-round6/
+reference-scripts/
+reference-scripts-clean/
+reference-scripts-fingerprints/
+# END-FINAL-BACKUP-IGNORES

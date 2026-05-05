@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 import Anthropic from '@anthropic-ai/sdk';
+import { generateThumbnailV3 } from './thumbnail-v3.js';
 dotenv.config();
 
 const anthropic = new Anthropic();
@@ -14,6 +15,7 @@ const POLL_INTERVAL = 30000;
 const MAX_CONCURRENT_JOBS = 2; // max simultaneous video renders to protect VPS memory
 let activeJobs = 0;
 const STUCK_INTERVAL = 30 * 60 * 1000;
+const MAX_STUCK_RETRIES = 3; // max times stuck recovery will requeue before giving up
 const VIDEOFORGE_DIR = '/opt/videoforge';
 const OUTPUT_DIR = path.join(VIDEOFORGE_DIR, 'output');
 const OUTPUT_BASE = path.join(VIDEOFORGE_DIR, 'output');
@@ -165,8 +167,8 @@ async function generateUploadGuide(topic, outputDir) {
 }
 
 async function regenerateThumbnail(order) {
-  const { id: orderId, topic } = order;
-  log(`Regenerating thumbnail for order ${orderId}: "${topic}"`);
+  const { id: orderId, topic, channel_niche, niche, tone } = order;
+  log(`Regenerating thumbnail (v3) for order ${orderId}: "${topic}"`);
   await supabase.from('orders').update({ status: 'processing' }).eq('id', orderId);
 
   try {
@@ -178,16 +180,25 @@ async function regenerateThumbnail(order) {
     }
 
     const thumbFile = path.join(outputPath, 'thumbnail.png');
-    if (fs.existsSync(thumbFile)) fs.unlinkSync(thumbFile);
+    // Back up old thumbnail — only delete after new one succeeds
+    const thumbBackup = path.join(outputPath, 'thumbnail-old.png');
+    if (fs.existsSync(thumbFile)) fs.renameSync(thumbFile, thumbBackup);
 
+    // Read script if available for better hook generation
     const scriptFile = path.join(VIDEOFORGE_DIR, 'scripts', `order-${orderId}.txt`);
-    const scriptArg = fs.existsSync(scriptFile) ? `"${scriptFile}"` : `"${topic}"`;
-    const topicEscaped = topic.replace(/"/g, '\\"');
+    const scriptText = fs.existsSync(scriptFile) ? fs.readFileSync(scriptFile, 'utf-8') : '';
 
-    execSync(
-      `node src/cli.js generate ${scriptArg} --order-id ${orderId} --topic "${topicEscaped}" --skip-voice --no-render`,
-      { cwd: VIDEOFORGE_DIR, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024, timeout: 600000 }
-    );
+    // Call v3 directly — no CLI roundtrip needed
+    await generateThumbnailV3({
+      outputDir: outputPath,
+      title: topic,
+      scriptText,
+      niche: channel_niche || niche || '',
+      tone: tone || ''
+    });
+
+    // New thumbnail succeeded — remove backup
+    if (fs.existsSync(thumbBackup)) fs.unlinkSync(thumbBackup);
 
     const baseUrl = `https://files.tubeautomate.com/output/${outputDirName}`;
     const thumbUrl = fs.existsSync(thumbFile) ? `${baseUrl}/thumbnail.png?t=${Date.now()}` : null;
@@ -202,6 +213,12 @@ async function regenerateThumbnail(order) {
     log(`  Thumbnail regenerated for order ${orderId}`);
   } catch (err) {
     log(`  Thumbnail regen FAILED for ${orderId}: ${err.message}`);
+    // Restore old thumbnail if new one failed
+    const thumbBackup = path.join(outputPath, 'thumbnail-old.png');
+    if (!fs.existsSync(thumbFile) && fs.existsSync(thumbBackup)) {
+      fs.renameSync(thumbBackup, thumbFile);
+      log(`  Restored previous thumbnail for ${orderId}`);
+    }
     await supabase.from('orders').update({
       status: 'review',
       thumbnail_action: null,
@@ -213,7 +230,7 @@ async function regenerateThumbnail(order) {
 async function processOrder(order) {
   const {
     id: orderId, topic, script_upload, tone, voice_id, admin_notes, video_length,
-    key_points, cta_text, background_theme, channel_niche, niche  // order form fields
+    key_points, cta_text, background_theme, channel_niche, niche, skip_review  // order form fields
   } = order;
 
   log(`Processing order ${orderId}: "${topic}"`);
@@ -224,7 +241,7 @@ async function processOrder(order) {
   const keepVoice = !!(admin_notes && /keep voice|same voice|reuse voice|don.t redo voice|voice is fine|voice is good/i.test(admin_notes));
   deleteOutputFolder(orderId, keepVoice);
 
-  await supabase.from('orders').update({ status: 'processing' }).eq('id', orderId);
+  // Status already set to 'processing' by atomic claim in pollForOrders
 
   try {
     let scriptPath;
@@ -353,8 +370,9 @@ async function processOrder(order) {
     const thumbUrl = fs.existsSync(thumbFile) ? `${baseUrl}/thumbnail.png` : null;
 
     const expiresAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
+    const finalStatus = skip_review ? 'delivered' : 'review';
     await supabase.from('orders').update({
-      status: 'review',
+      status: finalStatus,
       video_url: `${baseUrl}/final.mp4`,
       thumbnail_url: thumbUrl,
       output_dir: outputDirName,
@@ -362,13 +380,39 @@ async function processOrder(order) {
       admin_notes: null,
     }).eq('id', orderId);
 
-    log(`  Order ${orderId} complete — ready for admin review.`);
+    log(`  Order ${orderId} complete — ${skip_review ? 'skip_review enabled, auto-delivered.' : 'ready for admin review.'}`);
   } catch (err) {
-    log(`  Order ${orderId} FAILED: ${err.message}`);
-    await supabase.from('orders').update({
-      status: 'failed',
-      admin_notes: `Generation failed: ${err.message}`
-    }).eq('id', orderId);
+    // Safety net: if the video is fully rendered, don't mark as failed
+    const outputDirName = `order-${orderId}`;
+    const finalMp4 = path.join(OUTPUT_BASE, outputDirName, 'final.mp4');
+    if (fs.existsSync(finalMp4)) {
+      log(`  Order ${orderId} hit error but final.mp4 exists — marking as review (error was: ${err.message})`);
+      const baseUrl = `https://files.tubeautomate.com/output/${outputDirName}`;
+      const thumbFile = path.join(OUTPUT_BASE, outputDirName, 'thumbnail.png');
+      const thumbUrl = fs.existsSync(thumbFile) ? `${baseUrl}/thumbnail.png` : null;
+      const expiresAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
+      const finalStatus = skip_review ? 'delivered' : 'review';
+      await supabase.from('orders').update({
+        status: finalStatus,
+        video_url: `${baseUrl}/final.mp4`,
+        thumbnail_url: thumbUrl,
+        output_dir: outputDirName,
+        expires_at: expiresAt,
+        admin_notes: `Completed with warning: ${err.message}`,
+      }).eq('id', orderId);
+
+      // Still try to generate upload guide if it wasn't created
+      const guidePath = path.join(OUTPUT_BASE, outputDirName, 'upload-guide.html');
+      if (!fs.existsSync(guidePath)) {
+        try { await generateUploadGuide(topic, path.join(OUTPUT_BASE, outputDirName)); } catch (_) {}
+      }
+    } else {
+      log(`  Order ${orderId} FAILED: ${err.message}`);
+      await supabase.from('orders').update({
+        status: 'failed',
+        admin_notes: `Generation failed: ${err.message}`
+      }).eq('id', orderId);
+    }
   }
 }
 
@@ -403,7 +447,7 @@ async function pollForOrders() {
       .select('*')
       .eq('thumbnail_action', 'regenerate')
       .neq('status', 'processing')
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: true })
       .limit(1);
 
     if (thumbJobs?.length > 0) {
@@ -415,12 +459,23 @@ async function pollForOrders() {
       .from('orders')
       .select('*')
       .eq('status', 'queued')
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: true })
       .limit(1);
 
     if (queued?.length > 0) {
       if (activeJobs >= MAX_CONCURRENT_JOBS) {
         log(`  Concurrency limit reached (${activeJobs}/${MAX_CONCURRENT_JOBS}) — waiting for slot`);
+        return;
+      }
+      // Atomic claim: only proceed if we actually set it to processing (prevents double-pickup)
+      const { data: claimed, error: claimErr } = await supabase
+        .from('orders')
+        .update({ status: 'processing', updated_at: new Date().toISOString() })
+        .eq('id', queued[0].id)
+        .eq('status', 'queued')
+        .select('id');
+      if (claimErr || !claimed?.length) {
+        log(`  Order ${queued[0].id} already claimed by another cycle — skipping`);
         return;
       }
       activeJobs++;
@@ -439,7 +494,7 @@ async function recoverStuckOrders() {
   try {
     const { data, error } = await supabase
       .from('orders')
-      .select('id, topic, updated_at')
+      .select('id, topic, updated_at, retry_count, skip_review')
       .eq('status', 'processing');
 
     if (error) { log(`Recovery check failed: ${error.message}`); return; }
@@ -447,12 +502,46 @@ async function recoverStuckOrders() {
     if (data && data.length > 0) {
       for (const o of data) {
         const stuckMs = Date.now() - new Date(o.updated_at).getTime();
-        if (stuckMs < 3 * 60 * 60 * 1000) { log(`  Order still active (${Math.round(stuckMs/60000)} min) — skipping`); continue; }
+        if (stuckMs < 2.5 * 60 * 60 * 1000) { log(`  Order still active (${Math.round(stuckMs/60000)} min) — skipping`); continue; }
+
+        // If final.mp4 exists, the video is done — rescue it instead of wiping
+        const outputDir = path.join(OUTPUT_BASE, `order-${o.id}`);
+        const finalMp4 = path.join(outputDir, 'final.mp4');
+        if (fs.existsSync(finalMp4)) {
+          log(`  Stuck order "${o.topic}" has final.mp4 — rescuing to review`);
+          const baseUrl = `https://files.tubeautomate.com/output/order-${o.id}`;
+          const thumbFile = path.join(outputDir, 'thumbnail.png');
+          const thumbUrl = fs.existsSync(thumbFile) ? `${baseUrl}/thumbnail.png` : null;
+          const expiresAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
+          const finalStatus = o.skip_review ? 'delivered' : 'review';
+          await supabase.from('orders').update({
+            status: finalStatus,
+            video_url: `${baseUrl}/final.mp4`,
+            thumbnail_url: thumbUrl,
+            output_dir: `order-${o.id}`,
+            expires_at: expiresAt,
+            admin_notes: 'Rescued by stuck recovery — video was complete',
+          }).eq('id', o.id);
+          continue;
+        }
+
+        // Check retry limit
+        const retries = (o.retry_count || 0) + 1;
+        if (retries > MAX_STUCK_RETRIES) {
+          log(`  Stuck order "${o.topic}" exceeded ${MAX_STUCK_RETRIES} retries — marking as failed`);
+          await supabase.from('orders').update({
+            status: 'failed',
+            admin_notes: `Failed after ${MAX_STUCK_RETRIES} stuck recoveries`,
+            retry_count: retries,
+          }).eq('id', o.id);
+          continue;
+        }
+
         deleteOutputFolder(o.id);
         await supabase.from('orders')
-          .update({ status: 'queued', video_url: null, thumbnail_url: null, output_dir: null })
+          .update({ status: 'queued', video_url: null, thumbnail_url: null, output_dir: null, retry_count: retries })
           .eq('id', o.id);
-        log(`  Recovered stuck order: "${o.topic}" → re-queued`);
+        log(`  Recovered stuck order: "${o.topic}" → re-queued (retry ${retries}/${MAX_STUCK_RETRIES})`);
       }
     } else {
       log('  No stuck orders found.');
@@ -465,7 +554,7 @@ async function recoverStuckOrders() {
   }
 }
 
-log('VideoForge Worker v6 started');
+log('VideoForge Worker v7 started');
 log(`Polling every ${POLL_INTERVAL / 1000}s | Stuck check every 30 min`);
 log('Checking for stuck orders on startup...');
 

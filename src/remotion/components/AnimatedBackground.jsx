@@ -64,12 +64,18 @@ export const AnimatedBackground = ({ theme = "blue_grid", bgStyle }) => {
 
   const isAurora = resolvedTheme === "aurora";
   const auroraHue = (t * 15) % 360;
-  const glowPulse = 0.35 + Math.sin(t * 0.35) * 0.15;
+  const glowPulse = 0.45 + Math.sin(t * 0.35) * 0.2;
 
   return (
     <AbsoluteFill>
-      {/* Deep background gradient */}
-      <div style={{ position: "absolute", inset: 0, background: `radial-gradient(ellipse at 35% 40%, ${c.bg2} 0%, ${c.bg} 70%)` }} />
+      {/* Deep background gradient — richer, more colorful */}
+      <div style={{ position: "absolute", inset: 0, background: `radial-gradient(ellipse at 30% 35%, ${c.bg2} 0%, ${c.bg} 65%)` }} />
+
+      {/* Second gradient layer for depth */}
+      <div style={{
+        position: "absolute", inset: 0,
+        background: `radial-gradient(ellipse at 70% 70%, ${c.glow2}18 0%, transparent 50%)`,
+      }} />
 
       {/* Render chosen style */}
       {style === "grid" && <WavyGrid c={c} t={t} resolvedTheme={resolvedTheme} isAurora={isAurora} auroraHue={auroraHue} />}
@@ -77,33 +83,60 @@ export const AnimatedBackground = ({ theme = "blue_grid", bgStyle }) => {
       {style === "circuit" && <CircuitBoard c={c} t={t} isAurora={isAurora} auroraHue={auroraHue} />}
       {style === "orbs" && <FloatingOrbs c={c} t={t} isAurora={isAurora} auroraHue={auroraHue} />}
 
-      {/* Corner glow accents */}
+      {/* Vibrant corner glow accents */}
       <div style={{
-        position: "absolute", top: -180, right: -100,
-        width: 550, height: 550, borderRadius: "50%",
-        background: `radial-gradient(circle, ${c.glow1}55 0%, transparent 65%)`,
+        position: "absolute", top: -200, right: -120,
+        width: 650, height: 650, borderRadius: "50%",
+        background: `radial-gradient(circle, ${c.glow1}66 0%, transparent 60%)`,
         opacity: glowPulse,
+        filter: "blur(20px)",
       }} />
       <div style={{
-        position: "absolute", bottom: -180, left: -100,
-        width: 500, height: 500, borderRadius: "50%",
-        background: `radial-gradient(circle, ${c.glow2}44 0%, transparent 65%)`,
-        opacity: glowPulse * 0.85,
-      }} />
-      <div style={{
-        position: "absolute", top: "30%", left: "50%",
-        transform: "translate(-50%, -50%)",
-        width: 700, height: 700, borderRadius: "50%",
-        background: `radial-gradient(circle, ${c.glow1}15 0%, transparent 60%)`,
-        opacity: glowPulse * 0.5,
+        position: "absolute", bottom: -200, left: -120,
+        width: 600, height: 600, borderRadius: "50%",
+        background: `radial-gradient(circle, ${c.glow2}55 0%, transparent 60%)`,
+        opacity: glowPulse * 0.9,
+        filter: "blur(20px)",
       }} />
 
-      {/* Soft vignette */}
+      {/* Floating top-layer particles — subtle streaks across the screen */}
+      <TopParticles c={c} t={t} isAurora={isAurora} auroraHue={auroraHue} />
+
+      {/* Light vignette — not too heavy */}
       <div style={{
         position: "absolute", inset: 0,
-        background: "radial-gradient(ellipse at center, transparent 50%, rgba(3,5,15,0.55) 100%)",
+        background: "radial-gradient(ellipse at center, transparent 55%, rgba(3,5,15,0.4) 100%)",
       }} />
     </AbsoluteFill>
+  );
+};
+
+// ═══════════════════════════════════════════
+// TOP PARTICLES — subtle floating dots/streaks on the top layer
+// ═══════════════════════════════════════════
+const TopParticles = ({ c, t, isAurora, auroraHue }) => {
+  const particles = [];
+  for (let i = 0; i < 30; i++) {
+    const seed = i * 193.71;
+    const bx = (seed * 4.7) % 1920;
+    const by = (seed * 8.3) % 1080;
+    const speed = 0.3 + (i % 5) * 0.15;
+    const size = 1.5 + (i % 4) * 0.8;
+    // Drift diagonally across the screen
+    const px = (bx + t * speed * 25) % 2100 - 90;
+    const py = (by + t * speed * 8 + Math.sin(t * 0.3 + i * 0.9) * 20) % 1200 - 60;
+    const op = 0.15 + Math.sin(t * 0.8 + i * 2.1) * 0.12;
+    particles.push({ x: px, y: py, r: size, opacity: Math.max(0.06, op) });
+  }
+
+  return (
+    <svg width="1920" height="1080" viewBox="0 0 1920 1080" style={{ position: "absolute", inset: 0, zIndex: 10, pointerEvents: "none" }}>
+      {particles.map((pt, i) => (
+        <circle key={`tp${i}`} cx={pt.x} cy={pt.y} r={pt.r}
+          fill={isAurora ? `hsl(${(auroraHue + i * 12) % 360}, 80%, 80%)` : c.particle}
+          opacity={pt.opacity} />
+      ))}
+    </svg>
   );
 };
 
@@ -117,28 +150,30 @@ function hashStr(s) {
 // ═══════════════════════════════════════════
 // STYLE 1: WAVY GRID (original v26 style)
 // ═══════════════════════════════════════════
+// Grid cells are deliberately small (50-80px) so the grid feels expansive, not chunky.
+// Wave amplitude is gentle. Particles are plentiful. Lines are thin but visible.
 const gridStyles = {
-  blue_grid: { spacing: 105, waveAmp: 12, waveSpeed: 0.6, particles: 50, majorW: 1.8, minorW: 0.8 },
-  green_matrix: { spacing: 70, waveAmp: 8, waveSpeed: 1.2, particles: 70, majorW: 1.2, minorW: 0.5 },
-  gold_luxury: { spacing: 140, waveAmp: 15, waveSpeed: 0.3, particles: 30, majorW: 2.2, minorW: 1.0 },
-  red_energy: { spacing: 90, waveAmp: 18, waveSpeed: 0.9, particles: 60, majorW: 1.6, minorW: 0.7 },
-  purple_cosmic: { spacing: 120, waveAmp: 14, waveSpeed: 0.45, particles: 55, majorW: 1.5, minorW: 0.6 },
-  teal_ocean: { spacing: 110, waveAmp: 20, waveSpeed: 0.35, particles: 45, majorW: 1.8, minorW: 0.8 },
-  orange_fire: { spacing: 85, waveAmp: 16, waveSpeed: 1.0, particles: 65, majorW: 1.4, minorW: 0.6 },
-  pink_neon: { spacing: 80, waveAmp: 10, waveSpeed: 0.8, particles: 60, majorW: 1.3, minorW: 0.5 },
-  ice_blue: { spacing: 60, waveAmp: 6, waveSpeed: 0.5, particles: 80, majorW: 1.0, minorW: 0.4 },
-  forest_green: { spacing: 130, waveAmp: 18, waveSpeed: 0.4, particles: 40, majorW: 2.0, minorW: 0.9 },
-  sunset_warm: { spacing: 95, waveAmp: 14, waveSpeed: 0.7, particles: 50, majorW: 1.6, minorW: 0.7 },
-  midnight_blue: { spacing: 120, waveAmp: 10, waveSpeed: 0.3, particles: 35, majorW: 1.4, minorW: 0.6 },
-  electric_cyan: { spacing: 55, waveAmp: 5, waveSpeed: 0.9, particles: 90, majorW: 0.8, minorW: 0.3 },
-  earth_brown: { spacing: 115, waveAmp: 12, waveSpeed: 0.35, particles: 35, majorW: 2.0, minorW: 0.9 },
-  blood_red: { spacing: 100, waveAmp: 22, waveSpeed: 1.1, particles: 55, majorW: 1.5, minorW: 0.6 },
-  royal_purple: { spacing: 125, waveAmp: 10, waveSpeed: 0.3, particles: 40, majorW: 1.8, minorW: 0.8 },
-  neon_green: { spacing: 65, waveAmp: 7, waveSpeed: 1.3, particles: 75, majorW: 1.0, minorW: 0.4 },
-  rose_gold: { spacing: 135, waveAmp: 12, waveSpeed: 0.3, particles: 30, majorW: 2.0, minorW: 0.9 },
-  steel_grey: { spacing: 100, waveAmp: 8, waveSpeed: 0.4, particles: 40, majorW: 1.6, minorW: 0.7 },
-  dark_horror: { spacing: 100, waveAmp: 22, waveSpeed: 0.8, particles: 40, majorW: 1.5, minorW: 0.6 },
-  aurora: { spacing: 110, waveAmp: 16, waveSpeed: 0.5, particles: 55, majorW: 1.6, minorW: 0.7 },
+  blue_grid: { spacing: 65, waveAmp: 8, waveSpeed: 0.5, particles: 60, majorW: 1.4, minorW: 0.6 },
+  green_matrix: { spacing: 50, waveAmp: 6, waveSpeed: 0.9, particles: 75, majorW: 1.0, minorW: 0.4 },
+  gold_luxury: { spacing: 80, waveAmp: 10, waveSpeed: 0.3, particles: 45, majorW: 1.6, minorW: 0.7 },
+  red_energy: { spacing: 60, waveAmp: 12, waveSpeed: 0.7, particles: 65, majorW: 1.2, minorW: 0.5 },
+  purple_cosmic: { spacing: 70, waveAmp: 9, waveSpeed: 0.4, particles: 60, majorW: 1.2, minorW: 0.5 },
+  teal_ocean: { spacing: 65, waveAmp: 14, waveSpeed: 0.3, particles: 55, majorW: 1.4, minorW: 0.6 },
+  orange_fire: { spacing: 55, waveAmp: 10, waveSpeed: 0.8, particles: 70, majorW: 1.1, minorW: 0.5 },
+  pink_neon: { spacing: 55, waveAmp: 7, waveSpeed: 0.7, particles: 65, majorW: 1.0, minorW: 0.4 },
+  ice_blue: { spacing: 45, waveAmp: 5, waveSpeed: 0.4, particles: 85, majorW: 0.8, minorW: 0.3 },
+  forest_green: { spacing: 75, waveAmp: 12, waveSpeed: 0.35, particles: 50, majorW: 1.5, minorW: 0.7 },
+  sunset_warm: { spacing: 60, waveAmp: 9, waveSpeed: 0.6, particles: 55, majorW: 1.2, minorW: 0.5 },
+  midnight_blue: { spacing: 70, waveAmp: 7, waveSpeed: 0.25, particles: 45, majorW: 1.1, minorW: 0.5 },
+  electric_cyan: { spacing: 40, waveAmp: 4, waveSpeed: 0.7, particles: 90, majorW: 0.7, minorW: 0.3 },
+  earth_brown: { spacing: 70, waveAmp: 8, waveSpeed: 0.3, particles: 45, majorW: 1.5, minorW: 0.7 },
+  blood_red: { spacing: 60, waveAmp: 14, waveSpeed: 0.9, particles: 60, majorW: 1.2, minorW: 0.5 },
+  royal_purple: { spacing: 75, waveAmp: 7, waveSpeed: 0.25, particles: 50, majorW: 1.4, minorW: 0.6 },
+  neon_green: { spacing: 45, waveAmp: 5, waveSpeed: 1.0, particles: 80, majorW: 0.8, minorW: 0.3 },
+  rose_gold: { spacing: 80, waveAmp: 8, waveSpeed: 0.25, particles: 40, majorW: 1.5, minorW: 0.7 },
+  steel_grey: { spacing: 65, waveAmp: 6, waveSpeed: 0.35, particles: 50, majorW: 1.2, minorW: 0.5 },
+  dark_horror: { spacing: 65, waveAmp: 14, waveSpeed: 0.6, particles: 50, majorW: 1.2, minorW: 0.5 },
+  aurora: { spacing: 65, waveAmp: 10, waveSpeed: 0.4, particles: 60, majorW: 1.2, minorW: 0.5 },
 };
 
 const WavyGrid = ({ c, t, resolvedTheme, isAurora, auroraHue }) => {
@@ -189,11 +224,11 @@ const WavyGrid = ({ c, t, resolvedTheme, isAurora, auroraHue }) => {
     <svg width="1920" height="1080" viewBox="0 0 1920 1080" style={{ position: "absolute", inset: 0 }}>
       {vPaths.map((d, i) => {
         const isMajor = i % 3 === 0;
-        return <path key={`v${i}`} d={d} fill="none" stroke={isMajor ? auroraStrokeB : auroraStroke} strokeWidth={isMajor ? majorW : minorW} opacity={isMajor ? 0.55 : 0.28} />;
+        return <path key={`v${i}`} d={d} fill="none" stroke={isMajor ? auroraStrokeB : auroraStroke} strokeWidth={isMajor ? majorW : minorW} opacity={isMajor ? 0.7 : 0.35} />;
       })}
       {hPaths.map((d, i) => {
         const isMajor = i % 3 === 0;
-        return <path key={`h${i}`} d={d} fill="none" stroke={isMajor ? auroraStrokeB : auroraStroke} strokeWidth={isMajor ? majorW : minorW} opacity={isMajor ? 0.55 : 0.28} />;
+        return <path key={`h${i}`} d={d} fill="none" stroke={isMajor ? auroraStrokeB : auroraStroke} strokeWidth={isMajor ? majorW : minorW} opacity={isMajor ? 0.7 : 0.35} />;
       })}
       {Array.from({ length: (cols + 1) * (rows + 1) }, (_, idx) => {
         const col2 = idx % (cols + 1);
